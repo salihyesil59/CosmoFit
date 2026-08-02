@@ -1,0 +1,88 @@
+[build-system]
+requires = [
+    "setuptools>=68",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+# ==========================================================
+# Project metadata
+# ==========================================================
+
+[project]
+name = "cosmofit"
+version = "0.2.0"
+
+description = "A modular Python library for cosmological parameter estimation."
+
+readme = "README.md"
+
+requires-python = ">=3.11"
+
+license = { text = "MIT" }
+
+authors = [
+    { name = "Salih Yeşil" }
+]
+
+keywords = [
+    "cosmology",
+    "astronomy",
+    "dark-energy",
+    "bao",
+    "supernova",
+    "cc",
+    "wcdm",
+    "cpl",
+    "lcdm",
+    "likelihood",
+    "mcmc",
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.14",
+    "pandas>=2.2",
+    "matplotlib>=3.9",
+    "emcee>=3.1",
+    "corner>=2.2",
+    "tqdm>=4.66",
+]
+
+# ==========================================================
+# Optional dependencies
+# ==========================================================
+
+[project.optional-dependencies]
+
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+    "ipykernel",
+    "jupyterlab",
+]
+
+speed = [
+    "numba>=0.60",
+]
+
+docs = [
+    "sphinx",
+    "furo",
+]
+
+# ==========================================================
+# Package discovery
+# ==========================================================
+
+[tool.setuptools.packages.find]
+
+include = ["*"]
