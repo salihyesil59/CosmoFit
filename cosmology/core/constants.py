@@ -41,6 +41,15 @@ km = 1000.0
 #: Present CMB temperature [K]
 Tcmb = 2.7255
 
+#: Present-day photon density parameter times h^2, Omega_gamma * h^2,
+#: for Tcmb = 2.7255 K (Fixsen 2009 / standard value used
+#: throughout the CMB literature, e.g. Eisenstein & Hu 1998).
+Omega_gamma_h2 = 2.469e-5
+
+#: Effective number of relativistic neutrino species (Standard
+#: Model prediction, Planck 2018 fiducial value).
+N_eff = 3.046
+
 
 # ============================================================
 # Solar quantities
@@ -71,6 +80,8 @@ constants = _SimpleNamespace(
     km=km,
     year=year,
     Tcmb=Tcmb,
+    Omega_gamma_h2=Omega_gamma_h2,
+    N_eff=N_eff,
     M_sun=M_sun,
 )
 
@@ -86,6 +97,8 @@ __all__ = [
     "km",
     "year",
     "Tcmb",
+    "Omega_gamma_h2",
+    "N_eff",
     "M_sun",
     "constants",
 ]

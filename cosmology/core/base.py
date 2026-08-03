@@ -12,6 +12,7 @@ from cosmology.calculators import (
     BackgroundCalculator,
     DistanceCalculator,
     SoundHorizon,
+    RecombinationCalculator,
 )
 
 
@@ -34,6 +35,7 @@ class Cosmology:
         self.background = BackgroundCalculator(self)
         self.distance = DistanceCalculator(self)
         self.sound_horizon = SoundHorizon(self)
+        self.recombination = RecombinationCalculator(self)
 
     # ---------------------------------------------------------
 
@@ -64,6 +66,10 @@ class Cosmology:
     @property
     def MB(self):
         return self.params.MB
+
+    @property
+    def Omega_b(self):
+        return self.params.Omega_b
 
     # ---------------------------------------------------------
 
