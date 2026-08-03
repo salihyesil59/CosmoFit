@@ -136,6 +136,23 @@ class DenseCovariance(CovarianceBase):
     # ---------------------------------------------------------
 
     @property
+    def sigma(self):
+        """
+        Per-point uncertainty, i.e. sqrt of the diagonal.
+
+        Off-diagonal (correlation) information is of course lost,
+        so this is only a marginal 1D uncertainty -- but it is
+        the standard error-bar convention for plotting individual
+        data points from a dataset whose likelihood otherwise
+        uses the full covariance matrix (e.g. Hubble-diagram or
+        H(z) figures for a dataset with correlated systematics).
+        """
+
+        return np.sqrt(np.diag(self.matrix))
+
+    # ---------------------------------------------------------
+
+    @property
     def condition_number(
         self,
     ) -> float:
