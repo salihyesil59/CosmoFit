@@ -43,6 +43,18 @@ pip install -e .
 
 ---
 
+## Example Notebook
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb)
+
+[`examples/cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) is a full walkthrough: fitting the CPL
+dark-energy model to Cosmic Chronometers + DESI BAO + Pantheon+ with MCMC, convergence diagnostics, the standard
+cosmology figures (Hubble diagram, H(z), BAO distances, w(z) evolution, deceleration parameter), a model
+comparison against flat ΛCDM, and an independent Planck CMB consistency check. Click the badge above to open
+it directly in Google Colab and *Runtime → Run all* — no local setup needed.
+
+---
+
 ## Quick Example
 
 ```python
