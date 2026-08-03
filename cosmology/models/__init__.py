@@ -6,9 +6,11 @@ This subpackage contains concrete implementations of the
 """
 
 from .lcdm import LCDM
+from .wcdm import WCDM
 from .cpl import CPL
 
 __all__ = [
     "LCDM",
+    "WCDM",
     "CPL",
 ]

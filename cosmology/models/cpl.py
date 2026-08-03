@@ -102,6 +102,9 @@ class CPL(Cosmology):
             self.Omega_m
             * (1.0 + z) ** 3
             +
+            self.Omega_k
+            * (1.0 + z) ** 2
+            +
             self.Omega_de0
             * self.fde(z)
         )
@@ -141,6 +144,10 @@ class CPL(Cosmology):
             3.0
             * self.Omega_m
             * (1.0 + z) ** 2
+            +
+            2.0
+            * self.Omega_k
+            * (1.0 + z)
             +
             self.Omega_de0
             * fde
