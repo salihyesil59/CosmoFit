@@ -10,6 +10,7 @@ from .covariance import (
 from .cc import CCLikelihood
 from .desi import DESILikelihood
 from .pantheon import PantheonLikelihood
+from .planck import PlanckLikelihood
 from .joint import JointLikelihood
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "CCLikelihood",
     "DESILikelihood",
     "PantheonLikelihood",
+    "PlanckLikelihood",
     "JointLikelihood",
 ]

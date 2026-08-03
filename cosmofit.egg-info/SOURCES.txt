@@ -10,6 +10,7 @@ cosmology/__init__.py
 cosmology/calculators/__init__.py
 cosmology/calculators/background.py
 cosmology/calculators/distances.py
+cosmology/calculators/recombination.py
 cosmology/calculators/sound_horizon.py
 cosmology/core/__init__.py
 cosmology/core/base.py
@@ -31,6 +32,7 @@ likelihoods/covariance.py
 likelihoods/desi.py
 likelihoods/joint.py
 likelihoods/pantheon.py
+likelihoods/planck.py
 stats/__init__.py
 stats/cpl_diagnostics.py
 stats/fitter.py

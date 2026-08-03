@@ -2,4 +2,5 @@ cosmology
 data
 examples
 likelihoods
+plots
 stats

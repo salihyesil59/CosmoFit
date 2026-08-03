@@ -33,6 +33,7 @@ from cosmology.core.parameters import CosmologyParameters, DEFAULT_BOUNDS
 from likelihoods.cc import CCLikelihood
 from likelihoods.desi import DESILikelihood
 from likelihoods.pantheon import PantheonLikelihood
+from likelihoods.planck import PlanckLikelihood
 from likelihoods.joint import JointLikelihood
 
 from .priors import UniformPrior
@@ -49,6 +50,7 @@ DATASET_REGISTRY = {
     "cc": CCLikelihood,
     "desi": DESILikelihood,
     "pantheon": PantheonLikelihood,
+    "planck": PlanckLikelihood,
 }
 
 
@@ -69,7 +71,7 @@ class Fitter:
     datasets : list[str]
         Which likelihoods to combine. Keys of
         :data:`DATASET_REGISTRY` (currently
-        ``"cc"``, ``"desi"``, ``"pantheon"``).
+        ``"cc"``, ``"desi"``, ``"pantheon"``, ``"planck"``).
 
     free_params : list[str]
         Names of the :class:`CosmologyParameters` fields that
@@ -300,6 +302,80 @@ class Fitter:
             burnin = self.burnin
 
         return self.sampler.get_chain(discard=burnin, flat=True)
+
+    # ------------------------------------------------------------
+
+    def convergence(self, burnin=None, tol: int = 50) -> dict:
+        """
+        MCMC convergence diagnostics, based on the integrated
+        autocorrelation time tau of each free parameter's chain
+        (``emcee``'s own recommended diagnostic -- see
+        https://emcee.readthedocs.io/en/stable/tutorials/autocorr/).
+
+        A chain is considered trustworthy once it has run for at
+        least ``tol`` (default 50, emcee's own default) times tau:
+        shorter than that, the posterior (especially its width)
+        is not yet reliable, no matter how good ``summary()``
+        looks. This is *not* checked automatically anywhere else
+        in ``Fitter`` -- call this explicitly after ``run_mcmc()``
+        and inspect ``converged`` before trusting ``summary()`` /
+        ``corner_plot()``.
+
+        Parameters
+        ----------
+        burnin : int, optional
+            Steps to discard before estimating tau. Defaults to
+            ``self.burnin``.
+
+        tol : int, optional
+            Convergence threshold, in units of tau (chain length
+            must exceed ``tol * tau`` for every parameter).
+
+        Returns
+        -------
+        dict with keys:
+            tau : dict[str, float]
+                Autocorrelation time per free parameter.
+            n_used : int
+                Number of post-burnin steps the estimate is based on.
+            n_effective : dict[str, float]
+                Effective number of independent samples per
+                parameter (n_used * nwalkers / tau).
+            converged : bool
+                Whether every parameter satisfies
+                ``n_used >= tol * tau``.
+        """
+
+        if self.sampler is None:
+            raise RuntimeError("Call run_mcmc() first.")
+
+        if burnin is None:
+            burnin = self.burnin
+
+        chain = self.sampler.get_chain(discard=burnin)
+        n_used, nwalkers, _ = chain.shape
+
+        # `quiet=True`: report the (unreliable) estimate instead of
+        # raising when the chain is too short to trust it -- that
+        # is exactly the situation `converged` below is meant to
+        # flag to the caller.
+        tau = self.sampler.get_autocorr_time(discard=0, quiet=True)
+
+        tau_dict = dict(zip(self.free_params, map(float, tau)))
+
+        n_effective = {
+            name: float(n_used * nwalkers / t)
+            for name, t in tau_dict.items()
+        }
+
+        converged = all(n_used >= tol * t for t in tau_dict.values())
+
+        return {
+            "tau": tau_dict,
+            "n_used": int(n_used),
+            "n_effective": n_effective,
+            "converged": converged,
+        }
 
     # ------------------------------------------------------------
 

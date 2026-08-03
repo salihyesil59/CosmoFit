@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, MISSING, asdict, dataclass, fields
+from dataclasses import dataclass, MISSING, asdict, fields
 from collections.abc import Iterable, Iterator
 from typing import Optional, Any
 from copy import deepcopy
@@ -522,6 +522,7 @@ DEFAULT_BOUNDS: dict[str, tuple[float, float]] = {
     "wa": (-4.0, 4.0),
     "rd": (120.0, 170.0),
     "MB": (-21.0, -17.0),
+    "Omega_b": (0.01, 0.10),
 }
 
 
@@ -555,6 +556,12 @@ class CosmologyParameters(BaseParameters):
         Supernova absolute magnitude nuisance parameter, used
         by likelihoods that do not analytically marginalize
         over it.
+    Omega_b : float, optional
+        Present-day baryon density parameter. Not used by the
+        background expansion (E(z)) itself, but required by the
+        recombination fitting formulas (redshift of decoupling
+        z*, sound horizon r_s) used by :class:`~likelihoods.planck.PlanckLikelihood`.
+        Default is the Planck 2018 best-fit value.
     """
 
     H0: float
@@ -564,6 +571,7 @@ class CosmologyParameters(BaseParameters):
     wa: float = 0.0
     rd: float = 147.05
     MB: float = 0.0
+    Omega_b: float = 0.0493
 
     # ==========================================================
     # Parameter metadata (labels / bounds), used by ParameterSet
@@ -591,6 +599,7 @@ class CosmologyParameters(BaseParameters):
             "wa": r"$w_a$",
             "rd": r"$r_d$",
             "MB": r"$M_B$",
+            "Omega_b": r"$\Omega_b$",
         }
 
         merged_bounds = dict(DEFAULT_BOUNDS)

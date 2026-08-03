@@ -15,7 +15,7 @@ import numpy as np
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from likelihoods.covariance import CovarianceBase
+    from data.covariance import CovarianceBase
 
 
 # ============================================================
@@ -201,7 +201,29 @@ class DESIDataset:
 class PantheonDataset:
     """
     Pantheon+SH0ES Supernova sample.
+
+    Three redshifts are kept per supernova, matching the official
+    Pantheon+SH0ES data release columns:
+
+    z_hd
+        Hubble-diagram redshift (CMB-frame, corrected for the
+        local peculiar-velocity/bulk-flow model). This is the
+        redshift the *cosmological* comoving/transverse distance
+        should be evaluated at.
+    z_cmb
+        CMB-frame redshift, without the peculiar-velocity
+        correction applied to get ``z_hd``. Kept for reference;
+        not used by :class:`likelihoods.pantheon.PantheonLikelihood`.
+    z_hel
+        Heliocentric redshift. This is the redshift that sets the
+        observed time/flux dilation of the light curve, so it is
+        what the ``(1 + z)`` factor in the luminosity distance
+        D_L = (1 + z_hel) * D_M(z_hd) should use -- *not* z_hd or
+        z_cmb (Brout et al. 2022, Pantheon+SH0ES; see also the
+        official analysis code's ``dl_at_zhel_zhd`` convention).
     """
+
+    z_hd: np.ndarray
 
     z_cmb: np.ndarray
 
@@ -229,9 +251,11 @@ class PantheonDataset:
 
         if not (
 
-            len(self.z_hel)
+            len(self.z_hd)
 
             == n
+
+            == len(self.z_hel)
 
             == len(self.m_b_corr)
 
