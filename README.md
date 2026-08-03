@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.3.0
+> **Current Version:** v0.4.0
 
 ---
 
@@ -22,9 +22,10 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * CMB distance priors (Planck 2018 R, l_A, omega_b_h2)
 
 * Modular likelihood architecture
-* Bayesian parameter estimation with MCMC
+* Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
 * Covariance matrix support
-* Initial plotting and analysis utilities
+* Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
+  diagram, BAO distance plot, Planck pull plot, w(z) evolution, deceleration parameter
 
 ---
 
@@ -76,6 +77,11 @@ fitter.run_mcmc(
 
 fitter.best_fit()
 fitter.summary()
+fitter.convergence()
+
+fitter.plots.corner()
+fitter.plots.hubble_diagram()
+fitter.plots.w_of_z()
 ```
 
 ---
@@ -91,26 +97,29 @@ CMB distance-prior likelihood (shift parameter R, acoustic scale
 l_A, omega_b_h2), backed by a radiation-aware sound-horizon
 calculation and the Hu & Sugiyama (1996) z_star fitting formula.
 
+Version **v0.4.0** fixes a Pantheon+ distance-modulus bug (the
+zHD/zHEL redshift distinction from Brout et al. 2022 was not
+applied) and a circular import between `data.loader` and
+`likelihoods`, roughly halves the per-step cost of an MCMC run
+that includes Pantheon+, adds the `wCDM` model, adds an
+autocorrelation-time MCMC convergence check
+(`Fitter.convergence()`), and moves all plotting into a dedicated
+`plots.FitPlotter` (`fitter.plots`), with new Hubble diagram, H(z),
+BAO distance, Planck pull, w(z) evolution and deceleration-parameter
+figures alongside the existing chain/corner plots.
+
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
 ---
 
 ## Roadmap
 
-### v0.4.0
+### v0.5.0
 
 * Refactor package structure (`src` layout)
 * Unified import interface (`from CosmoFit import ...`)
 * Dedicated sampler module
 * Improved result interface
-* Restore the missing Pantheon+SH0ES STAT+SYS covariance file
-  (present in `data/dataset.py`'s schema but not yet checked in)
-
-### v0.5.0
-
-* Modular plotting package
-* Advanced diagnostics
-* Improved visualization tools
 
 ### v0.6.0
 
