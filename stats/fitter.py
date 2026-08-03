@@ -22,6 +22,7 @@ Example
 >>> fit.run_mcmc(nwalkers=48, nsteps=6500, burnin=1000)
 >>> fit.best_fit()
 >>> fit.summary()
+>>> fit.plots.corner()
 """
 
 from __future__ import annotations
@@ -35,6 +36,8 @@ from likelihoods.desi import DESILikelihood
 from likelihoods.pantheon import PantheonLikelihood
 from likelihoods.planck import PlanckLikelihood
 from likelihoods.joint import JointLikelihood
+
+from plots import FitPlotter
 
 from .priors import UniformPrior
 from .posterior import LogPosterior
@@ -181,6 +184,12 @@ class Fitter:
         self.burnin = 0
         self.best_fit_result = None
 
+        # ------------------------------------------------------
+        # Plots
+        # ------------------------------------------------------
+
+        self.plots = FitPlotter(self)
+
     # ============================================================
     # Basic properties
     # ============================================================
@@ -319,7 +328,7 @@ class Fitter:
         looks. This is *not* checked automatically anywhere else
         in ``Fitter`` -- call this explicitly after ``run_mcmc()``
         and inspect ``converged`` before trusting ``summary()`` /
-        ``corner_plot()``.
+        ``plots.corner()``.
 
         Parameters
         ----------
@@ -475,60 +484,6 @@ class Fitter:
             raise RuntimeError("Call best_fit() first.")
 
         return float(self.best_fit_result.fun)
-
-    # ============================================================
-    # Plots (matplotlib / corner, imported lazily)
-    # ============================================================
-
-    def chain_plot(self, save_path=None):
-
-        import matplotlib.pyplot as plt
-
-        chain = self.sampler.get_chain()
-
-        fig, axes = plt.subplots(
-            self.ndim, 1, figsize=(12, 2.4 * self.ndim), sharex=True,
-        )
-
-        if self.ndim == 1:
-            axes = [axes]
-
-        for i, name in enumerate(self.free_params):
-            axes[i].plot(chain[:, :, i], alpha=0.15)
-            axes[i].set_ylabel(name)
-            axes[i].grid(alpha=0.2)
-
-        axes[-1].set_xlabel("MCMC step")
-
-        plt.tight_layout()
-
-        if save_path:
-            fig.savefig(save_path, bbox_inches="tight")
-
-        return fig
-
-    # ------------------------------------------------------------
-
-    def corner_plot(self, burnin=None, save_path=None, **corner_kwargs):
-
-        import corner as corner_pkg
-
-        flat = self.flat_samples(burnin=burnin)
-
-        kwargs = dict(
-            labels=self.free_params,
-            quantiles=[0.16, 0.50, 0.84],
-            show_titles=True,
-            smooth=1.0,
-        )
-        kwargs.update(corner_kwargs)
-
-        fig = corner_pkg.corner(flat, **kwargs)
-
-        if save_path:
-            fig.savefig(save_path, bbox_inches="tight")
-
-        return fig
 
     # ------------------------------------------------------------
 

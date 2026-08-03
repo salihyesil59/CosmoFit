@@ -26,6 +26,20 @@ class WCDM(Cosmology):
 
     # ---------------------------------------------------------
 
+    def w(self, z):
+        """
+        Dark-energy equation of state. Constant by construction
+        (``w(z) = w0`` at every redshift) -- provided mainly so
+        that generic code written against ``CPL.w(z)`` (e.g. the
+        w(z) evolution plot) also works for ``WCDM``.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        return np.full_like(z, self.w0, dtype=float)
+
+    # ---------------------------------------------------------
+
     def fde(self, z):
         """
         Dark-energy density evolution factor.
