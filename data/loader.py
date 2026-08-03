@@ -11,14 +11,12 @@ from pathlib import Path
 
 import numpy as np
 
-from likelihoods import covariance
-
 from .dataset import CCDataset
 from .dataset import DESIDataset
 from .dataset import PantheonDataset
 from .dataset import PlanckDataset
 
-from likelihoods.covariance import make_covariance
+from .covariance import make_covariance
 
 
 # ============================================================
@@ -91,13 +89,15 @@ PLANCK_FILES = {
 
     "planck2018": {
 
-        "folder": "cmb/planck2018",
+        "parent": "cmb",
+
+        "folder": "planck2018",
 
         "data": "distance_prior.txt",
 
         "covariance": "distance_prior_cov.txt",
 
-        "reference": "Planck Collaboration VI (2020)",
+        "reference": "Chen, Kumar & Ratra (2019), arXiv:1808.05724",
 
     },
 
@@ -646,6 +646,8 @@ def load_pantheon(
 
     )
 
+    z_hd = table["zHD"].astype(float)
+
     z_cmb = table["zCMB"].astype(float)
 
     z_hel = table["zHEL"].astype(float)
@@ -661,6 +663,8 @@ def load_pantheon(
         include_cepheid,
 
     )
+
+    z_hd = z_hd[mask]
 
     z_cmb = z_cmb[mask]
 
@@ -708,6 +712,8 @@ def load_pantheon(
 
     return PantheonDataset(
 
+        z_hd=z_hd,
+
         z_cmb=z_cmb,
 
         z_hel=z_hel,
@@ -717,6 +723,90 @@ def load_pantheon(
         covariance=covariance,
 
         cepheid=is_calibrator,
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
+# Planck CMB distance priors
+# ============================================================
+
+def load_planck(
+    version: str = "planck2018",
+) -> PlanckDataset:
+    """
+    Load a Planck CMB distance-prior dataset.
+
+    The data vector is (R, l_A, omega_b_h2) -- the CMB shift
+    parameter, acoustic scale, and physical baryon density -- as
+    described in :mod:`likelihoods.planck`.
+
+    Parameters
+    ----------
+    version : str, optional
+        Dataset version.
+
+    Returns
+    -------
+    PlanckDataset
+    """
+
+    entry = _validate_version(
+
+        "planck",
+
+        version,
+
+    )
+
+    dataset_path = _get_dataset_path(
+
+        "planck",
+
+        version,
+
+    )
+
+    table = _load_txt(
+
+        dataset_path / entry["data"],
+
+        dtype=None,
+
+    )
+
+    covariance = _load_covariance(
+
+        dataset_path / entry["covariance"],
+
+    )
+
+    labels = tuple(str(label) for label in table["f0"])
+
+    values = np.asarray(table["f1"], dtype=float)
+
+    if covariance.shape != (len(values), len(values)):
+
+        raise ValueError(
+
+            f"Expected covariance shape ({len(values)}, {len(values)}), "
+            f"but found {covariance.shape}.",
+
+        )
+
+    return PlanckDataset(
+
+        values=values,
+
+        covariance=make_covariance(
+
+            cov=covariance,
+
+        ),
+
+        labels=labels,
 
         reference=entry["reference"],
 

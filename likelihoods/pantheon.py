@@ -71,6 +71,22 @@ class PantheonLikelihood(BaseLikelihood):
             cosmology=cosmology,
         )
 
+        if self.marginalize_MB:
+
+            # C^-1 @ 1 and 1^T C^-1 1 depend only on the (fixed)
+            # covariance matrix, never on the cosmology -- so they
+            # are the same at every MCMC step. Solving against the
+            # ~1600x1600 Pantheon+ covariance is the single most
+            # expensive operation in a CC+DESI+Pantheon MCMC run
+            # (a Cholesky *solve* is O(n^2) and dominates once
+            # Pantheon is in the mix); computing it once here
+            # instead of on every call to `chi2()` roughly halves
+            # that cost (one covariance solve per step instead of
+            # two).
+            ones = np.ones(self.n_data)
+            self._Cinv_ones = self.covariance.solve(ones)
+            self._C = float(ones @ self._Cinv_ones)
+
     # ---------------------------------------------------------
 
     def model(
@@ -87,11 +103,32 @@ class PantheonLikelihood(BaseLikelihood):
 
         m_B = mu(z)                 [marginalize_MB=True]
         m_B = mu(z) + M_B           [marginalize_MB=False]
+
+        The distance modulus uses two *different* redshifts, per
+        the official Pantheon+SH0ES convention (Brout et al.
+        2022): the transverse comoving distance D_M is evaluated
+        at the Hubble-diagram redshift ``z_hd`` (CMB-frame,
+        peculiar-velocity corrected -- the cosmologically
+        meaningful redshift), while the ``(1 + z)`` source-frame
+        dilation factor uses the heliocentric redshift ``z_hel``
+        (what the light curve itself was actually stretched by):
+
+            D_L = (1 + z_hel) * D_M(z_hd)
+
+        Using a single redshift for both (e.g. z_cmb throughout)
+        is a common simplification but introduces a systematic
+        bias of order the z_hel/z_hd offset (~1e-3, i.e.
+        comparable to or larger than the per-SN distance-modulus
+        precision for the best-measured low-z SNe).
         """
 
-        mu_model = self.cosmology.distance.mu(
-            self.data.z_cmb,
+        dm_model = self.cosmology.distance.DM(
+            self.data.z_hd,
         )
+
+        dl_model = dm_model * (1.0 + self.data.z_hel)
+
+        mu_model = 5.0 * np.log10(dl_model) + 25.0
 
         if self.marginalize_MB:
             return mu_model
@@ -124,17 +161,21 @@ class PantheonLikelihood(BaseLikelihood):
         Compute the A, B, C terms of the analytic marginalization
         over a single additive nuisance parameter, plus the
         resulting chi2 and best-fit offset.
+
+        ``C`` (and the covariance solve it requires) is
+        independent of the cosmology and is precomputed once in
+        ``__init__`` -- see the comment there. Only ``A`` and
+        ``B`` (which depend on ``delta``, i.e. on the current
+        cosmology) are recomputed here.
         """
 
         delta = self.residuals()
-        ones = np.ones_like(delta)
 
         Cinv_delta = self.covariance.solve(delta)
-        Cinv_ones = self.covariance.solve(ones)
 
         A = float(delta @ Cinv_delta)
-        B = float(ones @ Cinv_delta)
-        C = float(ones @ Cinv_ones)
+        B = float(self._Cinv_ones @ delta)
+        C = self._C
 
         chi2 = A - (B**2) / C
         best_offset = B / C

@@ -49,18 +49,62 @@ class DistanceCalculator:
 
     # ---------------------------------------------------------
 
+    def DM_from_chi(self, chi):
+        """
+        Transverse comoving distance [Mpc] from a raw
+        dimensionless comoving distance ``chi``.
+
+        This is the curvature branch used by :meth:`DM`, split
+        out so that callers needing distances far outside the
+        cached low-z interpolation grid (e.g. the CMB decoupling
+        redshift z* ~ 1090, used by the Planck distance-prior
+        likelihood) can supply a directly-integrated ``chi``
+        without duplicating the curvature formula or disturbing
+        the low-z grid's resolution.
+        """
+
+        Ok = self.cosmo.Omega_k
+        hubble_distance = constants.c / self.cosmo.H0
+
+        if Ok == 0.0:
+            return hubble_distance * chi
+
+        sqrt_Ok = np.sqrt(np.abs(Ok))
+
+        if Ok > 0.0:
+            return hubble_distance / sqrt_Ok * np.sinh(sqrt_Ok * chi)
+
+        return hubble_distance / sqrt_Ok * np.sin(sqrt_Ok * chi)
+
+    # ---------------------------------------------------------
+
     def DM(self, z):
         """
-        Transverse comoving distance.
+        Transverse comoving distance [Mpc].
 
-        Flat universe:
+        Generalizes to non-flat geometries via the curvature
+        parameter Omega_k:
 
-            D_M = D_C
+            Omega_k == 0 (flat):    D_M = D_C
+            Omega_k  > 0 (open):    D_M = (c/H0) / sqrt(Omega_k)
+                                            * sinh(sqrt(Omega_k) * chi)
+            Omega_k  < 0 (closed):  D_M = (c/H0) / sqrt(|Omega_k|)
+                                            * sin(sqrt(|Omega_k|) * chi)
 
-        Curved geometry will be added later.
+        where chi(z) = H0/c * D_C(z) is the dimensionless
+        comoving distance. All three branches agree in the
+        Omega_k -> 0 limit.
+
+        Note: ``z`` must lie within the cached distance-integrator
+        grid (``cosmology.integrator.zmax``, 5.0 by default). For
+        redshifts beyond that range (e.g. the CMB), integrate
+        ``chi`` directly and use :meth:`DM_from_chi` instead.
         """
 
-        return self.DC(z)
+        if self.cosmo.Omega_k == 0.0:
+            return self.DC(z)
+
+        return self.DM_from_chi(self.chi(z))
 
     # ---------------------------------------------------------
 
@@ -120,8 +164,13 @@ class DistanceCalculator:
     # ---------------------------------------------------------
 
     def DH(self, z):
+        """
+        Hubble distance [Mpc].
 
-        return constants.c / self.cosmo.background.H(z)
+        D_H(z) = c / H(z)
+        """
+
+        return constants.c / self.cosmo.H(z)
 
     # ---------------------------------------------------------
 

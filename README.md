@@ -6,19 +6,20 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.2.0
+> **Current Version:** v0.3.0
 
 ---
 
 ## Features
 
-* Modular cosmological model framework
+* Modular cosmological model framework, with curvature (Omega_k) supported end-to-end (flat/open/closed E(z) and D_M(z))
 * Flexible parameter management
 * Built-in observational datasets
 
   * Cosmic Chronometers (CC)
   * BAO (DESI)
   * Supernova (Pantheon+)
+  * CMB distance priors (Planck 2018 R, l_A, omega_b_h2)
 
 * Modular likelihood architecture
 * Bayesian parameter estimation with MCMC
@@ -49,7 +50,7 @@ from stats.fitter import Fitter
 
 fitter = Fitter(
     model=CPL,
-    datasets=["cc", "desi", "pantheon"],
+    datasets=["cc", "desi", "pantheon", "planck"],
     free_params=[
         "H0",
         "Omega_m",
@@ -63,6 +64,7 @@ fitter = Fitter(
         "w0": -1.0,
         "wa": 0.0,
         "rd": 147.1,
+        "Omega_b": 0.0493,
     },
 )
 
@@ -82,7 +84,12 @@ fitter.summary()
 
 CosmoFit is currently under active development.
 
-Version **v0.2.0** introduces the first working Bayesian inference framework together with a modular architecture for cosmological parameter estimation.
+Version **v0.3.0** fixes a curvature bug in the LCDM/CPL Friedmann
+equations and in the transverse comoving distance (Omega_k was
+previously a fittable-but-inert parameter), and adds a Planck 2018
+CMB distance-prior likelihood (shift parameter R, acoustic scale
+l_A, omega_b_h2), backed by a radiation-aware sound-horizon
+calculation and the Hu & Sugiyama (1996) z_star fitting formula.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
@@ -90,20 +97,22 @@ The package structure may continue to evolve before the first stable **v1.0.0** 
 
 ## Roadmap
 
-### v0.3.0
+### v0.4.0
 
 * Refactor package structure (`src` layout)
 * Unified import interface (`from CosmoFit import ...`)
 * Dedicated sampler module
 * Improved result interface
+* Restore the missing Pantheon+SH0ES STAT+SYS covariance file
+  (present in `data/dataset.py`'s schema but not yet checked in)
 
-### v0.4.0
+### v0.5.0
 
 * Modular plotting package
 * Advanced diagnostics
 * Improved visualization tools
 
-### v0.5.0
+### v0.6.0
 
 * Additional cosmological models
 * Additional observational datasets
