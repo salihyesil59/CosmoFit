@@ -7,6 +7,7 @@ from .calculators import (
     SoundHorizon,
     RecombinationCalculator,
 )
+from .custom import define_model, model_from_expression
 
 __all__ = [
     "Cosmology",
@@ -23,4 +24,6 @@ __all__ = [
     "DistanceCalculator",
     "SoundHorizon",
     "RecombinationCalculator",
+    "define_model",
+    "model_from_expression",
 ]

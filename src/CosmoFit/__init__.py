@@ -44,6 +44,8 @@ from CosmoFit.cosmology import (
     JBP,
     BA,
     GCG,
+    define_model,
+    model_from_expression,
 )
 
 # ============================================================
@@ -66,6 +68,8 @@ from CosmoFit.likelihoods import (
 # ============================================================
 
 from CosmoFit.stats.fitter import Fitter
+from CosmoFit.stats.sampler import BaseSampler, EnsembleSampler
+from CosmoFit.stats.results import FitResult, BestFitResult, MCMCResult
 from CosmoFit.plots import FitPlotter
 
 # ============================================================
@@ -97,6 +101,8 @@ __all__ = [
     "JBP",
     "BA",
     "GCG",
+    "define_model",
+    "model_from_expression",
     # Likelihoods
     "BaseLikelihood",
     "CCLikelihood",
@@ -108,6 +114,11 @@ __all__ = [
     "JointLikelihood",
     # Fitting / plotting
     "Fitter",
+    "BaseSampler",
+    "EnsembleSampler",
+    "FitResult",
+    "BestFitResult",
+    "MCMCResult",
     "FitPlotter",
     # Datasets
     "available_datasets",
