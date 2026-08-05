@@ -1,0 +1,8 @@
+# Planck 2018 CMB distance-prior covariance matrix, ordered
+# (R, lA, omega_b_h2), matching distance_prior.txt.
+# Source: Chen, Huang & Wang (2019), JCAP 02 (2019) 028, arXiv:1808.05724, Table 1
+# (LCDM, Planck TT,TE,EE+lowE), correlation matrix converted
+# to covariance via cov_ij = corr_ij * sigma_i * sigma_j.
+2.1160000000e-05 1.8938200000e-04 -4.5540000000e-07
+1.8938200000e-04 8.0102500000e-03 -4.4302500000e-06
+-4.5540000000e-07 -4.4302500000e-06 2.2500000000e-08
