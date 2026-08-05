@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.4.0"
+version = "0.9.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -37,6 +37,12 @@ keywords = [
     "wcdm",
     "cpl",
     "lcdm",
+    "jbp",
+    "chaplygin-gas",
+    "des-sn5yr",
+    "sdss",
+    "eboss",
+    "boss",
     "likelihood",
     "mcmc",
 ]
@@ -84,7 +90,24 @@ docs = [
 # ==========================================================
 # Package discovery
 # ==========================================================
+#
+# src layout: the importable package lives at src/CosmoFit, so
+# end users do `from CosmoFit import ...` regardless of the PyPI
+# distribution name ("cosmofit") above.
 
 [tool.setuptools.packages.find]
 
-include = ["*"]
+where = ["src"]
+
+[tool.setuptools.package-data]
+
+# Bundled observational datasets (CC, DESI BAO, Pantheon+,
+# DES-SN5YR, Planck) living under CosmoFit/data/ -- not .py files,
+# so setuptools won't pick them up automatically.
+CosmoFit = [
+    "data/**/*.txt",
+    "data/**/*.dat",
+    "data/**/*.cov",
+    "data/**/*.csv",
+    "data/**/*.npz",
+]
