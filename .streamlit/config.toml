@@ -1,0 +1,22 @@
+# CosmoFit GUI theme -- primaryColor matches the accent color used
+# throughout CosmoFit's own matplotlib figures (plots/plotter.py's
+# COLOR_MODEL), so the app and its generated plots read as one
+# system, in both light and dark mode.
+#
+# Switch modes from inside the app: top-right "⋮" menu -> Settings ->
+# "Choose app theme, colors and fonts" -> Light / Dark / Use system
+# setting. Note that fit.plots.* figures are static matplotlib images
+# (a fixed white background is standard for publication-style
+# cosmology figures) and don't themselves invert in dark mode -- only
+# the app chrome around them does.
+[theme]
+font = "sans serif"
+
+[theme.light]
+primaryColor = "#d1495b"
+
+[theme.dark]
+primaryColor = "#d1495b"
+
+[browser]
+gatherUsageStats = false

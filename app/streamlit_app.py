@@ -33,6 +33,7 @@ import pandas as pd
 import streamlit as st
 
 from CosmoFit import (
+    __version__,
     LCDM, WCDM, CPL, JBP, BA, GCG,
     Fitter,
     model_from_expression,
@@ -73,6 +74,19 @@ INCOMPATIBLE_PAIRS = [
     ({"desi", "sdss_bao"}, "DESI and SDSS BAO target much of the same sky; combining them double-counts structure."),
     ({"pantheon", "des_sn5yr"}, "DES-SN5YR's low-z sample overlaps Pantheon+; combining them double-counts those supernovae."),
 ]
+
+#: LaTeX preview shown next to the model picker -- background
+#: expansion for the LCDM/WCDM family, dark-energy equation of state
+#: for the w0-wa family, and the GCG fluid equation for GCG (its E(z)
+#: doesn't have as illuminating a one-line form).
+MODEL_EQUATIONS = {
+    "LCDM": r"E(z) = \sqrt{\Omega_m (1+z)^3 + \Omega_k (1+z)^2 + \Omega_{DE}}",
+    "WCDM": r"E(z) = \sqrt{\Omega_m (1+z)^3 + \Omega_k (1+z)^2 + \Omega_{DE}(1+z)^{3(1+w_0)}}",
+    "CPL": r"w(z) = w_0 + w_a \dfrac{z}{1+z}",
+    "JBP": r"w(z) = w_0 + w_a \dfrac{z}{(1+z)^2}",
+    "BA": r"w(z) = w_0 + w_a \dfrac{z(1+z)}{1+z^2}",
+    "GCG": r"p = -\dfrac{A}{\rho^{\alpha}}",
+}
 
 PLOT_LABELS = {
     "chain": "MCMC chain (trace plot)",
@@ -212,11 +226,26 @@ def _available_plots(fit: Fitter) -> list[str]:
 
 st.set_page_config(page_title="CosmoFit", page_icon="🌌", layout="wide")
 
-st.title("🌌 CosmoFit")
-st.caption(
-    "Cosmological parameter estimation, no code required -- "
-    "built on the CosmoFit Python library."
+st.markdown(
+    """
+    <style>
+    .block-container { padding-top: 2.5rem; max-width: 1200px; }
+    [data-testid="stMetricValue"] { font-size: 1.5rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
+
+title_col, version_col = st.columns([6, 1])
+with title_col:
+    st.title("🌌 CosmoFit")
+    st.caption(
+        "Cosmological parameter estimation, no code required -- "
+        "built on the CosmoFit Python library."
+    )
+with version_col:
+    st.write("")
+    st.caption(f"v{__version__}")
 
 # ------------------------------------------------------------
 # Sidebar: datasets, model, MCMC settings
@@ -224,73 +253,83 @@ st.caption(
 
 with st.sidebar:
 
-    st.header("Datasets")
+    st.markdown("### 📊 Datasets")
 
-    selected_datasets = []
-    for key in DATASET_REGISTRY:
-        default = key in ("cc", "desi")
-        if st.checkbox(DATASET_LABELS.get(key, key), value=default, key=f"ds_{key}"):
-            selected_datasets.append(key)
+    with st.container(border=True):
+        selected_datasets = []
+        for key in DATASET_REGISTRY:
+            default = key in ("cc", "desi")
+            if st.checkbox(DATASET_LABELS.get(key, key), value=default, key=f"ds_{key}"):
+                selected_datasets.append(key)
 
     selected_set = set(selected_datasets)
     for pair, reason in INCOMPATIBLE_PAIRS:
         if pair <= selected_set:
-            st.warning(f"{' + '.join(sorted(pair))}: {reason}")
+            st.warning(f"{' + '.join(sorted(pair))}: {reason}", icon="⚠️")
 
-    st.divider()
-    st.header("Model")
+    st.markdown("### 🧮 Model")
 
-    model_choice = st.selectbox(
-        "Cosmology", options=[*BUILTIN_MODELS.keys(), "Custom"],
-    )
+    with st.container(border=True):
 
-    if model_choice == "Custom":
-
-        st.text_input("Model name", value="MyModel", key="custom_name")
-        st.text_area(
-            "E(z) expression", key="custom_E", height=80,
-            placeholder="sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0))*(1+beta*z))",
-            help=(
-                "Available: z, every standard parameter "
-                "(H0, Omega_m, Omega_k, w0, wa, rd, MB, Omega_b, A_s, "
-                "alpha), any extra parameters defined below, and "
-                "sqrt/exp/log/log10/sin/cos/tan/sinh/cosh/tanh/abs/"
-                "sign/where/minimum/maximum/pi/e."
-            ),
+        model_choice = st.selectbox(
+            "Cosmology", options=[*BUILTIN_MODELS.keys(), "Custom"],
+            label_visibility="collapsed",
         )
 
-        with st.expander("Advanced (w(z), dE/dz)"):
+        if model_choice in MODEL_EQUATIONS:
+            st.latex(MODEL_EQUATIONS[model_choice])
+
+        if model_choice == "Custom":
+
+            st.text_input("Model name", value="MyModel", key="custom_name")
             st.text_area(
-                "w(z) expression (optional)", key="custom_w", height=60,
-                help="For the w(z) plot only -- not needed to fit.",
-            )
-            st.text_area(
-                "dE/dz expression (optional)", key="custom_dEdz", height=60,
+                "E(z) expression", key="custom_E", height=80,
+                placeholder="sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0))*(1+beta*z))",
                 help=(
-                    "For the deceleration-parameter plot only. If left "
-                    "blank, a numerical (finite-difference) derivative "
-                    "of E(z) is used automatically."
+                    "Available: z, every standard parameter "
+                    "(H0, Omega_m, Omega_k, w0, wa, rd, MB, Omega_b, A_s, "
+                    "alpha), any extra parameters defined below, and "
+                    "sqrt/exp/log/log10/sin/cos/tan/sinh/cosh/tanh/abs/"
+                    "sign/where/minimum/maximum/pi/e."
                 ),
             )
 
-        st.text_area(
-            "Extra parameters (one per line, optional)",
-            key="custom_extra_params", height=80,
-            placeholder="beta = 0.0, -2.0, 2.0, $\\beta$",
-            help="name = default, lower, upper[, label]",
-        )
+            with st.expander("Advanced (w(z), dE/dz)"):
+                st.text_area(
+                    "w(z) expression (optional)", key="custom_w", height=60,
+                    help="For the w(z) plot only -- not needed to fit.",
+                )
+                st.text_area(
+                    "dE/dz expression (optional)", key="custom_dEdz", height=60,
+                    help=(
+                        "For the deceleration-parameter plot only. If left "
+                        "blank, a numerical (finite-difference) derivative "
+                        "of E(z) is used automatically."
+                    ),
+                )
 
-    st.divider()
-    st.header("MCMC settings")
+            st.text_area(
+                "Extra parameters (one per line, optional)",
+                key="custom_extra_params", height=80,
+                placeholder="beta = 0.0, -2.0, 2.0, $\\beta$",
+                help="name = default, lower, upper[, label]",
+            )
 
-    nwalkers = st.number_input(
-        "Walkers", min_value=8, value=48, step=2,
-        help="Needs to be at least 2x the number of free parameters "
-             "you tick below, or the fit will fail to start.",
-    )
-    nsteps = st.number_input("Steps", min_value=50, value=3000, step=50)
-    burnin = st.number_input("Burn-in", min_value=0, value=500, step=50)
-    seed = st.number_input("Seed", min_value=0, value=42, step=1)
+    st.markdown("### ⚙️ MCMC settings")
+
+    with st.container(border=True):
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            nwalkers = st.number_input(
+                "Walkers", min_value=8, value=48, step=2,
+                help="At least 2x the number of free parameters you "
+                     "tick below, or the fit will fail to start.",
+            )
+            burnin = st.number_input("Burn-in", min_value=0, value=500, step=50)
+        with col_b:
+            nsteps = st.number_input("Steps", min_value=50, value=3000, step=50)
+            seed = st.number_input("Seed", min_value=0, value=42, step=1)
 
 # ------------------------------------------------------------
 # Main panel: parameters
@@ -306,7 +345,8 @@ params_cls = getattr(model_cls, "PARAMS_CLASS", None)
 parameter_set = params_cls.parameter_set()
 defaults = params_cls.defaults()
 
-st.header("Parameters")
+st.markdown("## 🎛️ Parameters")
+st.caption("Tick which parameters to fit; edit initial values or bounds directly in the table.")
 
 param_rows = []
 for p in parameter_set:
@@ -333,19 +373,20 @@ for p in parameter_set:
 
 param_df = pd.DataFrame(param_rows)
 
-edited_df = st.data_editor(
-    param_df,
-    hide_index=True,
-    use_container_width=True,
-    disabled=["Parameter", "Label"],
-    column_config={
-        "Free": st.column_config.CheckboxColumn("Fit this parameter?"),
-        "Initial": st.column_config.NumberColumn(format="%.5g"),
-        "Lower": st.column_config.NumberColumn(format="%.5g"),
-        "Upper": st.column_config.NumberColumn(format="%.5g"),
-    },
-    key="param_editor",
-)
+with st.container(border=True):
+    edited_df = st.data_editor(
+        param_df,
+        hide_index=True,
+        use_container_width=True,
+        disabled=["Parameter", "Label"],
+        column_config={
+            "Free": st.column_config.CheckboxColumn("Fit this parameter?"),
+            "Initial": st.column_config.NumberColumn(format="%.5g"),
+            "Lower": st.column_config.NumberColumn(format="%.5g"),
+            "Upper": st.column_config.NumberColumn(format="%.5g"),
+        },
+        key="param_editor",
+    )
 
 free_params = edited_df.loc[edited_df["Free"], "Parameter"].tolist()
 initial = dict(zip(edited_df["Parameter"], edited_df["Initial"]))
@@ -355,18 +396,24 @@ bounds = {
     if pd.notna(row["Lower"]) and pd.notna(row["Upper"])
 }
 
+n_free = len(free_params)
+st.caption(
+    f"{n_free} free parameter(s) selected"
+    + (f" -- {', '.join(free_params)}" if n_free else "")
+)
+
 # ------------------------------------------------------------
 # Run
 # ------------------------------------------------------------
 
-run_clicked = st.button("Run Fit", type="primary", use_container_width=True)
+run_clicked = st.button("🚀 Run Fit", type="primary", use_container_width=True)
 
 if run_clicked:
 
     if not selected_datasets:
-        st.error("Select at least one dataset.")
+        st.error("Select at least one dataset.", icon="🚫")
     elif not free_params:
-        st.error("Tick at least one parameter to fit.")
+        st.error("Tick at least one parameter to fit.", icon="🚫")
     else:
         try:
             fit = Fitter(
@@ -385,11 +432,11 @@ if run_clicked:
                 fit.best_fit()
 
             st.session_state["fit"] = fit
-            st.success("Fit complete.")
+            st.toast("Fit complete.", icon="✅")
 
         except Exception as exc:
             st.session_state.pop("fit", None)
-            st.error(f"Fit failed: {exc}")
+            st.error(f"Fit failed: {exc}", icon="🚫")
 
 # ------------------------------------------------------------
 # Results
@@ -397,72 +444,103 @@ if run_clicked:
 
 fit = st.session_state.get("fit")
 
+st.divider()
+
 if fit is not None:
 
-    st.header("Results")
+    st.markdown("## 📊 Results")
+    st.caption(
+        f"**{fit.model_cls.__name__}** · "
+        f"{', '.join(DATASET_LABELS.get(d, d) for d in fit.dataset_names)} · "
+        f"free: {', '.join(fit.free_params)}"
+    )
 
     result = fit.result
 
-    if result.best_fit is not None:
+    tab_best, tab_mcmc, tab_plots = st.tabs(
+        ["📈 Best fit", "🎲 MCMC posterior", "🖼️ Plots"]
+    )
 
-        st.subheader("Best fit")
+    with tab_best:
 
-        st.dataframe(
-            pd.DataFrame(
-                {"parameter": list(result.best_fit.params),
-                 "value": list(result.best_fit.params.values())}
-            ),
-            hide_index=True,
-        )
+        if result.best_fit is not None:
 
-        st.caption(
-            f"chi2 = {result.best_fit.chi2:.4f}  "
-            f"AIC = {result.best_fit.aic():.2f}  "
-            f"BIC = {result.best_fit.bic():.2f}"
-        )
+            m1, m2, m3 = st.columns(3)
+            m1.metric("χ²", f"{result.best_fit.chi2:.3f}")
+            m2.metric("AIC", f"{result.best_fit.aic():.2f}")
+            m3.metric("BIC", f"{result.best_fit.bic():.2f}")
 
-    if result.mcmc is not None:
-
-        st.subheader("MCMC posterior")
-
-        st.dataframe(
-            pd.DataFrame([
-                {"parameter": name, "median": s["median"],
-                 "+": s["plus"], "-": s["minus"]}
-                for name, s in result.mcmc.summary.items()
-            ]),
-            hide_index=True,
-        )
-
-        if result.mcmc.convergence["converged"]:
-            st.markdown("✅ Converged (chain length exceeds 50x the autocorrelation time).")
+            st.dataframe(
+                pd.DataFrame(
+                    {"parameter": list(result.best_fit.params),
+                     "value": list(result.best_fit.params.values())}
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
         else:
-            st.markdown("⚠️ Not converged yet -- consider more steps before trusting this posterior.")
+            st.caption("No best-fit result.")
+
+    with tab_mcmc:
+
+        if result.mcmc is not None:
+
+            st.dataframe(
+                pd.DataFrame([
+                    {"parameter": name, "median": s["median"],
+                     "+": s["plus"], "-": s["minus"]}
+                    for name, s in result.mcmc.summary.items()
+                ]),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+            if result.mcmc.convergence["converged"]:
+                st.success(
+                    "Converged -- chain length exceeds 50x the "
+                    "autocorrelation time.", icon="✅",
+                )
+            else:
+                st.warning(
+                    "Not converged yet -- consider more steps before "
+                    "trusting this posterior.", icon="⚠️",
+                )
+        else:
+            st.caption("No MCMC run.")
+
+    with tab_plots:
+
+        plot_options = _available_plots(fit)
+        chosen = st.multiselect(
+            "Choose plots to render",
+            options=plot_options,
+            default=plot_options[:2],
+            format_func=lambda name: PLOT_LABELS.get(name, name),
+            label_visibility="collapsed",
+        )
+
+        plot_cols = st.columns(2)
+        for i, name in enumerate(chosen):
+            with plot_cols[i % 2]:
+                try:
+                    fig = getattr(fit.plots, name)()
+                    st.pyplot(fig, use_container_width=True)
+                    plt.close(fig)
+                except Exception as exc:
+                    st.error(
+                        f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
+                        icon="🚫",
+                    )
 
     st.download_button(
-        "Download result (JSON)",
+        "⬇️ Download result (JSON)",
         data=json.dumps(result.to_dict(), indent=2),
         file_name="cosmofit_result.json",
         mime="application/json",
     )
 
-    st.subheader("Plots")
-
-    plot_options = _available_plots(fit)
-    chosen = st.multiselect(
-        "Choose plots to render",
-        options=plot_options,
-        default=plot_options[:2],
-        format_func=lambda name: PLOT_LABELS.get(name, name),
-    )
-
-    for name in chosen:
-        try:
-            fig = getattr(fit.plots, name)()
-            st.pyplot(fig)
-            plt.close(fig)
-        except Exception as exc:
-            st.error(f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}")
-
 else:
-    st.info("Configure datasets/model/parameters on the left, then click **Run Fit**.")
+    st.info(
+        "👈 Configure datasets/model/parameters on the left, then click **Run Fit**.",
+        icon="🌌",
+    )
