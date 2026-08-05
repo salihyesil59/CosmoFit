@@ -116,12 +116,47 @@ class EnsembleSampler(BaseSampler):
 
         ndim = prior.ndim
 
+        # emcee doesn't enforce this itself, but with fewer walkers
+        # than free parameters the initial walker cloud can't span
+        # the parameter space -- it ends up linearly dependent, which
+        # surfaces later as emcee's context-free "large condition
+        # number" error. `nwalkers >= 2 * ndim` is emcee's own
+        # documented recommendation; catch a violation here instead.
+        if nwalkers < 2 * ndim:
+            raise ValueError(
+                f"nwalkers={nwalkers} is too small for {ndim} free "
+                f"parameter(s); emcee needs at least 2x as many "
+                f"walkers as free parameters (>= {2 * ndim} here) to "
+                f"initialize a non-degenerate walker cloud."
+            )
+
         if initial_scatter is None:
             scatter = 0.01 * (prior.upper - prior.lower)
         else:
             scatter = np.array(
                 [initial_scatter[n] for n in prior.names],
                 dtype=float,
+            )
+
+        # A parameter with zero (or negative) scatter puts every
+        # walker at the exact same value along that axis, which
+        # makes the initial walker cloud linearly dependent -- emcee
+        # then refuses to start, with a "large condition number"
+        # error that doesn't say which parameter caused it. Usually
+        # means that parameter's prior bounds are equal (e.g. a
+        # `bounds=` override, or the GUI's Lower/Upper columns, with
+        # lower == upper); catch it here with a message that does.
+        degenerate = [
+            prior.names[i] for i in range(ndim) if not scatter[i] > 0
+        ]
+        if degenerate:
+            raise ValueError(
+                f"Zero (or negative) initial walker scatter for "
+                f"parameter(s) {degenerate}. This usually means "
+                f"their prior bounds have lower == upper (check "
+                f"`bounds=`, or the GUI's Lower/Upper columns) -- "
+                f"widen them, or pass an explicit `initial_scatter=` "
+                f"for these parameter(s)."
             )
 
         rng = np.random.default_rng(seed)

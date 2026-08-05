@@ -283,7 +283,11 @@ with st.sidebar:
     st.divider()
     st.header("MCMC settings")
 
-    nwalkers = st.number_input("Walkers", min_value=4, value=48, step=2)
+    nwalkers = st.number_input(
+        "Walkers", min_value=8, value=48, step=2,
+        help="Needs to be at least 2x the number of free parameters "
+             "you tick below, or the fit will fail to start.",
+    )
     nsteps = st.number_input("Steps", min_value=50, value=3000, step=50)
     burnin = st.number_input("Burn-in", min_value=0, value=500, step=50)
     seed = st.number_input("Seed", min_value=0, value=42, step=1)
