@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.9.0
+> **Current Version:** v0.12.0
 
 ---
 
@@ -32,6 +32,14 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 
 * Modular likelihood architecture
 * Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
+* Dedicated sampling backend (`stats.sampler`), decoupled from `Fitter` and swappable (custom
+  `emcee` moves today, room for other backends later)
+* Consolidated result object (`fitter.result`): best-fit + MCMC posterior in one printable,
+  JSON-serializable snapshot
+* Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
+  extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
+* Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, pick or
+  write a model, edit free parameters, and run the MCMC fit + plots with one click, no code
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
@@ -136,10 +144,103 @@ fitter.best_fit()
 fitter.summary()
 fitter.convergence()
 
+print(fitter.result)
+
 fitter.plots.corner()
 fitter.plots.hubble_diagram()
 fitter.plots.w_of_z()
 ```
+
+---
+
+## Custom Models
+
+Testing a model that isn't in the literature -- and isn't one of
+CosmoFit's six built-ins -- doesn't require touching the library's
+internals. `define_model` builds a usable model from a single
+`E(z)` function (that alone is enough to fit against every dataset
+and produce every plot except `w_of_z()`/`deceleration()`); any new
+parameter it needs beyond the standard set (`H0`, `Omega_m`,
+`Omega_k`, `w0`, `wa`, ...) is declared right there, with a default
+and prior bounds:
+
+```python
+from CosmoFit import define_model, Fitter
+import numpy as np
+
+MyModel = define_model(
+    "MyModel",
+    E=lambda p, z: np.sqrt(
+        p["Omega_m"] * (1 + z) ** 3
+        + (1 - p["Omega_m"]) * (1 + z) ** (3 * (1 + p["w0"])) * (1 + p["beta"] * z)
+    ),
+    extra_params={"beta": {"default": 0.0, "bounds": (-2.0, 2.0), "label": r"$\beta$"}},
+)
+
+fit = Fitter(
+    model=MyModel,
+    datasets=["cc", "desi", "pantheon"],
+    free_params=["H0", "Omega_m", "w0", "beta"],
+    initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "beta": 0.0},
+)
+fit.run_mcmc(nwalkers=48, nsteps=3000, burnin=500)
+fit.best_fit()
+print(fit.result)
+fit.plots.corner()
+```
+
+For more control, the same mechanism is available by subclassing
+`Cosmology` directly and declaring `EXTRA_PARAMS` on the class --
+`define_model` is a thin convenience wrapper around exactly this:
+
+```python
+from CosmoFit import Cosmology
+
+class MyModel(Cosmology):
+    EXTRA_PARAMS = {"beta": {"default": 0.0, "bounds": (-2.0, 2.0)}}
+
+    def E(self, z):
+        z = np.asarray(z, dtype=float)
+        return np.sqrt(
+            self.Omega_m * (1 + z) ** 3
+            + (1 - self.Omega_m) * (1 + z) ** (3 * (1 + self.w0)) * (1 + self.beta * z)
+        )
+```
+
+---
+
+## Graphical Interface
+
+For datasets/models/parameters by clicking rather than coding, a
+[Streamlit](https://streamlit.io) app (`app/streamlit_app.py`) sits
+on top of the exact same public API as above -- it builds a
+`Fitter` and calls `run_mcmc()`/`best_fit()`/`fit.plots.*` for you.
+
+```bash
+pip install -e ".[gui]"
+streamlit run app/streamlit_app.py
+```
+
+Or, without touching a terminal: double-click `run_gui.sh` (Linux/macOS)
+or `run_gui.bat` (Windows) in the repository root. Either installs
+whatever's missing on first run and then opens the app in your
+browser; safe to double-click again any time to relaunch it.
+
+It lets you: tick which built-in datasets to fit; pick one of the
+six built-in models, or write a custom one directly as an `E(z)`
+expression (e.g. `sqrt(Omega_m*(1+z)**3 + ...)`, using the same
+mechanism as `model_from_expression()` below) with your own extra
+parameters; tick which parameters are free and edit their initial
+values/bounds in a table; and, with one click, run the MCMC fit and
+render whichever result plots apply to your model/dataset choice.
+Results (best fit, posterior summary, convergence) can be downloaded
+as JSON via `FitResult.save_json()`.
+
+The custom-model expression box evaluates with `eval()` but with
+Python's builtins removed and only whitelisted `numpy` math plus the
+model's own parameter names reachable -- appropriate for running
+locally on your own machine, not for a publicly hosted, multi-tenant
+deployment.
 
 ---
 
@@ -243,16 +344,64 @@ likelihood.** The distance-integrator's interpolation grid
 precision needs) for a smaller additional gain that applies to every
 fit, Planck or not.
 
+Version **v0.10.0** splits MCMC sampling out of `Fitter` and into a
+dedicated `stats.sampler` module: `EnsembleSampler` (the existing
+`emcee`-backed walker initialization/run logic, unchanged in
+behavior) now implements a small `BaseSampler` interface, so the
+sampling backend is a swappable component rather than logic
+inlined in `Fitter.run_mcmc`, and `run_mcmc()` gains a `moves=`
+argument to pass through custom `emcee` proposals (e.g.
+`emcee.moves.DEMove()` for strongly correlated posteriors). It also
+adds a consolidated result interface (`stats.results`): `fitter.result`
+returns a `FitResult` bundling the best-fit point (`BestFitResult`)
+and MCMC posterior summary/convergence (`MCMCResult`) that were
+previously only available piecemeal via `best_fit_params`,
+`best_fit_chi2`, `summary()`, `convergence()`, with a single
+readable `repr` and `FitResult.save_json()` / `.load_json()` for
+keeping a fit's headline numbers without pickling the `emcee`
+sampler. Both are purely additive -- every existing `Fitter`
+method/attribute (`run_mcmc()`, `best_fit()`, `summary()`,
+`convergence()`, `samples_dict()`, `.sampler`, `.best_fit_result`,
+...) is unchanged.
+
+Version **v0.11.0** adds support for custom, not-in-the-literature
+models: `define_model()` (`cosmology.custom`) builds a usable
+`Cosmology` subclass from a single `E(z)` function -- which alone is
+enough to fit against every built-in dataset/likelihood and produce
+every plot except `w_of_z()`/`deceleration()` (an optional `dEdz=`
+enables the latter, else a numerical finite-difference fallback is
+used) -- plus any new parameters the model needs beyond the standard
+set (`H0`, `Omega_m`, `Omega_k`, `w0`, `wa`, ...), each declared
+inline with a default and prior bounds. The same mechanism is also
+available by subclassing `Cosmology` directly and declaring an
+`EXTRA_PARAMS` class attribute (`Cosmology.__init_subclass__` builds
+a matching parameter dataclass and property automatically); this is
+what `define_model` does under the hood. Required generalizing
+`Fitter` to read the parameter container off the model
+(`model.PARAMS_CLASS`) instead of hardcoding
+`CosmologyParameters` -- every built-in model is unaffected (none
+declare `EXTRA_PARAMS`), verified against all six.
+
+Version **v0.12.0** adds a graphical interface: a
+[Streamlit](https://streamlit.io) app (`app/streamlit_app.py`,
+optional `pip install -e ".[gui]"`) for ticking datasets, picking a
+built-in model or writing a custom `E(z)` as an expression, editing
+free parameters/bounds in a table, and running the fit + rendering
+plots with one click -- a pure UI layer over the existing
+`Fitter`/`FitPlotter` API, with no changes to either. The one new
+library addition is `model_from_expression()`
+(`cosmology.custom`), a thin wrapper around `define_model()` that
+takes `E`/`w`/`dEdz` as expression strings (e.g.
+`"sqrt(Omega_m*(1+z)**3 + ...)"`) instead of Python callables --
+evaluated with builtins stripped and only whitelisted `numpy` math
+plus the model's own parameters reachable, appropriate for a
+locally-run tool.
+
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
 ---
 
 ## Roadmap
-
-### v0.10.0
-
-* Dedicated sampler module
-* Improved result interface
 
 ### v1.0.0
 

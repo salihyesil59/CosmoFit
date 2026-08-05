@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.9.0"
+version = "0.12.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -80,6 +80,10 @@ dev = [
 
 speed = [
     "numba>=0.60",
+]
+
+gui = [
+    "streamlit>=1.38",
 ]
 
 docs = [

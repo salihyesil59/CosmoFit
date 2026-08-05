@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from CosmoFit.cosmology.core.parameters import CosmologyParameters, DEFAULT_BOUNDS
+from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
 from CosmoFit.likelihoods.cc import CCLikelihood
 from CosmoFit.likelihoods.desi import DESILikelihood
@@ -42,6 +42,8 @@ from CosmoFit.plots import FitPlotter
 
 from .priors import UniformPrior
 from .posterior import LogPosterior
+from .sampler import EnsembleSampler
+from .results import FitResult, BestFitResult, MCMCResult
 
 
 # ============================================================
@@ -72,7 +74,11 @@ class Fitter:
     Parameters
     ----------
     model : type
-        A ``Cosmology`` subclass, e.g. ``LCDM`` or ``CPL``.
+        A ``Cosmology`` subclass, e.g. ``LCDM`` or ``CPL`` -- or a
+        custom model built with :func:`cosmology.custom.define_model`
+        (or a hand-written ``Cosmology`` subclass declaring
+        ``EXTRA_PARAMS``), for testing a new model not built into
+        CosmoFit.
 
     datasets : list[str]
         Which likelihoods to combine. Keys of
@@ -102,7 +108,9 @@ class Fitter:
 
     bounds : dict[str, tuple[float, float]], optional
         Overrides for the default uniform-prior bounds
-        (:data:`cosmology.core.parameters.DEFAULT_BOUNDS`).
+        (``model.PARAMS_CLASS.default_bounds()``, which is
+        :data:`cosmology.core.parameters.DEFAULT_BOUNDS` for every
+        built-in model).
 
     dataset_kwargs : dict[str, dict], optional
         Extra keyword arguments passed to the constructor of
@@ -127,14 +135,23 @@ class Fitter:
 
         # ------------------------------------------------------
         # Build the (shared, mutable) parameter object
+        #
+        # `model.PARAMS_CLASS` is `CosmologyParameters` for every
+        # built-in model; a custom model (`cosmology.define_model`,
+        # or a `Cosmology` subclass declaring `EXTRA_PARAMS`) gets
+        # its own dynamically-built superset instead -- see
+        # `Cosmology.__init_subclass__`.
         # ------------------------------------------------------
 
-        values = dict(CosmologyParameters.defaults())
+        params_cls = getattr(model, "PARAMS_CLASS", CosmologyParameters)
+        self.params_cls = params_cls
+
+        values = dict(params_cls.defaults())
         values.update(initial or {})
         values.update(fixed or {})
 
         missing = [
-            name for name in CosmologyParameters.names()
+            name for name in params_cls.names()
             if name not in values
         ]
         if missing:
@@ -146,8 +163,8 @@ class Fitter:
 
         self.initial = {name: values[name] for name in self.free_params}
 
-        self.params = CosmologyParameters(
-            **{name: values[name] for name in CosmologyParameters.names()}
+        self.params = params_cls(
+            **{name: values[name] for name in params_cls.names()}
         )
 
         self.cosmology = self.model_cls(self.params)
@@ -180,7 +197,7 @@ class Fitter:
         # Prior + posterior
         # ------------------------------------------------------
 
-        merged_bounds = dict(DEFAULT_BOUNDS)
+        merged_bounds = params_cls.default_bounds()
         if bounds:
             merged_bounds.update(bounds)
 
@@ -250,9 +267,11 @@ class Fitter:
         initial_scatter=None,
         seed: int = 42,
         progress: bool = True,
+        moves=None,
     ):
         """
-        Run an ``emcee`` ensemble MCMC.
+        Run an ``emcee`` ensemble MCMC, via
+        :class:`~stats.sampler.EnsembleSampler`.
 
         Parameters
         ----------
@@ -275,32 +294,28 @@ class Fitter:
         progress : bool
             Show an emcee progress bar.
 
+        moves : emcee move or list of (move, weight), optional
+            Passed through to ``emcee.EnsembleSampler`` (see
+            :class:`~stats.sampler.EnsembleSampler`). Defaults to
+            emcee's own default proposal (``StretchMove``).
+
         Returns
         -------
         emcee.EnsembleSampler
         """
 
-        import emcee
+        backend = EnsembleSampler(moves=moves)
 
-        if initial_scatter is None:
-            scatter = 0.01 * (self.prior.upper - self.prior.lower)
-        else:
-            scatter = np.array(
-                [initial_scatter[n] for n in self.free_params],
-                dtype=float,
-            )
-
-        rng = np.random.default_rng(seed)
-
-        pos = self.theta0 + scatter * rng.normal(size=(nwalkers, self.ndim))
-
-        # Keep the initial walker positions safely inside the prior.
-        eps = 1e-6 * (self.prior.upper - self.prior.lower)
-        pos = np.clip(pos, self.prior.lower + eps, self.prior.upper - eps)
-
-        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.logpost)
-
-        sampler.run_mcmc(pos, nsteps, progress=progress)
+        sampler = backend.run(
+            self.logpost,
+            self.prior,
+            self.theta0,
+            nwalkers=nwalkers,
+            nsteps=nsteps,
+            initial_scatter=initial_scatter,
+            seed=seed,
+            progress=progress,
+        )
 
         self.sampler = sampler
         self.burnin = burnin
@@ -491,6 +506,63 @@ class Fitter:
             raise RuntimeError("Call best_fit() first.")
 
         return float(self.best_fit_result.fun)
+
+    # ============================================================
+    # Consolidated result
+    # ============================================================
+
+    @property
+    def result(self) -> FitResult:
+        """
+        A single :class:`~stats.results.FitResult` snapshot of
+        whatever this fitter currently has: the best-fit point
+        (if :meth:`best_fit` has been called), the MCMC posterior
+        (if :meth:`run_mcmc` has been called), or both.
+
+        This is a read-only summary built on demand -- it does
+        not replace :meth:`summary`, :meth:`convergence`,
+        :attr:`best_fit_params` etc., which remain the way to get
+        each piece individually. It exists for the "one object,
+        printable in one line, saveable to JSON" case, e.g.::
+
+            fit.run_mcmc(...)
+            fit.best_fit()
+            print(fit.result)
+            fit.result.save_json("cpl_fit.json")
+        """
+
+        best_fit = None
+        if self.best_fit_result is not None:
+            best_fit = BestFitResult(
+                params=self.best_fit_params,
+                chi2=self.best_fit_chi2,
+                ndim=self.ndim,
+                n_data=self.n_data,
+                success=bool(self.best_fit_result.success),
+                message=str(self.best_fit_result.message),
+            )
+
+        mcmc = None
+        if self.sampler is not None:
+            mcmc = MCMCResult(
+                summary=self.summary(),
+                convergence=self.convergence(),
+                nwalkers=self.sampler.nwalkers,
+                nsteps=self.sampler.iteration,
+                burnin=self.burnin,
+                ndim=self.ndim,
+                acceptance_fraction=float(
+                    np.mean(self.sampler.acceptance_fraction)
+                ),
+            )
+
+        return FitResult(
+            model=self.model_cls.__name__,
+            datasets=self.dataset_names,
+            free_params=self.free_params,
+            best_fit=best_fit,
+            mcmc=mcmc,
+        )
 
     # ------------------------------------------------------------
 

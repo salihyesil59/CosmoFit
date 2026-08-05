@@ -4,7 +4,10 @@ Base cosmology class.
 
 from __future__ import annotations
 
-from CosmoFit.cosmology.core.parameters import CosmologyParameters
+from CosmoFit.cosmology.core.parameters import (
+    CosmologyParameters,
+    build_params_class,
+)
 
 from CosmoFit.cosmology.numerics import DistanceIntegrator
 
@@ -19,7 +22,54 @@ from CosmoFit.cosmology.calculators import (
 class Cosmology:
     """
     Base class for all cosmological models.
+
+    Subclasses that need a parameter beyond the standard
+    :class:`CosmologyParameters` set (e.g. a genuinely new,
+    not-in-the-literature model) can declare an ``EXTRA_PARAMS``
+    class attribute -- a dict of ``{name: {"default": ..., "bounds":
+    (lo, hi), "label": ...}}`` -- and ``__init_subclass__`` below
+    builds a matching parameter dataclass (``PARAMS_CLASS``) and a
+    ``self.<name>`` property automatically. See
+    :func:`cosmology.custom.define_model` for the minimal-code way
+    to do this without subclassing by hand.
     """
+
+    #: Extra parameters this model adds beyond `CosmologyParameters`.
+    #: Empty for every built-in model.
+    EXTRA_PARAMS: dict = {}
+
+    #: Parameter container class used to build `self.params`.
+    #: Overridden automatically for subclasses that set
+    #: `EXTRA_PARAMS`.
+    PARAMS_CLASS = CosmologyParameters
+
+    # ---------------------------------------------------------
+
+    def __init_subclass__(cls, **kwargs) -> None:
+
+        super().__init_subclass__(**kwargs)
+
+        # Only trigger for a subclass's *own* `EXTRA_PARAMS`
+        # declaration, not an inherited one -- so re-subclassing an
+        # already-extended model doesn't rebuild `PARAMS_CLASS`
+        # (and every built-in model, which never sets this, is
+        # completely unaffected).
+        extra = cls.__dict__.get("EXTRA_PARAMS")
+
+        if not extra:
+            return
+
+        cls.PARAMS_CLASS = build_params_class(
+            cls.__name__, extra, base=cls.PARAMS_CLASS,
+        )
+
+        for pname in extra:
+            setattr(
+                cls, pname,
+                property(lambda self, _n=pname: getattr(self.params, _n)),
+            )
+
+    # ---------------------------------------------------------
 
     def __init__(
         self,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, MISSING, asdict, fields
+from dataclasses import dataclass, MISSING, asdict, fields, field, make_dataclass
 from collections.abc import Iterable, Iterator
 from typing import Optional, Any
 from copy import deepcopy
@@ -586,22 +586,44 @@ class CosmologyParameters(BaseParameters):
     A_s: float = 0.7
     alpha: float = 0.0
 
+    #: Extra bounds/labels contributed by :func:`build_params_class`
+    #: for dynamically-created custom-model parameter classes. Empty
+    #: for the standard container; not dataclass fields (no type
+    #: annotation), so ``@dataclass`` ignores them.
+    _EXTRA_BOUNDS = {}
+    _EXTRA_LABELS = {}
+
     # ==========================================================
     # Parameter metadata (labels / bounds), used by ParameterSet
     # ==========================================================
 
     @classmethod
+    def default_bounds(cls) -> dict:
+        """
+        Default prior bounds for every parameter in this
+        container: the module-level :data:`DEFAULT_BOUNDS`, plus
+        any extra bounds contributed by :func:`build_params_class`
+        for a custom model's extra parameters.
+        """
+
+        merged = dict(DEFAULT_BOUNDS)
+        merged.update(cls._EXTRA_BOUNDS)
+
+        return merged
+
+    # ------------------------------------------------------------
+
+    @classmethod
     def parameter_set(cls, bounds: dict | None = None) -> "ParameterSet":
         """
         Build a :class:`ParameterSet` describing this container,
-        with LaTeX labels and (by default) the module-level
-        ``DEFAULT_BOUNDS``.
+        with LaTeX labels and (by default) :meth:`default_bounds`.
 
         Parameters
         ----------
         bounds : dict, optional
             Mapping of parameter name -> (lower, upper) that
-            overrides/extends ``DEFAULT_BOUNDS``.
+            overrides/extends :meth:`default_bounds`.
         """
 
         labels = {
@@ -616,8 +638,9 @@ class CosmologyParameters(BaseParameters):
             "A_s": r"$A_s$",
             "alpha": r"$\alpha$",
         }
+        labels.update(cls._EXTRA_LABELS)
 
-        merged_bounds = dict(DEFAULT_BOUNDS)
+        merged_bounds = cls.default_bounds()
 
         if bounds:
             merged_bounds.update(bounds)
@@ -630,3 +653,89 @@ class CosmologyParameters(BaseParameters):
             )
             for name in cls.names()
         )
+
+
+# ==========================================================
+# Dynamic parameter classes for custom models
+# ==========================================================
+
+def build_params_class(
+    name: str,
+    extra_params: dict,
+    base: type = CosmologyParameters,
+) -> type:
+    """
+    Build a new :class:`BaseParameters` subclass that adds
+    user-defined parameters to ``base`` (normally
+    :class:`CosmologyParameters`).
+
+    Used by :meth:`Cosmology.__init_subclass__` to back
+    ``EXTRA_PARAMS`` on a custom model (see
+    :mod:`cosmology.custom`) -- not usually called directly.
+
+    Parameters
+    ----------
+    name : str
+        Base name for the generated class (``f"{name}Parameters"``).
+
+    extra_params : dict[str, dict]
+        Mapping of new parameter name -> spec dict with keys
+        ``"default"`` (float, defaults to 0.0), ``"bounds"``
+        (``(lower, upper)``, optional), ``"label"`` (str,
+        optional, for corner-plot axes).
+
+    base : type
+        The :class:`BaseParameters` subclass to extend. Must not
+        already define any of the ``extra_params`` names.
+
+    Returns
+    -------
+    type
+        A new, slotted dataclass subclassing ``base`` with the
+        extra fields added.
+    """
+
+    existing = set(base.names())
+    collisions = [p for p in extra_params if p in existing]
+
+    if collisions:
+        raise ValueError(
+            f"Extra parameter name(s) {collisions} collide with "
+            f"{base.__name__}'s existing parameter(s). Choose a "
+            f"different name, or omit `extra_params` and reuse the "
+            f"existing parameter instead."
+        )
+
+    fields_spec = []
+    extra_bounds = dict(getattr(base, "_EXTRA_BOUNDS", {}))
+    extra_labels = dict(getattr(base, "_EXTRA_LABELS", {}))
+
+    for pname, spec in extra_params.items():
+
+        default = float(spec.get("default", 0.0))
+        fields_spec.append((pname, float, field(default=default)))
+
+        if "bounds" in spec:
+            extra_bounds[pname] = tuple(spec["bounds"])
+
+        if "label" in spec:
+            extra_labels[pname] = spec["label"]
+
+    def _default_bounds(cls) -> dict:
+
+        merged = dict(DEFAULT_BOUNDS)
+        merged.update(extra_bounds)
+
+        return merged
+
+    return make_dataclass(
+        f"{name}Parameters",
+        fields_spec,
+        bases=(base,),
+        slots=True,
+        namespace={
+            "default_bounds": classmethod(_default_bounds),
+            "_EXTRA_BOUNDS": extra_bounds,
+            "_EXTRA_LABELS": extra_labels,
+        },
+    )
