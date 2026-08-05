@@ -311,11 +311,22 @@ st.header("Parameters")
 param_rows = []
 for p in parameter_set:
     lo, hi = p.bounds if p.bounds else (None, None)
+    # H0/Omega_m (and any custom parameter without an explicit
+    # "default") have no dataclass default -- falling back to 0.0
+    # would sit outside their prior bounds and produce a degenerate
+    # walker cloud (every walker clipped to the same edge). The
+    # bounds midpoint is always inside the prior instead.
+    if p.name in defaults:
+        initial = float(defaults[p.name])
+    elif lo is not None and hi is not None:
+        initial = float((lo + hi) / 2.0)
+    else:
+        initial = 0.0
     param_rows.append({
         "Parameter": p.name,
         "Label": p.label,
         "Free": p.name in ("H0", "Omega_m"),
-        "Initial": float(defaults.get(p.name, 0.0)),
+        "Initial": initial,
         "Lower": lo,
         "Upper": hi,
     })
