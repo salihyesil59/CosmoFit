@@ -130,6 +130,23 @@ class EnsembleSampler(BaseSampler):
                 f"initialize a non-degenerate walker cloud."
             )
 
+        # `theta0` outside the prior gets clipped to the boundary a
+        # few lines down (`np.clip`), which -- like zero scatter --
+        # collapses every walker onto the same edge value and trips
+        # the same opaque emcee error. Name the offender instead.
+        outside = [
+            f"{prior.names[i]}={theta0[i]:g} (bounds "
+            f"[{prior.lower[i]:g}, {prior.upper[i]:g}])"
+            for i in range(ndim)
+            if not (prior.lower[i] <= theta0[i] <= prior.upper[i])
+        ]
+        if outside:
+            raise ValueError(
+                f"Initial value outside its prior bounds for "
+                f"parameter(s): {'; '.join(outside)}. Fix `initial=` "
+                f"(or the GUI's Initial column) for these."
+            )
+
         if initial_scatter is None:
             scatter = 0.01 * (prior.upper - prior.lower)
         else:
