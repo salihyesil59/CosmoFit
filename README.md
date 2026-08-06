@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.13.0
+> **Current Version:** v0.14.0
 
 ---
 
@@ -34,6 +34,9 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 * Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
 * Dedicated sampling backend (`stats.sampler`), decoupled from `Fitter` and swappable (custom
   `emcee` moves today, room for other backends later)
+* Multi-core MCMC (`fitter.run_mcmc(n_processes=...)`): evaluates walkers across multiple CPU
+  cores, each worker building its own `Fitter` once rather than repeatedly shipping the whole
+  (potentially large) likelihood across processes
 * Consolidated result object (`fitter.result`): best-fit + MCMC posterior in one printable,
   JSON-serializable snapshot
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
@@ -100,7 +103,7 @@ is a convenience layer over them, not a replacement.
 
 ## Example Notebooks
 
-All four notebooks below are Colab-ready: click a badge to open it directly in Google Colab and
+All five notebooks below are Colab-ready: click a badge to open it directly in Google Colab and
 *Runtime → Run all* — no local setup needed.
 
 | Notebook | What it covers |
@@ -109,6 +112,7 @@ All four notebooks below are Colab-ready: click a badge to open it directly in G
 | [`dataset_zoo.ipynb`](examples/dataset_zoo.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/dataset_zoo.ipynb) | A tour of all six built-in datasets (CC, DESI, SDSS BAO, Pantheon+, DES-SN5YR, Planck), each plotted on its own, plus which combinations to avoid. |
 | [`model_zoo_comparison.ipynb`](examples/model_zoo_comparison.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/model_zoo_comparison.ipynb) | All six cosmological models (LCDM, wCDM, CPL, JBP, BA, GCG) fit to the same data and compared with AIC/BIC, plus a full MCMC for GCG. |
 | [`cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb) | The deep dive: CPL fit to CC+DESI+Pantheon+, convergence diagnostics, every `fit.plots` figure, model comparison, and an independent Planck cross-check. |
+| [`cpl_4data.ipynb`](examples/cpl_4data.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_4data.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
 
 ---
 
@@ -447,6 +451,33 @@ and works for any model -- built-in or
 `Fitter`/`Cosmology`'s existing generic interface. The
 `cpl_mcmc_analysis` notebook's CPL vs. LCDM section now includes
 these alongside its existing AIC/BIC/likelihood-ratio comparison.
+
+Version **v0.14.0** adds multi-core MCMC: `fitter.run_mcmc(n_processes=...)`
+evaluates the ensemble's walkers across multiple CPU cores. This
+isn't emcee's own naive recipe (pairing a raw `multiprocessing.Pool`
+with `Fitter`'s already-built, data-carrying log-posterior) -- for a
+dataset like Pantheon+ (a ~1600x1600 dense covariance matrix),
+re-pickling and sending that to a worker on every single step
+measured *slower* than one process (~19ms to pickle vs. ~2ms to
+evaluate). Instead, each worker process builds its own `Fitter` once
+(from a small, cheap-to-pickle recipe), via the pool's `initializer`,
+and only a length-`ndim` float vector crosses the process boundary
+per evaluation after that; workers also pin their own BLAS thread
+pool to 1 (via the new `threadpoolctl` dependency) to avoid
+oversubscribing the machine. Net effect, measured on an 8-core
+machine for a 4-dataset CPL fit: ~2.4x, well under `n_processes`x
+(per-step IPC has its own cost) but a real, significant speedup. Only
+works for models picklable by reference (every built-in model; not a
+dynamically-built `define_model()`/`model_from_expression()` model,
+which raises a clear error rather than an obscure pickling failure
+if `n_processes` is given), and is most reliable on Linux/macOS
+(multiprocessing from a Windows notebook is fragile for reasons
+outside this library's control). The new `examples/cpl_4data.ipynb`
+notebook is a publication-scale variant of `cpl_mcmc_analysis.ipynb`
+using this: all four datasets (including Planck, which makes `rd`
+and `Omega_b` constrainable and lets them join the free parameters
+too) and a much longer chain (`nwalkers=64`, `nsteps=12000`), run in
+parallel across every available core.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 

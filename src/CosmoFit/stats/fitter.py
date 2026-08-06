@@ -63,6 +63,66 @@ DATASET_REGISTRY = {
 
 
 # ============================================================
+# Multiprocessing worker plumbing (for Fitter.run_mcmc(n_processes=...))
+# ============================================================
+#
+# emcee's own multiprocessing recipe (pass a `multiprocessing.Pool`
+# straight to `EnsembleSampler`) re-pickles and sends the *entire*
+# log-posterior object -- including every dataset's covariance
+# matrix -- to a worker on every single ensemble step. For a dataset
+# like Pantheon+ (a ~1600x1600 dense covariance), that's tens of MB
+# per step, which comfortably outweighs the few milliseconds an
+# actual likelihood evaluation takes -- i.e. naive multiprocessing
+# here is *slower* than one process, not faster (measured directly:
+# ~19ms to pickle a 4-dataset `LogPosterior` vs ~2ms to evaluate it).
+#
+# So instead, each worker builds its *own* `Fitter` once, from a
+# small, cheap-to-pickle "recipe" (`Fitter._recipe()`: the model
+# class, dataset names, free parameter names, and current parameter
+# values -- no arrays), via the pool's `initializer`. Only a length-
+# `ndim` float vector then crosses the process boundary per
+# evaluation. This requires `model` to be picklable *by reference*
+# (true for every built-in model, and for a module-level `Cosmology`
+# subclass with `EXTRA_PARAMS` -- not for a `define_model()`/
+# `model_from_expression()` class, which is built dynamically and
+# has no stable import path; `Fitter.run_mcmc(n_processes=...)`
+# checks for this and raises a clear error rather than an obscure
+# pickling failure).
+
+_worker_fitter = None
+
+
+def _init_worker(recipe: dict) -> None:
+    """
+    Pool ``initializer``: build this worker process's own `Fitter`
+    once (stored in a process-global, not returned -- `Pool`
+    initializers can't have a return value collected).
+    """
+
+    global _worker_fitter
+
+    try:
+        import threadpoolctl
+        # Undo whatever BLAS thread pool numpy set up before the
+        # fork -- with N worker processes each also running a
+        # multi-threaded BLAS, you oversubscribe the machine's
+        # cores and multiprocessing can end up *slower* than one
+        # process. Confirmed: without this, 8-process speedup on an
+        # 8-core machine measured 1.4x; with it, 2.4x.
+        threadpoolctl.threadpool_limits(1)
+    except ImportError:
+        pass
+
+    _worker_fitter = Fitter(**recipe)
+
+
+def _worker_log_prob(theta):
+    """Pool worker target: evaluate this worker's own `Fitter`."""
+
+    return _worker_fitter.logpost(theta)
+
+
+# ============================================================
 # Fitter
 # ============================================================
 
@@ -174,6 +234,7 @@ class Fitter:
         # ------------------------------------------------------
 
         dataset_kwargs = dataset_kwargs or {}
+        self.dataset_kwargs = dataset_kwargs
 
         self.likelihoods = []
 
@@ -196,6 +257,8 @@ class Fitter:
         # ------------------------------------------------------
         # Prior + posterior
         # ------------------------------------------------------
+
+        self.bounds = bounds
 
         merged_bounds = params_cls.default_bounds()
         if bounds:
@@ -269,6 +332,7 @@ class Fitter:
         progress: bool = True,
         moves=None,
         callback=None,
+        n_processes: int = 1,
     ):
         """
         Run an ``emcee`` ensemble MCMC, via
@@ -305,6 +369,26 @@ class Fitter:
             :meth:`~stats.sampler.EnsembleSampler.run`. Used by the
             GUI to drive a live progress bar.
 
+        n_processes : int
+            Evaluate walkers' log-posteriors across this many worker
+            processes instead of one (default 1: no multiprocessing).
+            Each worker builds its own `Fitter` once (see the
+            `stats.fitter` module docstring for why -- naive
+            `pool=multiprocessing.Pool()` is often *slower* here, not
+            faster), so this needs `model` to be picklable by
+            reference: every built-in model works; a model built
+            with `cosmology.custom.define_model()` /
+            `model_from_expression()` doesn't (raises `ValueError`
+            rather than an obscure pickling failure -- use
+            `n_processes=1` for those). Speedup is real but well
+            under `n_processes`x in practice (~2.5x measured on 8
+            processes for a 4-dataset CPL fit) -- per-step IPC has
+            its own cost. Reliable on Linux/macOS; multiprocessing
+            from a Windows notebook is fragile for reasons outside
+            this library's control (the `spawn` start method needs
+            worker functions re-importable from a real module, which
+            an interactive notebook session isn't).
+
         Returns
         -------
         emcee.EnsembleSampler
@@ -312,22 +396,88 @@ class Fitter:
 
         backend = EnsembleSampler(moves=moves)
 
-        sampler = backend.run(
-            self.logpost,
-            self.prior,
-            self.theta0,
-            nwalkers=nwalkers,
-            nsteps=nsteps,
-            initial_scatter=initial_scatter,
-            seed=seed,
-            progress=progress,
-            callback=callback,
-        )
+        with self._mcmc_pool(n_processes) as pool:
+
+            # With a pool, `emcee` ships `logpost` itself to every
+            # worker on every step -- `self.logpost` is the heavy,
+            # data-carrying object multiprocessing here is built to
+            # avoid sending (see the module docstring above
+            # `_init_worker`). `_worker_log_prob` is a cheap
+            # top-level reference to *this worker's own* `Fitter`
+            # instead, built once by the pool's `initializer`.
+            logpost = _worker_log_prob if pool is not None else self.logpost
+
+            sampler = backend.run(
+                logpost,
+                self.prior,
+                self.theta0,
+                nwalkers=nwalkers,
+                nsteps=nsteps,
+                initial_scatter=initial_scatter,
+                seed=seed,
+                progress=progress,
+                callback=callback,
+                pool=pool,
+            )
 
         self.sampler = sampler
         self.burnin = burnin
 
         return sampler
+
+    # ------------------------------------------------------------
+
+    def _recipe(self) -> dict:
+        """
+        This fitter's constructor arguments, cheap to pickle (no
+        arrays -- just the model class, names, and current scalar
+        parameter values) -- enough for a worker process to build an
+        equivalent `Fitter` of its own. See `run_mcmc(n_processes=)`.
+        """
+
+        return dict(
+            model=self.model_cls,
+            datasets=self.dataset_names,
+            free_params=self.free_params,
+            initial=self.params.as_dict(),
+            bounds=self.bounds,
+            dataset_kwargs=self.dataset_kwargs,
+        )
+
+    # ------------------------------------------------------------
+
+    def _mcmc_pool(self, n_processes: int):
+        """
+        A `multiprocessing.Pool` (as a context manager) for
+        `run_mcmc(n_processes=...)`, or a no-op context manager
+        yielding `None` for the default `n_processes=1` (so
+        `run_mcmc` can always do ``with self._mcmc_pool(n) as
+        pool:`` regardless).
+        """
+
+        from contextlib import nullcontext
+
+        if n_processes <= 1:
+            return nullcontext(None)
+
+        import pickle
+        import multiprocessing as mp
+
+        recipe = self._recipe()
+
+        try:
+            pickle.dumps(recipe["model"])
+        except (pickle.PicklingError, AttributeError, TypeError) as exc:
+            raise ValueError(
+                f"n_processes={n_processes} needs `model` "
+                f"({recipe['model']!r}) to be picklable by reference, "
+                f"which every built-in CosmoFit model is, but a "
+                f"dynamically-built `define_model()`/"
+                f"`model_from_expression()` model isn't. Use "
+                f"n_processes=1 for this model."
+            ) from exc
+
+        return mp.Pool(n_processes, initializer=_init_worker, initargs=(recipe,))
 
     # ------------------------------------------------------------
 
