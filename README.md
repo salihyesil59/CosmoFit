@@ -112,7 +112,7 @@ All five notebooks below are Colab-ready: click a badge to open it directly in G
 | [`dataset_zoo.ipynb`](examples/dataset_zoo.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/dataset_zoo.ipynb) | A tour of all six built-in datasets (CC, DESI, SDSS BAO, Pantheon+, DES-SN5YR, Planck), each plotted on its own, plus which combinations to avoid. |
 | [`model_zoo_comparison.ipynb`](examples/model_zoo_comparison.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/model_zoo_comparison.ipynb) | All six cosmological models (LCDM, wCDM, CPL, JBP, BA, GCG) fit to the same data and compared with AIC/BIC, plus a full MCMC for GCG. |
 | [`cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb) | The deep dive: CPL fit to CC+DESI+Pantheon+, convergence diagnostics, every `fit.plots` figure, model comparison, and an independent Planck cross-check. |
-| [`cpl_4data.ipynb`](examples/cpl_4data.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_4data.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
+| [`cpl_mcmc_tfd42.ipynb`](examples/cpl_mcmc_tfd42.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_tfd42.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
 
 ---
 
@@ -472,7 +472,7 @@ dynamically-built `define_model()`/`model_from_expression()` model,
 which raises a clear error rather than an obscure pickling failure
 if `n_processes` is given), and is most reliable on Linux/macOS
 (multiprocessing from a Windows notebook is fragile for reasons
-outside this library's control). The new `examples/cpl_4data.ipynb`
+outside this library's control). The new `examples/cpl_mcmc_tfd42.ipynb`
 notebook is a publication-scale variant of `cpl_mcmc_analysis.ipynb`
 using this: all four datasets (including Planck, which makes `rd`
 and `Omega_b` constrainable and lets them join the free parameters
