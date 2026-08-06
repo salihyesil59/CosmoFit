@@ -76,6 +76,7 @@ class EnsembleSampler(BaseSampler):
         seed: int = 42,
         progress: bool = True,
         callback=None,
+        pool=None,
     ):
         """
         Initialize walkers around ``theta0`` and run the sampler.
@@ -84,7 +85,8 @@ class EnsembleSampler(BaseSampler):
         ----------
         logpost : callable
             Log-posterior function of a single ``theta`` vector,
-            e.g. a :class:`~stats.posterior.LogPosterior`.
+            e.g. a :class:`~stats.posterior.LogPosterior`. Must be
+            picklable if ``pool`` is given.
 
         prior : stats.priors.UniformPrior
             Defines the parameter order and bounds walkers are
@@ -117,6 +119,16 @@ class EnsembleSampler(BaseSampler):
             is slightly slower than ``progress=True`` for very fast
             likelihoods, but negligible next to typical per-step
             cost.
+
+        pool : optional
+            Passed straight through to ``emcee.EnsembleSampler`` to
+            evaluate walkers in parallel, e.g. a
+            ``multiprocessing.Pool``. Not built here -- see
+            :meth:`~stats.fitter.Fitter.run_mcmc`'s ``n_processes``,
+            which builds one correctly (naively pairing a raw
+            ``multiprocessing.Pool`` with a heavy, data-carrying
+            ``logpost`` re-sends that data on every step, which is
+            usually *slower* than a single process).
 
         Returns
         -------
@@ -197,7 +209,7 @@ class EnsembleSampler(BaseSampler):
         pos = np.clip(pos, prior.lower + eps, prior.upper - eps)
 
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, logpost, moves=self.moves,
+            nwalkers, ndim, logpost, moves=self.moves, pool=pool,
         )
 
         if callback is None:
