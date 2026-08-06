@@ -12,6 +12,7 @@ following :class:`BaseSampler` can be dropped in without touching
 
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -74,6 +75,7 @@ class EnsembleSampler(BaseSampler):
         initial_scatter=None,
         seed: int = 42,
         progress: bool = True,
+        callback=None,
     ):
         """
         Initialize walkers around ``theta0`` and run the sampler.
@@ -104,7 +106,17 @@ class EnsembleSampler(BaseSampler):
             Seed for the walker initialization RNG.
 
         progress : bool
-            Show an emcee progress bar.
+            Show an emcee (tqdm) progress bar. Ignored if
+            ``callback`` is given.
+
+        callback : callable(step, nsteps, elapsed), optional
+            Called after every completed step with the step index
+            (1-based), the total step count, and elapsed wall time
+            in seconds -- e.g. to drive a GUI progress bar. Runs
+            the sampler step-by-step instead of in one call, which
+            is slightly slower than ``progress=True`` for very fast
+            likelihoods, but negligible next to typical per-step
+            cost.
 
         Returns
         -------
@@ -188,6 +200,13 @@ class EnsembleSampler(BaseSampler):
             nwalkers, ndim, logpost, moves=self.moves,
         )
 
-        sampler.run_mcmc(pos, nsteps, progress=progress)
+        if callback is None:
+            sampler.run_mcmc(pos, nsteps, progress=progress)
+        else:
+            start = time.monotonic()
+            for step, _ in enumerate(
+                sampler.sample(pos, iterations=nsteps, store=True), start=1,
+            ):
+                callback(step, nsteps, time.monotonic() - start)
 
         return sampler

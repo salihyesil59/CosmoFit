@@ -268,6 +268,7 @@ class Fitter:
         seed: int = 42,
         progress: bool = True,
         moves=None,
+        callback=None,
     ):
         """
         Run an ``emcee`` ensemble MCMC, via
@@ -299,6 +300,11 @@ class Fitter:
             :class:`~stats.sampler.EnsembleSampler`). Defaults to
             emcee's own default proposal (``StretchMove``).
 
+        callback : callable(step, nsteps, elapsed), optional
+            Called after every completed step -- see
+            :meth:`~stats.sampler.EnsembleSampler.run`. Used by the
+            GUI to drive a live progress bar.
+
         Returns
         -------
         emcee.EnsembleSampler
@@ -315,6 +321,7 @@ class Fitter:
             initial_scatter=initial_scatter,
             seed=seed,
             progress=progress,
+            callback=callback,
         )
 
         self.sampler = sampler
