@@ -415,6 +415,7 @@ if run_clicked:
     elif not free_params:
         st.error("Tick at least one parameter to fit.", icon="🚫")
     else:
+        progress_bar = None
         try:
             fit = Fitter(
                 model=model_cls,
@@ -424,11 +425,32 @@ if run_clicked:
                 bounds=bounds,
             )
 
-            with st.spinner(f"Running MCMC ({nwalkers} walkers x {nsteps} steps)..."):
-                fit.run_mcmc(
-                    nwalkers=int(nwalkers), nsteps=int(nsteps),
-                    burnin=int(burnin), seed=int(seed), progress=False,
+            progress_bar = st.progress(0.0, text="Starting MCMC...")
+            # Re-rendering the bar on every single step (up to
+            # thousands of steps) would flood the browser with
+            # updates for no visible benefit -- only push at whole
+            # percentage points (or the final step).
+            last_shown = {"pct": -1}
+
+            def _on_step(step, total, elapsed, _bar=progress_bar, _last=last_shown):
+                pct = int(100 * step / total)
+                if pct == _last["pct"] and step != total:
+                    return
+                _last["pct"] = pct
+                rate = step / elapsed if elapsed > 0 else 0.0
+                _bar.progress(
+                    step / total,
+                    text=f"Running MCMC -- {pct}% ({step}/{total} steps, {rate:.1f} it/s)",
                 )
+
+            fit.run_mcmc(
+                nwalkers=int(nwalkers), nsteps=int(nsteps),
+                burnin=int(burnin), seed=int(seed), progress=False,
+                callback=_on_step,
+            )
+            progress_bar.empty()
+
+            with st.spinner("Finding best fit..."):
                 fit.best_fit()
 
             st.session_state["fit"] = fit
@@ -436,6 +458,8 @@ if run_clicked:
 
         except Exception as exc:
             st.session_state.pop("fit", None)
+            if progress_bar is not None:
+                progress_bar.empty()
             st.error(f"Fit failed: {exc}", icon="🚫")
 
 # ------------------------------------------------------------
