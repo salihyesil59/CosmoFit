@@ -2,10 +2,16 @@
 Plotting for a fitted :class:`~stats.fitter.Fitter`.
 
 ``FitPlotter`` owns every figure CosmoFit knows how to produce --
-MCMC diagnostics (chain, corner) as well as the standard
-publication-style cosmology figures (Hubble diagram, H(z)
+MCMC diagnostics (chain, corner), the standard publication-style
+cosmology figures for a single fit (Hubble diagram, H(z)
 compilation, BAO distance plot, w(z) evolution, deceleration
-parameter). It is attached to a ``Fitter`` instance as
+parameter), and multi-model comparison versions of those same
+figures (``compare_hz``, ``compare_deceleration``, ``compare_w_of_z``,
+``compare_hubble_diagram``, ``compare_des_hubble_diagram``,
+``compare_bao_distances``, ``compare_sdss_bao_distances``) that
+overlay this fit's curve with one or more other models' curves on
+the same data panel -- the standard "model A vs model B" figures
+cosmology papers use. It is attached to a ``Fitter`` instance as
 ``fitter.plots`` (see :class:`stats.fitter.Fitter`), the same
 composition pattern the ``cosmology`` package uses for its
 calculators (``cosmology.distance``, ``cosmology.background``, ...).
@@ -38,6 +44,14 @@ COLOR_DATA = "#2b2b2b"
 COLOR_MODEL = "#d1495b"
 COLOR_BAND = "#d1495b"
 COLOR_REFERENCE = "#6c757d"
+
+#: Colors cycled across models in the ``compare_*`` figures, in
+#: order added (self first, then each of ``other_fits``). Chosen to
+#: stay distinguishable from `COLOR_DATA`/`COLOR_REFERENCE` and from
+#: each other; cycles if more models are compared than colors.
+COMPARISON_PALETTE = [
+    "#d1495b", "#2b6a99", "#3ca67a", "#e8a33d", "#7b52ab", "#4d4d4d",
+]
 
 
 def _style_axes(ax) -> None:
@@ -695,3 +709,459 @@ class FitPlotter:
             fig.savefig(save_path, bbox_inches="tight")
 
         return fig
+
+    # ============================================================
+    # Model comparison
+    # ============================================================
+    #
+    # Multi-model versions of the single-fit figures above: this
+    # fit's curve overlaid with one or more other fits' curves on
+    # the same data panel -- the standard "model A vs model B"
+    # comparison figure. Each `compare_*` method takes the same
+    # `other_fits`/`labels` pair:
+    #
+    #   other_fits : Fitter, list[Fitter], or None
+    #       None (default) auto-compares against a quick LCDM
+    #       reference (best-fit only, no MCMC -- just enough for a
+    #       curve) built from this fit's own datasets, unless this
+    #       fit already *is* LCDM. A single Fitter compares against
+    #       just that one. A list compares against all of them, for
+    #       an arbitrary N-model figure.
+    #   labels : list[str], optional
+    #       One per model (this fit first, then `other_fits`, in
+    #       order), defaulting to each model's class name.
+    #
+    # `other_fits` should generally share this fit's dataset(s) --
+    # they're plotted against *this* fit's data points, and (for the
+    # supernova/BAO comparisons) each fit's own likelihood is used
+    # for its analytic offset, so a fit missing that dataset just
+    # gets no offset correction rather than an error.
+
+    def _lcdm_reference(self):
+        """
+        A quick best-fit-only (no MCMC) LCDM fit sharing this fit's
+        datasets, for `other_fits=None`'s default comparison.
+        """
+
+        from CosmoFit.cosmology.models import LCDM
+        from CosmoFit.stats.fitter import Fitter
+
+        reference = Fitter(
+            model=LCDM,
+            datasets=self.fitter.dataset_names,
+            free_params=["H0", "Omega_m"],
+            initial=self.fitter.params.as_dict(),
+        )
+        reference.best_fit()
+
+        return reference
+
+    # ------------------------------------------------------------
+
+    def _resolve_comparison(self, other_fits, labels):
+
+        fits = [self.fitter]
+
+        if other_fits is None:
+            if self.fitter.model_cls.__name__ != "LCDM":
+                fits.append(self._lcdm_reference())
+        elif isinstance(other_fits, (list, tuple)):
+            fits.extend(other_fits)
+        else:
+            fits.append(other_fits)
+
+        if labels is None:
+            labels = [f.model_cls.__name__ for f in fits]
+        elif len(labels) != len(fits):
+            raise ValueError(
+                f"Got {len(labels)} label(s) for {len(fits)} model(s) "
+                f"being compared -- labels must match one-to-one "
+                f"(this fit first, then `other_fits`, including the "
+                f"auto-added LCDM reference if `other_fits` was left "
+                f"as None)."
+            )
+
+        colors = [
+            COMPARISON_PALETTE[i % len(COMPARISON_PALETTE)]
+            for i in range(len(fits))
+        ]
+
+        return fits, list(labels), colors
+
+    # ------------------------------------------------------------
+
+    def _compare_data_curve(
+        self, fits, labels, colors, z_grid, func,
+        data_z, data_y, data_yerr, data_label,
+        xlabel, ylabel, log_x=False,
+        n_draws=300, seed=0, save_path=None,
+    ):
+        """
+        Shared implementation behind every `compare_*` figure that
+        has real data points (`compare_hz`, `compare_hubble_diagram`,
+        ...): data + one model curve (with posterior band, if that
+        fit has run `run_mcmc()`) per fit in `fits`.
+
+        `func(fit, cosmology) -> ndarray` evaluates the quantity
+        being plotted for one fit's cosmology -- taking `fit` too
+        (not just `cosmology`) so callers needing that fit's own
+        likelihood (e.g. for an analytic SN offset) can look it up.
+        """
+
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(8, 5.5))
+
+        ax.errorbar(
+            data_z, data_y, yerr=data_yerr,
+            fmt="o", ms=3.5, elinewidth=0.7, alpha=0.5, color=COLOR_DATA,
+            label=data_label,
+        )
+
+        for fit, label, color in zip(fits, labels, colors):
+
+            curve, band = fit.plots._predictive_band(
+                lambda c, f=fit: func(f, c), n_draws=n_draws, seed=seed,
+            )
+
+            if band is not None:
+                ax.fill_between(
+                    z_grid, band[16], band[84],
+                    color=color, alpha=0.2, linewidth=0,
+                )
+
+            ax.plot(z_grid, curve, color=color, lw=1.8, label=label)
+
+        if log_x:
+            ax.set_xscale("log")
+
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.legend(frameon=False)
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def _compare_curve_only(
+        self, fits, labels, colors, z_grid, func,
+        xlabel, ylabel, zero_line=None, mark_crossings=False,
+        n_draws=300, seed=0, save_path=None,
+    ):
+        """
+        Shared implementation behind every `compare_*` figure with
+        no data points, just theory curves (`compare_deceleration`,
+        `compare_w_of_z`): one curve (with posterior band, if
+        available) per fit in `fits`, optionally marking each
+        curve's crossing of `zero_line`.
+        """
+
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(figsize=(8, 5.5))
+
+        if zero_line is not None:
+            ax.axhline(zero_line, color=COLOR_REFERENCE, lw=1.0, ls="--")
+
+        for fit, label, color in zip(fits, labels, colors):
+
+            curve, band = fit.plots._predictive_band(
+                func, n_draws=n_draws, seed=seed,
+            )
+
+            if band is not None:
+                ax.fill_between(
+                    z_grid, band[16], band[84],
+                    color=color, alpha=0.15, linewidth=0,
+                )
+
+            ax.plot(z_grid, curve, color=color, lw=1.8, label=label)
+
+            if mark_crossings:
+                target = zero_line if zero_line is not None else 0.0
+                for zc in self._zero_crossings(z_grid, curve - target):
+                    ax.axvline(zc, color=color, lw=0.8, ls=":", alpha=0.7)
+
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.legend(frameon=False)
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def compare_hz(
+        self, other_fits=None, labels=None, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        H(z) diagram (see :meth:`hz`) with this fit's curve overlaid
+        with one or more other models' curves over the same Cosmic
+        Chronometers data -- the standard model-vs-model H(z) figure.
+        """
+
+        lk = self._require_likelihood(CCLikelihood, "cc")
+        fits, labels, colors = self._resolve_comparison(other_fits, labels)
+
+        z_grid = np.linspace(0.0, lk.data.z.max() * 1.05, 300)
+
+        return self._compare_data_curve(
+            fits, labels, colors, z_grid,
+            func=lambda f, c: c.background.H(z_grid),
+            data_z=lk.data.z, data_y=lk.data.H, data_yerr=lk.covariance.sigma,
+            data_label=f"Cosmic Chronometers ({lk.n_data})",
+            xlabel="Redshift $z$", ylabel=r"$H(z)$ [km s$^{-1}$ Mpc$^{-1}$]",
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def compare_deceleration(
+        self, other_fits=None, labels=None, z_max=2.5, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        Deceleration parameter q(z) (see :meth:`deceleration`) for
+        this fit and one or more other models on the same axes,
+        each with its own deceleration/acceleration transition
+        redshift z_t marked -- the standard model-vs-model transition
+        -redshift comparison figure.
+        """
+
+        fits, labels, colors = self._resolve_comparison(other_fits, labels)
+        z_grid = np.linspace(0.0, z_max, 300)
+
+        return self._compare_curve_only(
+            fits, labels, colors, z_grid,
+            func=lambda c: c.background.q(z_grid),
+            xlabel="Redshift $z$", ylabel="$q(z)$",
+            zero_line=0.0, mark_crossings=True,
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def compare_w_of_z(
+        self, other_fits=None, labels=None, z_max=2.5, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        Dark-energy equation of state w(z) (see :meth:`w_of_z`) for
+        this fit and one or more other models on the same axes.
+        Unlike the single-fit version, this doesn't raise for a
+        model without its own w(z) (e.g. LCDM): it's shown as the
+        constant w=-1 line, which is what "no w(z)" means in every
+        model in this library.
+        """
+
+        fits, labels, colors = self._resolve_comparison(other_fits, labels)
+        z_grid = np.linspace(0.0, z_max, 300)
+
+        def _w(c):
+            w = getattr(c, "w", None)
+            return w(z_grid) if w is not None else np.full_like(z_grid, -1.0)
+
+        return self._compare_curve_only(
+            fits, labels, colors, z_grid, func=_w,
+            xlabel="Redshift $z$", ylabel="$w(z)$",
+            zero_line=-1.0, mark_crossings=True,
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def _compare_sn_hubble_diagram(
+        self, lk_cls, dataset_name, offset_attr, y_attr,
+        dataset_label, y_label, other_fits, labels,
+        n_draws, seed, save_path,
+    ):
+        """
+        Shared implementation behind :meth:`compare_hubble_diagram`
+        (Pantheon+) and :meth:`compare_des_hubble_diagram`
+        (DES-SN5YR). Each fit's own analytic magnitude/zero-point
+        offset (if that fit includes this dataset and marginalizes
+        over it) is used for its own curve -- offsets aren't shared
+        across fits.
+        """
+
+        anchor_lk = self._require_likelihood(lk_cls, dataset_name)
+        y_data = getattr(anchor_lk.data, y_attr)
+        z_grid = np.linspace(1e-3, anchor_lk.data.z_hd.max() * 1.02, 300)
+
+        fits, labels, colors = self._resolve_comparison(other_fits, labels)
+
+        def _mu(fit, c):
+
+            lk = fit.plots._find_likelihood(lk_cls)
+
+            if lk is not None and getattr(lk, offset_attr, False):
+                offset = lk.best_fit_offset()
+            else:
+                offset = 0.0
+
+            return c.distance.mu(z_grid) + offset
+
+        return self._compare_data_curve(
+            fits, labels, colors, z_grid, func=_mu,
+            data_z=anchor_lk.data.z_hd, data_y=y_data,
+            data_yerr=anchor_lk.covariance.sigma,
+            data_label=f"{dataset_label} ({anchor_lk.n_data})",
+            xlabel="Redshift $z$", ylabel=y_label, log_x=True,
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def compare_hubble_diagram(
+        self, other_fits=None, labels=None, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        Pantheon+ Hubble diagram (see :meth:`hubble_diagram`) with
+        this fit's curve and one or more other models' curves over
+        the same supernova data -- the standard model-vs-model
+        distance-modulus comparison figure.
+        """
+
+        return self._compare_sn_hubble_diagram(
+            PantheonLikelihood, "pantheon", "marginalize_MB", "m_b_corr",
+            "Pantheon+", r"$\mu = m_B - M_B$",
+            other_fits, labels, n_draws, seed, save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def compare_des_hubble_diagram(
+        self, other_fits=None, labels=None, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        DES-SN5YR Hubble diagram (see :meth:`des_hubble_diagram`)
+        with this fit's curve and one or more other models' curves
+        over the same supernova data.
+        """
+
+        return self._compare_sn_hubble_diagram(
+            DESSN5YRLikelihood, "des_sn5yr", "marginalize_offset", "mu",
+            "DES-SN5YR", r"$\mu$",
+            other_fits, labels, n_draws, seed, save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def _compare_bao_distances(
+        self, lk_cls, dataset_name, dataset_label,
+        other_fits, labels, n_draws, seed, save_path,
+    ):
+        """
+        Shared implementation behind :meth:`compare_bao_distances`
+        (DESI) and :meth:`compare_sdss_bao_distances` (SDSS): one
+        panel per observable type, each with this fit's curve and
+        one or more other models' curves over the same tracer data.
+        """
+
+        import matplotlib.pyplot as plt
+
+        from CosmoFit.likelihoods.desi import MODEL_MAP
+
+        anchor_lk = self._require_likelihood(lk_cls, dataset_name)
+        observables = sorted(set(anchor_lk.data.observable.tolist()))
+
+        z_grid = np.linspace(
+            anchor_lk.data.z.min() * 0.9, anchor_lk.data.z.max() * 1.1, 300,
+        )
+
+        fits, labels, colors = self._resolve_comparison(other_fits, labels)
+
+        fig, axes = plt.subplots(
+            1, len(observables), figsize=(5.0 * len(observables), 5),
+            squeeze=False,
+        )
+        axes = axes[0]
+
+        for ax, observable in zip(axes, observables):
+
+            model_func = MODEL_MAP[observable]
+            mask = anchor_lk.data.observable == observable
+
+            ax.errorbar(
+                anchor_lk.data.z[mask], anchor_lk.data.value[mask],
+                yerr=anchor_lk.covariance.sigma[mask],
+                fmt="o", ms=5, elinewidth=0.8, color=COLOR_DATA,
+                label=dataset_label,
+            )
+
+            for fit, label, color in zip(fits, labels, colors):
+
+                curve, band = fit.plots._predictive_band(
+                    lambda c, f=model_func: f(c, z_grid),
+                    n_draws=n_draws, seed=seed,
+                )
+
+                if band is not None:
+                    ax.fill_between(
+                        z_grid, band[16], band[84],
+                        color=color, alpha=0.2, linewidth=0,
+                    )
+
+                ax.plot(z_grid, curve, color=color, lw=1.8, label=label)
+
+            ax.set_title(observable.replace("_", " "))
+            ax.set_xlabel("Redshift $z$")
+            ax.legend(frameon=False)
+            _style_axes(ax)
+
+        axes[0].set_ylabel("Distance / $r_d$")
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def compare_bao_distances(
+        self, other_fits=None, labels=None, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        DESI BAO distance plot (see :meth:`bao_distances`) with this
+        fit's curves and one or more other models' curves over the
+        same tracer data.
+        """
+
+        return self._compare_bao_distances(
+            DESILikelihood, "desi", "DESI 2024",
+            other_fits, labels, n_draws, seed, save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def compare_sdss_bao_distances(
+        self, other_fits=None, labels=None, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        SDSS BAO distance plot (see :meth:`sdss_bao_distances`) with
+        this fit's curves and one or more other models' curves over
+        the same tracer data.
+        """
+
+        return self._compare_bao_distances(
+            SDSSBAOLikelihood, "sdss_bao", "SDSS (DR12+DR16)",
+            other_fits, labels, n_draws, seed, save_path,
+        )

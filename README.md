@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.12.0
+> **Current Version:** v0.13.0
 
 ---
 
@@ -44,6 +44,9 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
   diagram, BAO distance plot, Planck pull plot, w(z) evolution, deceleration parameter
+* Model comparison plots (`fitter.plots.compare_*`): any of the figures above, overlaying this
+  fit's curve with one or more other models' curves on the same data/axes -- defaults to this
+  model vs. a quick LCDM reference, or an arbitrary N-model comparison via `other_fits=[...]`
 
 ---
 
@@ -150,6 +153,33 @@ fitter.plots.corner()
 fitter.plots.hubble_diagram()
 fitter.plots.w_of_z()
 ```
+
+---
+
+## Model Comparison Plots
+
+Every `fitter.plots.*` figure above has a `compare_*` counterpart that overlays this fit's curve
+with one or more other models' curves on the same data/axes -- the "model A vs model B" figures
+cosmology papers use (`compare_hz`, `compare_deceleration`, `compare_w_of_z`,
+`compare_hubble_diagram`, `compare_des_hubble_diagram`, `compare_bao_distances`,
+`compare_sdss_bao_distances`):
+
+```python
+fitter.plots.compare_hz()             # vs. a quick LCDM reference, built automatically
+fitter.plots.compare_deceleration()   # ditto, each curve's own transition redshift z_t marked
+```
+
+Called with no arguments, `other_fits` defaults to a quick best-fit-only LCDM reference (no MCMC
+-- just enough for a comparison curve) built from this fit's own datasets, unless this fit already
+*is* LCDM. Pass an already-fit `Fitter` (or a list of them, for more than two models at once) to
+compare against instead:
+
+```python
+fitter.plots.compare_hz(other_fits=fit_lcdm, labels=["CPL", "LCDM"])
+fitter.plots.compare_hz(other_fits=[fit_lcdm, fit_wcdm], labels=["CPL", "LCDM", "WCDM"])
+```
+
+This works for any model CosmoFit knows about, built-in or [custom](#custom-models).
 
 ---
 
@@ -396,6 +426,27 @@ takes `E`/`w`/`dEdz` as expression strings (e.g.
 evaluated with builtins stripped and only whitelisted `numpy` math
 plus the model's own parameters reachable, appropriate for a
 locally-run tool.
+
+Version **v0.13.0** adds model comparison plots: every
+`fitter.plots.*` figure (`hz`, `deceleration`, `w_of_z`,
+`hubble_diagram`, `des_hubble_diagram`, `bao_distances`,
+`sdss_bao_distances`) gets a `compare_*` counterpart that overlays
+this fit's curve with one or more other models' curves on the same
+data/axes -- the "model A vs model B" figures cosmology papers use,
+rather than only being able to look at models one at a time or
+compare them statistically (AIC/BIC/LRT) without a picture of what
+the difference actually looks like. `other_fits=None` (the default)
+auto-compares against a quick best-fit-only LCDM reference built
+from the same datasets; passing an already-fit `Fitter`, or a list
+of them, compares against exactly those instead, for an arbitrary
+N-model figure. Every `compare_*` method reuses the corresponding
+single-model method's existing evaluation logic (posterior-predictive
+bands, per-fit analytic SN offsets, ...) rather than duplicating it,
+and works for any model -- built-in or
+[custom](#custom-models) -- since it only depends on
+`Fitter`/`Cosmology`'s existing generic interface. The
+`cpl_mcmc_analysis` notebook's CPL vs. LCDM section now includes
+these alongside its existing AIC/BIC/likelihood-ratio comparison.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
