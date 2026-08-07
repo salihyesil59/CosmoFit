@@ -91,11 +91,27 @@ class LogPosterior:
         """
         Convenience wrapper returning chi2(theta) directly --
         useful for ``scipy.optimize.minimize`` best-fit searches.
+
+        Some models have prior-bounded regions where the background
+        is unphysical (e.g. E(z)^2 < 0 for a modified-gravity model
+        at extreme coupling values) -- ``log_likelihood`` already
+        treats that as -inf log-probability during MCMC; mirror that
+        here as +inf chi2 (worst possible fit) rather than letting
+        ``scipy.optimize.minimize`` crash on a NaN/exception when
+        its search steps into that region.
         """
 
         self._apply(theta)
 
-        return self.joint.chi2()
+        try:
+            chi2 = self.joint.chi2()
+        except (ValueError, FloatingPointError, RuntimeError):
+            return np.inf
+
+        if not np.isfinite(chi2):
+            return np.inf
+
+        return chi2
 
     # ---------------------------------------------------------
 

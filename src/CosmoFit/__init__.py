@@ -44,6 +44,9 @@ from CosmoFit.cosmology import (
     JBP,
     BA,
     GCG,
+    FQExponential,
+    FRTLinear,
+    FRHuSawicki,
     define_model,
     model_from_expression,
 )
@@ -101,6 +104,9 @@ __all__ = [
     "JBP",
     "BA",
     "GCG",
+    "FQExponential",
+    "FRTLinear",
+    "FRHuSawicki",
     "define_model",
     "model_from_expression",
     # Likelihoods

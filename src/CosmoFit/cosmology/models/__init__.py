@@ -11,6 +11,9 @@ from .cpl import CPL
 from .jbp import JBP
 from .ba import BA
 from .gcg import GCG
+from .fq import FQExponential
+from .frt import FRTLinear
+from .fr import FRHuSawicki
 
 __all__ = [
     "LCDM",
@@ -19,4 +22,7 @@ __all__ = [
     "JBP",
     "BA",
     "GCG",
+    "FQExponential",
+    "FRTLinear",
+    "FRHuSawicki",
 ]
