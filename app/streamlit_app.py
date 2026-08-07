@@ -227,6 +227,7 @@ def _build_model_class(slot: int, model_choice: str):
 
     w_expr = st.session_state.get(f"custom_w_{slot}", "").strip() or None
     dEdz_expr = st.session_state.get(f"custom_dEdz_{slot}", "").strip() or None
+    mu_expr = st.session_state.get(f"custom_mu_{slot}", "").strip() or None
     extra_text = st.session_state.get(f"custom_extra_params_{slot}", "")
 
     extra_params = _parse_extra_params(extra_text)
@@ -237,6 +238,7 @@ def _build_model_class(slot: int, model_choice: str):
         extra_params=extra_params,
         w=w_expr,
         dEdz=dEdz_expr,
+        mu=mu_expr,
     )
 
 
@@ -598,7 +600,7 @@ for i in range(n_models):
                     ),
                 )
 
-            with st.expander("Advanced (w(z), dE/dz, extra parameters)"):
+            with st.expander("Advanced (w(z), dE/dz, mu(a,k), extra parameters)"):
 
                 col3, col4 = st.columns(2)
                 with col3:
@@ -615,6 +617,22 @@ for i in range(n_models):
                             "E(z) is used automatically."
                         ),
                     )
+
+                st.text_input(
+                    "mu(a,k) expression (optional)", key=f"custom_mu_{i}",
+                    placeholder="1 + 3*beta",
+                    help=(
+                        "Effective gravitational coupling G_eff/G_N for "
+                        "growth of structure (the 'fsigma8'/'s8' "
+                        "datasets and the growth/compare_growth plots). "
+                        "Available: a (scale factor), k (wavenumber in "
+                        "h/Mpc, or unused if your model is scale-"
+                        "independent), plus every parameter. If left "
+                        "blank, mu=1 everywhere (standard GR growth) -- "
+                        "correct unless your model modifies gravity "
+                        "itself, not just the expansion history."
+                    ),
+                )
 
                 st.text_area(
                     "Extra parameters (one per line, optional)",
