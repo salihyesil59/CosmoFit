@@ -25,6 +25,7 @@ not for a public, multi-tenant deployment.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 
@@ -116,6 +117,15 @@ COMPARE_PLOT_LABELS = {
 }
 
 MAX_MODELS = 5
+
+#: Export formats offered for every figure -- (file extension, MIME
+#: type). SVG/PDF are vector (best for papers/further editing); PNG
+#: is raster (best for slides/quick sharing).
+PLOT_EXPORT_FORMATS = {
+    "SVG": ("svg", "image/svg+xml"),
+    "PNG": ("png", "image/png"),
+    "PDF": ("pdf", "application/pdf"),
+}
 
 
 # ============================================================
@@ -384,6 +394,35 @@ def _render_posterior(fit: Fitter) -> None:
                 f"**{lcdm_distance['distance']:.2f}σ** from this "
                 f"posterior's mean."
             )
+
+
+# ------------------------------------------------------------
+
+def _render_figure(fig, base_name: str, fmt_label: str, key: str) -> None:
+    """
+    Render a matplotlib figure plus a download button exporting it
+    in `fmt_label` (a key of `PLOT_EXPORT_FORMATS`) -- the browser's
+    own save dialog is what lets the user pick *where* it goes; this
+    is only responsible for *what format* it goes there as.
+    """
+
+    st.pyplot(fig, use_container_width=True)
+
+    ext, mime = PLOT_EXPORT_FORMATS[fmt_label]
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format=ext, bbox_inches="tight")
+
+    st.download_button(
+        f"⬇️ {fmt_label}",
+        data=buf.getvalue(),
+        file_name=f"{base_name}.{ext}",
+        mime=mime,
+        key=key,
+        use_container_width=True,
+    )
+
+    plt.close(fig)
 
 
 # ============================================================
@@ -798,6 +837,13 @@ if fits:
 
     with next(tab_iter):
 
+        download_format = st.radio(
+            "Download format", options=list(PLOT_EXPORT_FORMATS),
+            horizontal=True, key="download_format",
+            help="Applies to every '⬇️' button below. SVG/PDF are vector "
+                 "(best for papers); PNG is raster (best for slides/sharing).",
+        )
+
         if multi:
 
             compare_options = _available_compare_plots(fits[0])
@@ -815,8 +861,7 @@ if fits:
                         fig = getattr(fits[0].plots, name)(
                             other_fits=fits[1:], labels=fit_labels,
                         )
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
+                        _render_figure(fig, name, download_format, key=f"dl_compare_{name}")
                     except Exception as exc:
                         st.error(
                             f"Could not render "
@@ -838,8 +883,10 @@ if fits:
                     with single_cols[idx % 2]:
                         try:
                             fig = getattr(single_fit.plots, name)()
-                            st.pyplot(fig, use_container_width=True)
-                            plt.close(fig)
+                            _render_figure(
+                                fig, f"{choice}_{name}", download_format,
+                                key=f"dl_single_{choice}_{name}",
+                            )
                         except Exception as exc:
                             st.error(
                                 f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
@@ -854,7 +901,6 @@ if fits:
                 options=plot_options,
                 default=plot_options[:2],
                 format_func=lambda name: PLOT_LABELS.get(name, name),
-                label_visibility="collapsed",
             )
 
             plot_cols = st.columns(2)
@@ -862,8 +908,7 @@ if fits:
                 with plot_cols[idx % 2]:
                     try:
                         fig = getattr(fits[0].plots, name)()
-                        st.pyplot(fig, use_container_width=True)
-                        plt.close(fig)
+                        _render_figure(fig, name, download_format, key=f"dl_{name}")
                     except Exception as exc:
                         st.error(
                             f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
