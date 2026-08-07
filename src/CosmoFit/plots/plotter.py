@@ -32,6 +32,7 @@ from CosmoFit.likelihoods import (
     PantheonLikelihood,
     DESSN5YRLikelihood,
     PlanckLikelihood,
+    FSigma8Likelihood,
 )
 
 
@@ -459,6 +460,54 @@ class FitPlotter:
 
         ax.set_xlabel("Redshift $z$")
         ax.set_ylabel(r"$H(z)$ [km s$^{-1}$ Mpc$^{-1}$]")
+        ax.legend(frameon=False)
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def growth(self, save_path=None, n_draws=300, seed=0):
+        """
+        fsigma8(z) growth-rate diagram: RSD measurements (e.g. the
+        "Gold-2018" compilation) against the model's fsigma8(z)
+        curve (:meth:`~cosmology.calculators.background.BackgroundCalculator.fsigma8`).
+
+        The plotted curve is the raw theory prediction, *not*
+        Alcock-Paczynski-corrected the way
+        :meth:`~likelihoods.fsigma8.FSigma8Likelihood.chi2` compares
+        to each data point -- that correction depends on each
+        survey's own fiducial H(z)*D_A(z), not a smooth function of
+        z, so it has no single continuous curve to draw here.
+        """
+
+        import matplotlib.pyplot as plt
+
+        lk = self._require_likelihood(FSigma8Likelihood, "fsigma8")
+
+        z_grid = np.linspace(0.0, lk.data.z.max() * 1.05, 300)
+
+        curve, band = self._predictive_band(
+            lambda c: c.background.fsigma8(z_grid), n_draws=n_draws, seed=seed,
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 5.5))
+
+        ax.errorbar(
+            lk.data.z, lk.data.fsigma8, yerr=lk.covariance.sigma,
+            fmt="o", ms=4, elinewidth=0.8, color=COLOR_DATA,
+            label=f"Growth rate ({lk.n_data})",
+        )
+        self._plot_band(ax, z_grid, band)
+        ax.plot(z_grid, curve, color=COLOR_MODEL, lw=1.8, label="Model")
+
+        ax.set_xlabel("Redshift $z$")
+        ax.set_ylabel(r"$f\sigma_8(z)$")
         ax.legend(frameon=False)
         _style_axes(ax)
 
@@ -923,6 +972,37 @@ class FitPlotter:
             data_z=lk.data.z, data_y=lk.data.H, data_yerr=lk.covariance.sigma,
             data_label=f"Cosmic Chronometers ({lk.n_data})",
             xlabel="Redshift $z$", ylabel=r"$H(z)$ [km s$^{-1}$ Mpc$^{-1}$]",
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def compare_growth(
+        self, other_fits=None, labels=None, save_path=None,
+        n_draws=300, seed=0,
+    ):
+        """
+        fsigma8(z) growth-rate diagram (see :meth:`growth`) with
+        this fit's curve overlaid with one or more other models'
+        curves over the same RSD data -- the standard model-vs-model
+        growth-of-structure figure. Most useful for a modified-
+        gravity model against an LCDM reference: unlike every other
+        `compare_*` figure, the two curves can now visibly differ
+        even when both share the exact same background (see
+        `FRHuSawicki`).
+        """
+
+        lk = self._require_likelihood(FSigma8Likelihood, "fsigma8")
+        fits, labels, colors = self._resolve_comparison(other_fits, labels)
+
+        z_grid = np.linspace(0.0, lk.data.z.max() * 1.05, 300)
+
+        return self._compare_data_curve(
+            fits, labels, colors, z_grid,
+            func=lambda f, c: c.background.fsigma8(z_grid),
+            data_z=lk.data.z, data_y=lk.data.fsigma8, data_yerr=lk.covariance.sigma,
+            data_label=f"Growth rate ({lk.n_data})",
+            xlabel="Redshift $z$", ylabel=r"$f\sigma_8(z)$",
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
 

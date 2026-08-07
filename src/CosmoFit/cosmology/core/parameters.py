@@ -525,6 +525,7 @@ DEFAULT_BOUNDS: dict[str, tuple[float, float]] = {
     "Omega_b": (0.01, 0.10),
     "A_s": (0.01, 0.99),
     "alpha": (-0.9, 2.0),
+    "sigma8": (0.6, 1.0),
 }
 
 
@@ -573,6 +574,17 @@ class CosmologyParameters(BaseParameters):
         Generalized Chaplygin Gas exponent in p = -A/rho^alpha,
         used only by :class:`~cosmology.models.gcg.GCG`
         (alpha=1 is the original/"pure" Chaplygin gas). Default 0.
+    sigma8 : float, optional
+        Present-day linear matter power spectrum normalization
+        (RMS density contrast in 8 Mpc/h spheres). Used only by
+        the growth-of-structure machinery
+        (:class:`~cosmology.calculators.growth.GrowthCalculator`,
+        :class:`~likelihoods.fsigma8.FSigma8Likelihood`,
+        :class:`~likelihoods.s8.S8Likelihood`) -- every model
+        computes its own scale-independent growth factor D(z) from
+        ``E(z)``/``dEdz``/``mu(a,k)``; ``sigma8`` only sets its
+        overall normalization. Default is the Planck 2018 best-fit
+        value.
     """
 
     H0: float
@@ -585,6 +597,7 @@ class CosmologyParameters(BaseParameters):
     Omega_b: float = 0.0493
     A_s: float = 0.7
     alpha: float = 0.0
+    sigma8: float = 0.811
 
     #: Extra bounds/labels contributed by :func:`build_params_class`
     #: for dynamically-created custom-model parameter classes. Empty
@@ -637,6 +650,7 @@ class CosmologyParameters(BaseParameters):
             "Omega_b": r"$\Omega_b$",
             "A_s": r"$A_s$",
             "alpha": r"$\alpha$",
+            "sigma8": r"$\sigma_8$",
         }
         labels.update(cls._EXTRA_LABELS)
 

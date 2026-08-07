@@ -4,6 +4,8 @@ Base cosmology class.
 
 from __future__ import annotations
 
+import numpy as np
+
 from CosmoFit.cosmology.core.parameters import (
     CosmologyParameters,
     build_params_class,
@@ -16,6 +18,7 @@ from CosmoFit.cosmology.calculators import (
     DistanceCalculator,
     SoundHorizon,
     RecombinationCalculator,
+    GrowthCalculator,
 )
 
 
@@ -86,6 +89,7 @@ class Cosmology:
         self.distance = DistanceCalculator(self)
         self.sound_horizon = SoundHorizon(self)
         self.recombination = RecombinationCalculator(self)
+        self.growth = GrowthCalculator(self)
 
     # ---------------------------------------------------------
 
@@ -129,6 +133,10 @@ class Cosmology:
     def alpha(self):
         return self.params.alpha
 
+    @property
+    def sigma8(self):
+        return self.params.sigma8
+
     # ---------------------------------------------------------
 
     def refresh(self) -> None:
@@ -149,6 +157,7 @@ class Cosmology:
         """
 
         self.integrator.rebuild()
+        self.growth.rebuild()
 
     # ---------------------------------------------------------
 
@@ -175,3 +184,32 @@ class Cosmology:
 
     def H(self, z):
         return self.H0 * self.E(z)
+
+    # ---------------------------------------------------------
+
+    def mu(self, a, k=None):
+        """
+        Effective-to-Newtonian gravitational coupling ratio,
+        G_eff(a,k)/G_N, entering the linear growth equation solved
+        by :class:`~cosmology.calculators.growth.GrowthCalculator`
+        (see that module's docstring for the equation itself).
+
+        Default is 1 everywhere -- standard GR growth, correct for
+        every dark-energy-on-top-of-GR model in this library
+        (LCDM, wCDM, CPL, JBP, BA, GCG all inherit this unchanged).
+        A genuinely modified-gravity model (``FQExponential``,
+        ``FRTLinear``, ``FRHuSawicki``) overrides this with its own
+        derived ``mu(a,k)``.
+
+        Parameters
+        ----------
+        a : float or ndarray
+            Scale factor.
+
+        k : float, optional
+            Wavenumber [h/Mpc]. Ignored by every scale-independent
+            ``mu`` (the default, and every override here except
+            ``FRHuSawicki``'s).
+        """
+
+        return np.ones_like(np.asarray(a, dtype=float))

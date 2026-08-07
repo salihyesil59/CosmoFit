@@ -47,6 +47,7 @@ from CosmoFit import (
     PantheonLikelihood,
     DESSN5YRLikelihood,
     PlanckLikelihood,
+    FSigma8Likelihood,
 )
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 
@@ -74,6 +75,8 @@ DATASET_LABELS = {
     "pantheon": "Pantheon+ (SNe Ia)",
     "des_sn5yr": "DES-SN5YR (SNe Ia)",
     "planck": "Planck 2018 (CMB distance priors)",
+    "fsigma8": "Growth rate (fsigma8, Gold-2018 RSD)",
+    "s8": "S8 weak-lensing prior (KiDS-1000)",
 }
 
 #: Dataset pairs that double-count data if combined -- see README.
@@ -106,11 +109,11 @@ MODEL_EQUATIONS = {
 BACKGROUND_DEGENERATE_MODELS = {
     "FRHuSawicki": (
         "This model's background expansion is, by construction, "
-        "identical to LCDM's -- f_R0/n don't affect E(z) here. "
-        "Hu-Sawicki f(R)'s actual signature is in the growth of "
-        "structure (fsigma8), which this library doesn't (yet) "
-        "compute. Fitting f_R0/n against these datasets won't "
-        "meaningfully constrain them."
+        "identical to LCDM's -- f_R0/n don't affect E(z) here, so "
+        "fitting them against background-only datasets (CC/BAO/SNe/"
+        "Planck) won't meaningfully constrain them. Hu-Sawicki f(R)'s "
+        "actual signature is in the growth of structure -- tick "
+        "'fsigma8' and/or 's8' above to actually constrain f_R0/n."
     ),
 }
 
@@ -126,6 +129,7 @@ PLOT_LABELS = {
     "planck_residuals": "Planck residuals (pull plot)",
     "w_of_z": "w(z) evolution",
     "deceleration": "Deceleration parameter q(z)",
+    "growth": "Growth rate fsigma8(z)",
 }
 
 #: Model-comparison figures (Fitter.plots.compare_<name>(other_fits=...)).
@@ -137,6 +141,7 @@ COMPARE_PLOT_LABELS = {
     "compare_sdss_bao_distances": "BAO distances (SDSS)",
     "compare_w_of_z": "w(z) evolution",
     "compare_deceleration": "Deceleration parameter q(z)",
+    "compare_growth": "Growth rate fsigma8(z)",
 }
 
 MAX_MODELS = 5
@@ -274,6 +279,7 @@ def _available_plots(fit: Fitter) -> list[str]:
         (DESILikelihood, "bao_distances"),
         (SDSSBAOLikelihood, "sdss_bao_distances"),
         (PlanckLikelihood, "planck_residuals"),
+        (FSigma8Likelihood, "growth"),
     ]
 
     for cls, method in likelihood_plots:
@@ -308,6 +314,7 @@ def _available_compare_plots(anchor_fit: Fitter) -> list[str]:
         (CCLikelihood, "compare_hz"),
         (DESILikelihood, "compare_bao_distances"),
         (SDSSBAOLikelihood, "compare_sdss_bao_distances"),
+        (FSigma8Likelihood, "compare_growth"),
     ]
 
     for cls, method in likelihood_plots:

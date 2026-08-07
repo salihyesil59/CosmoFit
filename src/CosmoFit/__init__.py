@@ -63,6 +63,8 @@ from CosmoFit.likelihoods import (
     PantheonLikelihood,
     DESSN5YRLikelihood,
     PlanckLikelihood,
+    FSigma8Likelihood,
+    S8Likelihood,
     JointLikelihood,
 )
 
@@ -117,6 +119,8 @@ __all__ = [
     "PantheonLikelihood",
     "DESSN5YRLikelihood",
     "PlanckLikelihood",
+    "FSigma8Likelihood",
+    "S8Likelihood",
     "JointLikelihood",
     # Fitting / plotting
     "Fitter",

@@ -14,6 +14,8 @@ from .sdss_bao import SDSSBAOLikelihood
 from .pantheon import PantheonLikelihood
 from .des_sn5yr import DESSN5YRLikelihood
 from .planck import PlanckLikelihood
+from .fsigma8 import FSigma8Likelihood
+from .s8 import S8Likelihood
 from .joint import JointLikelihood
 
 __all__ = [
@@ -31,5 +33,7 @@ __all__ = [
     "PantheonLikelihood",
     "DESSN5YRLikelihood",
     "PlanckLikelihood",
+    "FSigma8Likelihood",
+    "S8Likelihood",
     "JointLikelihood",
 ]
