@@ -44,7 +44,8 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 * Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, configure
   one or more models (built-in or your own), edit free parameters, and run the MCMC fit(s) + plots
   with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
-  test) and on the same figures, all from the browser
+  test) and on the same figures, all from the browser, with every figure downloadable as SVG, PNG,
+  or PDF
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
@@ -505,7 +506,10 @@ a statistical comparison tab (AIC/BIC, and a likelihood-ratio test
 when exactly two models are properly nested), every `compare_*`
 figure alongside the existing single-model ones, and the CPL-family
 w(z)=-1-crossing/LCDM-distance posterior diagnostics -- so everything
-that notebook does is now also reachable with zero code.
+that notebook does is now also reachable with zero code. Every figure
+also gets a download button (SVG/PNG/PDF, picked once per session and
+applied to all of them) -- the browser's own save dialog is what lets
+you choose where it goes.
 
 **Known limitation:** `n_processes` gets its full speedup as a plain
 script (confirmed ~2.4-3x on an 8-core machine) and through the GUI
