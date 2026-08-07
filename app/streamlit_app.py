@@ -3,11 +3,12 @@ CosmoFit -- graphical interface.
 
 A thin Streamlit layer over the public ``CosmoFit`` API
 (``Fitter``, ``FitPlotter``, ``define_model`` / ``model_from_expression``):
-tick which datasets to fit, pick a built-in model or write your own
-``E(z)`` as a plain expression, choose which parameters are free,
-and run an MCMC fit + look at the resulting plots -- no code
-required. Everything here is a consumer of ``CosmoFit``'s existing
-public API; no fitting/plotting logic lives in this file.
+tick which datasets to fit, configure one or more models (built-in or
+your own ``E(z)`` expression), choose which parameters are free, and
+run an MCMC fit + look at the resulting plots and model-comparison
+statistics -- no code required. Everything here is a consumer of
+``CosmoFit``'s existing public API; no fitting/plotting logic lives
+in this file.
 
 Run with:
 
@@ -25,6 +26,7 @@ not for a public, multi-tenant deployment.
 from __future__ import annotations
 
 import json
+import os
 
 import matplotlib
 matplotlib.use("Agg")
@@ -44,7 +46,7 @@ from CosmoFit import (
     DESSN5YRLikelihood,
     PlanckLikelihood,
 )
-from CosmoFit.stats import DATASET_REGISTRY
+from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 
 
 # ============================================================
@@ -75,7 +77,7 @@ INCOMPATIBLE_PAIRS = [
     ({"pantheon", "des_sn5yr"}, "DES-SN5YR's low-z sample overlaps Pantheon+; combining them double-counts those supernovae."),
 ]
 
-#: LaTeX preview shown next to the model picker -- background
+#: LaTeX preview shown next to each model picker -- background
 #: expansion for the LCDM/WCDM family, dark-energy equation of state
 #: for the w0-wa family, and the GCG fluid equation for GCG (its E(z)
 #: doesn't have as illuminating a one-line form).
@@ -88,6 +90,7 @@ MODEL_EQUATIONS = {
     "GCG": r"p = -\dfrac{A}{\rho^{\alpha}}",
 }
 
+#: Single-model figures (Fitter.plots.<name>()).
 PLOT_LABELS = {
     "chain": "MCMC chain (trace plot)",
     "corner": "Corner plot",
@@ -100,6 +103,19 @@ PLOT_LABELS = {
     "w_of_z": "w(z) evolution",
     "deceleration": "Deceleration parameter q(z)",
 }
+
+#: Model-comparison figures (Fitter.plots.compare_<name>(other_fits=...)).
+COMPARE_PLOT_LABELS = {
+    "compare_hz": "H(z) diagram (CC)",
+    "compare_hubble_diagram": "Hubble diagram (Pantheon+)",
+    "compare_des_hubble_diagram": "Hubble diagram (DES-SN5YR)",
+    "compare_bao_distances": "BAO distances (DESI)",
+    "compare_sdss_bao_distances": "BAO distances (SDSS)",
+    "compare_w_of_z": "w(z) evolution",
+    "compare_deceleration": "Deceleration parameter q(z)",
+}
+
+MAX_MODELS = 5
 
 
 # ============================================================
@@ -155,25 +171,25 @@ def _parse_extra_params(text: str) -> dict:
 
 # ------------------------------------------------------------
 
-def _build_model_class(model_choice: str):
+def _build_model_class(slot: int, model_choice: str):
     """
-    Resolve the current sidebar selection into a ``Cosmology``
-    subclass, raising a clear error for an incomplete/invalid
-    custom-model definition.
+    Resolve one model slot's widgets into a ``Cosmology`` subclass,
+    raising a clear error for an incomplete/invalid custom-model
+    definition.
     """
 
     if model_choice != "Custom":
         return BUILTIN_MODELS[model_choice]
 
-    name = st.session_state.get("custom_name", "").strip() or "CustomModel"
-    E_expr = st.session_state.get("custom_E", "").strip()
+    name = st.session_state.get(f"custom_name_{slot}", "").strip() or f"Custom{slot + 1}"
+    E_expr = st.session_state.get(f"custom_E_{slot}", "").strip()
 
     if not E_expr:
         raise ValueError("Enter an E(z) expression for the custom model.")
 
-    w_expr = st.session_state.get("custom_w", "").strip() or None
-    dEdz_expr = st.session_state.get("custom_dEdz", "").strip() or None
-    extra_text = st.session_state.get("custom_extra_params", "")
+    w_expr = st.session_state.get(f"custom_w_{slot}", "").strip() or None
+    dEdz_expr = st.session_state.get(f"custom_dEdz_{slot}", "").strip() or None
+    extra_text = st.session_state.get(f"custom_extra_params_{slot}", "")
 
     extra_params = _parse_extra_params(extra_text)
 
@@ -188,11 +204,30 @@ def _build_model_class(model_choice: str):
 
 # ------------------------------------------------------------
 
+def _dedupe_labels(labels: list[str]) -> list[str]:
+    """``["CPL", "CPL"]`` -> ``["CPL (1)", "CPL (2)"]``; leaves
+    already-unique labels untouched."""
+
+    counts = {}
+    for label in labels:
+        counts[label] = counts.get(label, 0) + 1
+
+    seen = {}
+    out = []
+    for label in labels:
+        if counts[label] == 1:
+            out.append(label)
+            continue
+        seen[label] = seen.get(label, 0) + 1
+        out.append(f"{label} ({seen[label]})")
+
+    return out
+
+
+# ------------------------------------------------------------
+
 def _available_plots(fit: Fitter) -> list[str]:
-    """
-    Which ``fit.plots.<name>()`` methods make sense for this fit's
-    model/dataset combination.
-    """
+    """Which single-model ``fit.plots.<name>()`` methods apply."""
 
     methods = []
 
@@ -218,6 +253,137 @@ def _available_plots(fit: Fitter) -> list[str]:
     methods.append("deceleration")
 
     return methods
+
+
+# ------------------------------------------------------------
+
+def _available_compare_plots(anchor_fit: Fitter) -> list[str]:
+    """
+    Which ``compare_*`` methods apply, based on the anchor (first)
+    fit's datasets -- same logic as `_available_plots`, mapped to
+    the comparison-plot names. `compare_w_of_z`/`compare_deceleration`
+    are always valid (every model has an E(z), and models without
+    their own w(z) fall back to the w=-1 line -- see
+    `FitPlotter.compare_w_of_z`).
+    """
+
+    methods = []
+
+    likelihood_plots = [
+        (PantheonLikelihood, "compare_hubble_diagram"),
+        (DESSN5YRLikelihood, "compare_des_hubble_diagram"),
+        (CCLikelihood, "compare_hz"),
+        (DESILikelihood, "compare_bao_distances"),
+        (SDSSBAOLikelihood, "compare_sdss_bao_distances"),
+    ]
+
+    for cls, method in likelihood_plots:
+        if any(isinstance(lk, cls) for lk in anchor_fit.likelihoods):
+            methods.append(method)
+
+    methods.append("compare_w_of_z")
+    methods.append("compare_deceleration")
+
+    return methods
+
+
+# ------------------------------------------------------------
+
+def _render_best_fit(fit: Fitter) -> None:
+
+    result = fit.result
+
+    if result.best_fit is None:
+        st.caption("No best-fit result.")
+        return
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("χ²", f"{result.best_fit.chi2:.3f}")
+    m2.metric("AIC", f"{result.best_fit.aic():.2f}")
+    m3.metric("BIC", f"{result.best_fit.bic():.2f}")
+
+    st.dataframe(
+        pd.DataFrame(
+            {"parameter": list(result.best_fit.params),
+             "value": list(result.best_fit.params.values())}
+        ),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+
+# ------------------------------------------------------------
+
+def _render_posterior(fit: Fitter) -> None:
+
+    result = fit.result
+
+    if result.mcmc is None:
+        st.caption("No MCMC run.")
+        return
+
+    st.dataframe(
+        pd.DataFrame([
+            {"parameter": name, "median": s["median"],
+             "+": s["plus"], "-": s["minus"]}
+            for name, s in result.mcmc.summary.items()
+        ]),
+        hide_index=True,
+        use_container_width=True,
+    )
+
+    if result.mcmc.convergence["converged"]:
+        st.success(
+            "Converged -- chain length exceeds 50x the "
+            "autocorrelation time.", icon="✅",
+        )
+    else:
+        st.warning(
+            "Not converged yet -- consider more steps before "
+            "trusting this posterior.", icon="⚠️",
+        )
+
+    # CPL-family diagnostics (w(z)=-1 crossing redshift, direction,
+    # distance from the LCDM point) -- only meaningful when both w0
+    # and wa were actually fit.
+    if "w0" in fit.free_params and "wa" in fit.free_params:
+
+        with st.expander("w0-wa posterior diagnostics"):
+
+            samples = fit.samples_dict()
+
+            z_cross, frac_cross = cpl_diagnostics.crossing_redshift(
+                samples["w0"], samples["wa"],
+            )
+
+            st.write(
+                f"**w(z) = -1 crossing:** {frac_cross:.1%} of samples "
+                f"cross in z in [0, 2.5]"
+                + (
+                    f", at z = {z_cross.mean():.2f} (mean) if they do"
+                    if len(z_cross) else ""
+                )
+            )
+
+            if len(z_cross) > 0:
+                direction = cpl_diagnostics.crossing_direction(
+                    samples["w0"], samples["wa"],
+                )
+                st.write(
+                    f"Quintessence → phantom: "
+                    f"{direction['quintessence_to_phantom']:.1%}  ·  "
+                    f"Phantom → quintessence: "
+                    f"{direction['phantom_to_quintessence']:.1%}"
+                )
+
+            lcdm_distance = cpl_diagnostics.mahalanobis_from_lcdm(
+                samples["w0"], samples["wa"],
+            )
+            st.write(
+                f"**LCDM point** (w0, wa) = (-1, 0) is "
+                f"**{lcdm_distance['distance']:.2f}σ** from this "
+                f"posterior's mean."
+            )
 
 
 # ============================================================
@@ -248,12 +414,13 @@ with version_col:
     st.caption(f"v{__version__}")
 
 # ------------------------------------------------------------
-# Sidebar: datasets, model, MCMC settings
+# Sidebar: datasets, MCMC settings (shared across every model)
 # ------------------------------------------------------------
 
 with st.sidebar:
 
     st.markdown("### 📊 Datasets")
+    st.caption("Shared by every model below -- comparisons need the same data.")
 
     with st.container(border=True):
         selected_datasets = []
@@ -266,54 +433,6 @@ with st.sidebar:
     for pair, reason in INCOMPATIBLE_PAIRS:
         if pair <= selected_set:
             st.warning(f"{' + '.join(sorted(pair))}: {reason}", icon="⚠️")
-
-    st.markdown("### 🧮 Model")
-
-    with st.container(border=True):
-
-        model_choice = st.selectbox(
-            "Cosmology", options=[*BUILTIN_MODELS.keys(), "Custom"],
-            label_visibility="collapsed",
-        )
-
-        if model_choice in MODEL_EQUATIONS:
-            st.latex(MODEL_EQUATIONS[model_choice])
-
-        if model_choice == "Custom":
-
-            st.text_input("Model name", value="MyModel", key="custom_name")
-            st.text_area(
-                "E(z) expression", key="custom_E", height=80,
-                placeholder="sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0))*(1+beta*z))",
-                help=(
-                    "Available: z, every standard parameter "
-                    "(H0, Omega_m, Omega_k, w0, wa, rd, MB, Omega_b, A_s, "
-                    "alpha), any extra parameters defined below, and "
-                    "sqrt/exp/log/log10/sin/cos/tan/sinh/cosh/tanh/abs/"
-                    "sign/where/minimum/maximum/pi/e."
-                ),
-            )
-
-            with st.expander("Advanced (w(z), dE/dz)"):
-                st.text_area(
-                    "w(z) expression (optional)", key="custom_w", height=60,
-                    help="For the w(z) plot only -- not needed to fit.",
-                )
-                st.text_area(
-                    "dE/dz expression (optional)", key="custom_dEdz", height=60,
-                    help=(
-                        "For the deceleration-parameter plot only. If left "
-                        "blank, a numerical (finite-difference) derivative "
-                        "of E(z) is used automatically."
-                    ),
-                )
-
-            st.text_area(
-                "Extra parameters (one per line, optional)",
-                key="custom_extra_params", height=80,
-                placeholder="beta = 0.0, -2.0, 2.0, $\\beta$",
-                help="name = default, lower, upper[, label]",
-            )
 
     st.markdown("### ⚙️ MCMC settings")
 
@@ -331,76 +450,175 @@ with st.sidebar:
             nsteps = st.number_input("Steps", min_value=50, value=3000, step=50)
             seed = st.number_input("Seed", min_value=0, value=42, step=1)
 
+        n_processes = st.number_input(
+            "Parallel processes", min_value=1,
+            max_value=max(1, os.cpu_count() or 1), value=1, step=1,
+            help="Evaluate walkers across multiple CPU cores for a "
+                 "real (if less than linear) speedup. Only works for "
+                 "built-in models, not a Custom one -- leave at 1 if "
+                 "any model below is Custom.",
+        )
+
 # ------------------------------------------------------------
-# Main panel: parameters
+# Main panel: models to compare
 # ------------------------------------------------------------
 
-try:
-    model_cls = _build_model_class(model_choice)
-except Exception as exc:
-    st.info(f"Custom model not ready yet: {exc}")
-    st.stop()
-
-params_cls = getattr(model_cls, "PARAMS_CLASS", None)
-parameter_set = params_cls.parameter_set()
-defaults = params_cls.defaults()
-
-st.markdown("## 🎛️ Parameters")
-st.caption("Tick which parameters to fit; edit initial values or bounds directly in the table.")
-
-param_rows = []
-for p in parameter_set:
-    lo, hi = p.bounds if p.bounds else (None, None)
-    # H0/Omega_m (and any custom parameter without an explicit
-    # "default") have no dataclass default -- falling back to 0.0
-    # would sit outside their prior bounds and produce a degenerate
-    # walker cloud (every walker clipped to the same edge). The
-    # bounds midpoint is always inside the prior instead.
-    if p.name in defaults:
-        initial = float(defaults[p.name])
-    elif lo is not None and hi is not None:
-        initial = float((lo + hi) / 2.0)
-    else:
-        initial = 0.0
-    param_rows.append({
-        "Parameter": p.name,
-        "Label": p.label,
-        "Free": p.name in ("H0", "Omega_m"),
-        "Initial": initial,
-        "Lower": lo,
-        "Upper": hi,
-    })
-
-param_df = pd.DataFrame(param_rows)
-
-with st.container(border=True):
-    edited_df = st.data_editor(
-        param_df,
-        hide_index=True,
-        use_container_width=True,
-        disabled=["Parameter", "Label"],
-        column_config={
-            "Free": st.column_config.CheckboxColumn("Fit this parameter?"),
-            "Initial": st.column_config.NumberColumn(format="%.5g"),
-            "Lower": st.column_config.NumberColumn(format="%.5g"),
-            "Upper": st.column_config.NumberColumn(format="%.5g"),
-        },
-        key="param_editor",
-    )
-
-free_params = edited_df.loc[edited_df["Free"], "Parameter"].tolist()
-initial = dict(zip(edited_df["Parameter"], edited_df["Initial"]))
-bounds = {
-    row["Parameter"]: (row["Lower"], row["Upper"])
-    for _, row in edited_df.iterrows()
-    if pd.notna(row["Lower"]) and pd.notna(row["Upper"])
-}
-
-n_free = len(free_params)
+st.markdown("## 🧮 Models to compare")
 st.caption(
-    f"{n_free} free parameter(s) selected"
-    + (f" -- {', '.join(free_params)}" if n_free else "")
+    "Configure one model to fit it on its own, or add more to compare "
+    "them side by side -- statistically (AIC/BIC/a likelihood-ratio "
+    "test) and on the same plots."
 )
+
+st.session_state.setdefault("n_models", 1)
+
+add_col, remove_col, _ = st.columns([1, 1, 4])
+with add_col:
+    if st.session_state["n_models"] < MAX_MODELS:
+        if st.button("➕ Add model to compare", use_container_width=True):
+            st.session_state["n_models"] += 1
+with remove_col:
+    if st.session_state["n_models"] > 1:
+        if st.button("➖ Remove last model", use_container_width=True):
+            st.session_state["n_models"] -= 1
+
+n_models = st.session_state["n_models"]
+
+model_classes = []
+model_free_params = []
+model_initial = []
+model_bounds = []
+build_error = None
+
+for i in range(n_models):
+
+    label = "Model 1 (primary)" if i == 0 else f"Model {i + 1}"
+
+    with st.container(border=True):
+
+        st.markdown(f"**{label}**")
+
+        model_choice = st.selectbox(
+            "Cosmology", options=[*BUILTIN_MODELS.keys(), "Custom"],
+            key=f"model_choice_{i}", label_visibility="collapsed",
+        )
+
+        if model_choice in MODEL_EQUATIONS:
+            st.latex(MODEL_EQUATIONS[model_choice])
+
+        if model_choice == "Custom":
+
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.text_input(
+                    "Model name", value=f"Custom{i + 1}", key=f"custom_name_{i}",
+                )
+            with col2:
+                st.text_input(
+                    "E(z) expression", key=f"custom_E_{i}",
+                    placeholder="sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0))*(1+beta*z))",
+                    help=(
+                        "Available: z, every standard parameter "
+                        "(H0, Omega_m, Omega_k, w0, wa, rd, MB, Omega_b, "
+                        "A_s, alpha), any extra parameters defined below, "
+                        "and sqrt/exp/log/log10/sin/cos/tan/sinh/cosh/"
+                        "tanh/abs/sign/where/minimum/maximum/pi/e."
+                    ),
+                )
+
+            with st.expander("Advanced (w(z), dE/dz, extra parameters)"):
+
+                col3, col4 = st.columns(2)
+                with col3:
+                    st.text_input(
+                        "w(z) expression (optional)", key=f"custom_w_{i}",
+                        help="For the w(z) plot only -- not needed to fit.",
+                    )
+                with col4:
+                    st.text_input(
+                        "dE/dz expression (optional)", key=f"custom_dEdz_{i}",
+                        help=(
+                            "For the deceleration-parameter plot only. "
+                            "If left blank, a numerical derivative of "
+                            "E(z) is used automatically."
+                        ),
+                    )
+
+                st.text_area(
+                    "Extra parameters (one per line, optional)",
+                    key=f"custom_extra_params_{i}", height=80,
+                    placeholder="beta = 0.0, -2.0, 2.0, $\\beta$",
+                    help="name = default, lower, upper[, label]",
+                )
+
+        try:
+            model_cls = _build_model_class(i, model_choice)
+        except Exception as exc:
+            st.info(f"{label}: not ready yet -- {exc}")
+            build_error = True
+            model_classes.append(None)
+            model_free_params.append(None)
+            model_initial.append(None)
+            model_bounds.append(None)
+            continue
+
+        model_classes.append(model_cls)
+
+        params_cls = getattr(model_cls, "PARAMS_CLASS", None)
+        parameter_set = params_cls.parameter_set()
+        defaults = params_cls.defaults()
+
+        param_rows = []
+        for p in parameter_set:
+            lo, hi = p.bounds if p.bounds else (None, None)
+            # H0/Omega_m (and any custom parameter without an
+            # explicit "default") have no dataclass default --
+            # falling back to 0.0 would sit outside their prior
+            # bounds and produce a degenerate walker cloud (every
+            # walker clipped to the same edge). The bounds midpoint
+            # is always inside the prior instead.
+            if p.name in defaults:
+                initial_value = float(defaults[p.name])
+            elif lo is not None and hi is not None:
+                initial_value = float((lo + hi) / 2.0)
+            else:
+                initial_value = 0.0
+            param_rows.append({
+                "Parameter": p.name,
+                "Label": p.label,
+                "Free": p.name in ("H0", "Omega_m"),
+                "Initial": initial_value,
+                "Lower": lo,
+                "Upper": hi,
+            })
+
+        with st.expander("Parameters", expanded=True):
+            edited_df = st.data_editor(
+                pd.DataFrame(param_rows),
+                hide_index=True,
+                use_container_width=True,
+                disabled=["Parameter", "Label"],
+                column_config={
+                    "Free": st.column_config.CheckboxColumn("Fit this parameter?"),
+                    "Initial": st.column_config.NumberColumn(format="%.5g"),
+                    "Lower": st.column_config.NumberColumn(format="%.5g"),
+                    "Upper": st.column_config.NumberColumn(format="%.5g"),
+                },
+                key=f"param_editor_{i}",
+            )
+
+        free = edited_df.loc[edited_df["Free"], "Parameter"].tolist()
+        model_free_params.append(free)
+        model_initial.append(dict(zip(edited_df["Parameter"], edited_df["Initial"])))
+        model_bounds.append({
+            row["Parameter"]: (row["Lower"], row["Upper"])
+            for _, row in edited_df.iterrows()
+            if pd.notna(row["Lower"]) and pd.notna(row["Upper"])
+        })
+
+        st.caption(
+            f"{len(free)} free parameter(s)" + (f" -- {', '.join(free)}" if free else "")
+        )
 
 # ------------------------------------------------------------
 # Run
@@ -412,159 +630,258 @@ if run_clicked:
 
     if not selected_datasets:
         st.error("Select at least one dataset.", icon="🚫")
-    elif not free_params:
-        st.error("Tick at least one parameter to fit.", icon="🚫")
+    elif build_error:
+        st.error("Fix the model(s) marked above before running.", icon="🚫")
+    elif any(not fp for fp in model_free_params):
+        st.error("Tick at least one free parameter for every model.", icon="🚫")
     else:
-        progress_bar = None
+        progress_bar = st.progress(0.0, text="Starting...")
+        fits = []
+
         try:
-            fit = Fitter(
-                model=model_cls,
-                datasets=selected_datasets,
-                free_params=free_params,
-                initial=initial,
-                bounds=bounds,
-            )
+            for i in range(n_models):
 
-            progress_bar = st.progress(0.0, text="Starting MCMC...")
-            # Re-rendering the bar on every single step (up to
-            # thousands of steps) would flood the browser with
-            # updates for no visible benefit -- only push at whole
-            # percentage points (or the final step).
-            last_shown = {"pct": -1}
-
-            def _on_step(step, total, elapsed, _bar=progress_bar, _last=last_shown):
-                pct = int(100 * step / total)
-                if pct == _last["pct"] and step != total:
-                    return
-                _last["pct"] = pct
-                rate = step / elapsed if elapsed > 0 else 0.0
-                _bar.progress(
-                    step / total,
-                    text=f"Running MCMC -- {pct}% ({step}/{total} steps, {rate:.1f} it/s)",
+                fit = Fitter(
+                    model=model_classes[i],
+                    datasets=selected_datasets,
+                    free_params=model_free_params[i],
+                    initial=model_initial[i],
+                    bounds=model_bounds[i],
                 )
 
-            fit.run_mcmc(
-                nwalkers=int(nwalkers), nsteps=int(nsteps),
-                burnin=int(burnin), seed=int(seed), progress=False,
-                callback=_on_step,
-            )
-            progress_bar.empty()
+                model_label = f"Model {i + 1}"
+                last_shown = {"pct": -1}
 
-            with st.spinner("Finding best fit..."):
+                def _on_step(step, total, elapsed, _bar=progress_bar,
+                             _last=last_shown, _i=i, _n=n_models, _label=model_label):
+                    pct = int(100 * step / total)
+                    if pct == _last["pct"] and step != total:
+                        return
+                    _last["pct"] = pct
+                    rate = step / elapsed if elapsed > 0 else 0.0
+                    overall = (_i + pct / 100.0) / _n
+                    _bar.progress(
+                        overall,
+                        text=(
+                            f"Fitting {_label} ({_i + 1}/{_n}) -- {pct}% "
+                            f"({step}/{total} steps, {rate:.1f} it/s)"
+                        ),
+                    )
+
+                fit.run_mcmc(
+                    nwalkers=int(nwalkers), nsteps=int(nsteps),
+                    burnin=int(burnin), seed=int(seed), progress=False,
+                    n_processes=int(n_processes), callback=_on_step,
+                )
                 fit.best_fit()
 
-            st.session_state["fit"] = fit
+                fits.append(fit)
+
+            progress_bar.empty()
+
+            model_names = [f.model_cls.__name__ for f in fits]
+            st.session_state["fits"] = fits
+            st.session_state["fit_labels"] = _dedupe_labels(model_names)
             st.toast("Fit complete.", icon="✅")
 
         except Exception as exc:
-            st.session_state.pop("fit", None)
-            if progress_bar is not None:
-                progress_bar.empty()
+            st.session_state.pop("fits", None)
+            st.session_state.pop("fit_labels", None)
+            progress_bar.empty()
             st.error(f"Fit failed: {exc}", icon="🚫")
 
 # ------------------------------------------------------------
 # Results
 # ------------------------------------------------------------
 
-fit = st.session_state.get("fit")
+fits = st.session_state.get("fits")
+fit_labels = st.session_state.get("fit_labels")
 
 st.divider()
 
-if fit is not None:
+if fits:
 
     st.markdown("## 📊 Results")
     st.caption(
-        f"**{fit.model_cls.__name__}** · "
-        f"{', '.join(DATASET_LABELS.get(d, d) for d in fit.dataset_names)} · "
-        f"free: {', '.join(fit.free_params)}"
-    )
-
-    result = fit.result
-
-    tab_best, tab_mcmc, tab_plots = st.tabs(
-        ["📈 Best fit", "🎲 MCMC posterior", "🖼️ Plots"]
-    )
-
-    with tab_best:
-
-        if result.best_fit is not None:
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("χ²", f"{result.best_fit.chi2:.3f}")
-            m2.metric("AIC", f"{result.best_fit.aic():.2f}")
-            m3.metric("BIC", f"{result.best_fit.bic():.2f}")
-
-            st.dataframe(
-                pd.DataFrame(
-                    {"parameter": list(result.best_fit.params),
-                     "value": list(result.best_fit.params.values())}
-                ),
-                hide_index=True,
-                use_container_width=True,
-            )
-        else:
-            st.caption("No best-fit result.")
-
-    with tab_mcmc:
-
-        if result.mcmc is not None:
-
-            st.dataframe(
-                pd.DataFrame([
-                    {"parameter": name, "median": s["median"],
-                     "+": s["plus"], "-": s["minus"]}
-                    for name, s in result.mcmc.summary.items()
-                ]),
-                hide_index=True,
-                use_container_width=True,
-            )
-
-            if result.mcmc.convergence["converged"]:
-                st.success(
-                    "Converged -- chain length exceeds 50x the "
-                    "autocorrelation time.", icon="✅",
-                )
-            else:
-                st.warning(
-                    "Not converged yet -- consider more steps before "
-                    "trusting this posterior.", icon="⚠️",
-                )
-        else:
-            st.caption("No MCMC run.")
-
-    with tab_plots:
-
-        plot_options = _available_plots(fit)
-        chosen = st.multiselect(
-            "Choose plots to render",
-            options=plot_options,
-            default=plot_options[:2],
-            format_func=lambda name: PLOT_LABELS.get(name, name),
-            label_visibility="collapsed",
+        f"{', '.join(DATASET_LABELS.get(d, d) for d in fits[0].dataset_names)}  ·  "
+        + "  ·  ".join(
+            f"**{label}** ({', '.join(f.free_params)})"
+            for label, f in zip(fit_labels, fits)
         )
+    )
 
-        plot_cols = st.columns(2)
-        for i, name in enumerate(chosen):
-            with plot_cols[i % 2]:
-                try:
-                    fig = getattr(fit.plots, name)()
-                    st.pyplot(fig, use_container_width=True)
-                    plt.close(fig)
-                except Exception as exc:
-                    st.error(
-                        f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
-                        icon="🚫",
+    multi = len(fits) >= 2
+
+    tab_names = (["⚖️ Comparison"] if multi else []) + [
+        "📈 Best fit", "🎲 MCMC posterior", "🖼️ Plots",
+    ]
+    tabs = st.tabs(tab_names)
+    tab_iter = iter(tabs)
+
+    if multi:
+
+        with next(tab_iter):
+
+            rows = []
+            for label, f in zip(fit_labels, fits):
+                bf = f.result.best_fit
+                rows.append({
+                    "model": label,
+                    "chi2": bf.chi2,
+                    "k (free params)": bf.ndim,
+                    "AIC": bf.aic(),
+                    "BIC": bf.bic(),
+                    "converged": (
+                        f.result.mcmc.convergence["converged"]
+                        if f.result.mcmc else None
+                    ),
+                })
+            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+            # Likelihood-ratio test: only well-defined for exactly two
+            # models where one's free parameters are a strict subset
+            # of the other's (a genuine nested special case) -- can't
+            # be inferred for 3+ models or non-nested pairs.
+            if len(fits) == 2:
+
+                free_sets = [set(f.free_params) for f in fits]
+
+                if free_sets[0] < free_sets[1]:
+                    null_i, alt_i = 0, 1
+                elif free_sets[1] < free_sets[0]:
+                    null_i, alt_i = 1, 0
+                else:
+                    null_i = None
+
+                if null_i is not None:
+
+                    comparison = model_comparison.compare_models(
+                        name_null=fit_labels[null_i],
+                        chi2_null=fits[null_i].best_fit_chi2,
+                        k_null=fits[null_i].ndim,
+                        name_alt=fit_labels[alt_i],
+                        chi2_alt=fits[alt_i].best_fit_chi2,
+                        k_alt=fits[alt_i].ndim,
+                        n_data=fits[alt_i].n_data,
+                    )
+                    lrt = comparison["likelihood_ratio_test"]
+
+                    st.markdown(
+                        f"**Likelihood-ratio test** ({fit_labels[null_i]} vs. "
+                        f"{fit_labels[alt_i]}, nested at "
+                        f"{', '.join(free_sets[alt_i] - free_sets[null_i])}=fixed): "
+                        f"Δχ² = {lrt['delta_chi2']:.2f} (Δk={lrt['delta_k']}), "
+                        f"p = {lrt['p_value']:.3f}, "
+                        f"**{lrt['sigma']:.2f}σ** preference for "
+                        f"{fit_labels[alt_i]}."
+                    )
+                else:
+                    st.caption(
+                        "No likelihood-ratio test shown: neither model's "
+                        "free parameters are a strict subset of the "
+                        "other's, so they aren't nested."
                     )
 
+    with next(tab_iter):
+        if multi:
+            choice = st.selectbox("Model", options=fit_labels, key="bestfit_model_choice")
+            _render_best_fit(fits[fit_labels.index(choice)])
+        else:
+            _render_best_fit(fits[0])
+
+    with next(tab_iter):
+        if multi:
+            choice = st.selectbox("Model", options=fit_labels, key="posterior_model_choice")
+            _render_posterior(fits[fit_labels.index(choice)])
+        else:
+            _render_posterior(fits[0])
+
+    with next(tab_iter):
+
+        if multi:
+
+            compare_options = _available_compare_plots(fits[0])
+            chosen = st.multiselect(
+                "Choose comparison plots (all models overlaid)",
+                options=compare_options,
+                default=compare_options[:2],
+                format_func=lambda name: COMPARE_PLOT_LABELS.get(name, name),
+            )
+
+            plot_cols = st.columns(2)
+            for idx, name in enumerate(chosen):
+                with plot_cols[idx % 2]:
+                    try:
+                        fig = getattr(fits[0].plots, name)(
+                            other_fits=fits[1:], labels=fit_labels,
+                        )
+                        st.pyplot(fig, use_container_width=True)
+                        plt.close(fig)
+                    except Exception as exc:
+                        st.error(
+                            f"Could not render "
+                            f"'{COMPARE_PLOT_LABELS.get(name, name)}': {exc}",
+                            icon="🚫",
+                        )
+
+            with st.expander("Single-model plots"):
+                choice = st.selectbox("Model", options=fit_labels, key="plots_model_choice")
+                single_fit = fits[fit_labels.index(choice)]
+                single_options = _available_plots(single_fit)
+                single_chosen = st.multiselect(
+                    "Choose plots", options=single_options,
+                    format_func=lambda name: PLOT_LABELS.get(name, name),
+                    key="single_plots_multiselect",
+                )
+                single_cols = st.columns(2)
+                for idx, name in enumerate(single_chosen):
+                    with single_cols[idx % 2]:
+                        try:
+                            fig = getattr(single_fit.plots, name)()
+                            st.pyplot(fig, use_container_width=True)
+                            plt.close(fig)
+                        except Exception as exc:
+                            st.error(
+                                f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
+                                icon="🚫",
+                            )
+
+        else:
+
+            plot_options = _available_plots(fits[0])
+            chosen = st.multiselect(
+                "Choose plots to render",
+                options=plot_options,
+                default=plot_options[:2],
+                format_func=lambda name: PLOT_LABELS.get(name, name),
+                label_visibility="collapsed",
+            )
+
+            plot_cols = st.columns(2)
+            for idx, name in enumerate(chosen):
+                with plot_cols[idx % 2]:
+                    try:
+                        fig = getattr(fits[0].plots, name)()
+                        st.pyplot(fig, use_container_width=True)
+                        plt.close(fig)
+                    except Exception as exc:
+                        st.error(
+                            f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
+                            icon="🚫",
+                        )
+
     st.download_button(
-        "⬇️ Download result (JSON)",
-        data=json.dumps(result.to_dict(), indent=2),
+        "⬇️ Download result(s) (JSON)",
+        data=json.dumps(
+            {label: f.result.to_dict() for label, f in zip(fit_labels, fits)},
+            indent=2,
+        ),
         file_name="cosmofit_result.json",
         mime="application/json",
     )
 
 else:
     st.info(
-        "👈 Configure datasets/model/parameters on the left, then click **Run Fit**.",
+        "👆 Configure one or more models above, then click **Run Fit**.",
         icon="🌌",
     )

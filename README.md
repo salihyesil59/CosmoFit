@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.14.0
+> **Current Version:** v0.15.0
 
 ---
 
@@ -41,8 +41,10 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   JSON-serializable snapshot
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
   extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
-* Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, pick or
-  write a model, edit free parameters, and run the MCMC fit + plots with one click, no code
+* Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, configure
+  one or more models (built-in or your own), edit free parameters, and run the MCMC fit(s) + plots
+  with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
+  test) and on the same figures, all from the browser
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
@@ -478,6 +480,26 @@ using this: all four datasets (including Planck, which makes `rd`
 and `Omega_b` constrainable and lets them join the free parameters
 too) and a much longer chain (`nwalkers=64`, `nsteps=12000`), run in
 parallel across every available core.
+
+Version **v0.15.0** fixes `n_processes` on Python 3.14: it changed
+`multiprocessing`'s default start method on Linux from `fork` to
+`forkserver` (matching what macOS/Windows already used), which made
+`run_mcmc(n_processes=...)` crash outright as a plain script
+(`forkserver`/`spawn` require every process-spawning call to sit
+behind an `if __name__ == "__main__":` guard) and, even inside a
+Jupyter kernel where that particular crash doesn't surface, measured
+no speedup at all. `Fitter._mcmc_pool` now explicitly requests the
+`fork` context rather than relying on whatever the interpreter's
+default happens to be -- still available on Linux/macOS even where
+it's no longer automatic, and with neither of the above problems.
+This version also brings the graphical interface up to parity with
+`cpl_mcmc_tfd42.ipynb`: the GUI can now configure and fit multiple
+models at once (built-in or custom) sharing one set of datasets, with
+a statistical comparison tab (AIC/BIC, and a likelihood-ratio test
+when exactly two models are properly nested), every `compare_*`
+figure alongside the existing single-model ones, and the CPL-family
+w(z)=-1-crossing/LCDM-distance posterior diagnostics -- so everything
+that notebook does is now also reachable with zero code.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
