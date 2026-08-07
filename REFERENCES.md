@@ -92,6 +92,49 @@ repository.
 - Used by: [`data/cmb/planck2018/`](src/CosmoFit/data/cmb/planck2018/),
   [`likelihoods/planck.py`](src/CosmoFit/likelihoods/planck.py)
 
+### fsigma8 growth-rate compilation ("Gold-2018")
+
+- **Sagredo, Nesseris & Sapone (2018)**, *Internal Robustness of
+  Growth Rate data*, Phys. Rev. D 98, 083543.
+  [arXiv:1806.10822](https://arxiv.org/abs/1806.10822)
+- Data source: bundled with the public MontePython likelihood
+  [snesseris/RSD-growth](https://github.com/snesseris/RSD-growth)
+  (Arjona, García-Bellido & Nesseris 2020,
+  [arXiv:2006.01762](https://arxiv.org/abs/2006.01762)), fetched
+  byte-for-byte from `data/growth_SN/data_growth_2018_main.txt`,
+  `Cij_WiggleZ.txt`, `Cij_SDSS.txt` there.
+- 22 points, each from its own survey: Huterer, Shafer, Scolnic &
+  Schmidt (2017, arXiv:1611.09862); Turnbull et al. (2012,
+  arXiv:1111.0631) / Hudson & Turnbull (2013, arXiv:1203.4814);
+  Davis et al. (2011, arXiv:1011.3114) / Hudson & Turnbull (2013);
+  Feix, Nusser & Branchini (2015, arXiv:1503.05945); Howlett, Ross,
+  Samushia, Percival & Manera (2015, arXiv:1409.3238); Song &
+  Percival (2009, arXiv:0807.0810); Blake et al. (2013,
+  arXiv:1309.5556, GAMA); Samushia, Percival & Raccanelli (2012,
+  arXiv:1102.1014, SDSS LRG); Sánchez et al. (2014, arXiv:1312.4854,
+  BOSS DR10/11); Chuang et al. (2016, arXiv:1312.4889, BOSS DR12
+  CMASS); Blake et al. (2012, arXiv:1204.3674, WiggleZ, correlated
+  z=0.44/0.60/0.73 bins); Pezzotta et al. (2017, arXiv:1612.05645,
+  VIPERS); Okumura et al. (2016, arXiv:1511.08083, FastSound);
+  Zhao et al. (2018, arXiv:1801.03043, eBOSS DR14 quasars,
+  correlated tomographic bins).
+- Used by: [`data/growth/gold2018/`](src/CosmoFit/data/growth/gold2018/),
+  [`likelihoods/fsigma8.py`](src/CosmoFit/likelihoods/fsigma8.py)
+
+### S8 weak-lensing prior
+
+- **KiDS-1000** (default): Asgari et al. (2021), *KiDS-1000
+  Cosmology: Cosmic shear constraints and comparison between two
+  point statistics*, A&A 645, A104. S8 = 0.759 (+0.024, -0.021).
+  [arXiv:2007.15633](https://arxiv.org/abs/2007.15633)
+- **DES Y3**: DES Collaboration / Abbott et al. (2022), *Dark Energy
+  Survey Year 3 Results: Cosmological Constraints from Galaxy
+  Clustering and Weak Lensing*, Phys. Rev. D 105, 023520.
+  S8 = 0.776 +/- 0.017.
+  [arXiv:2105.13549](https://arxiv.org/abs/2105.13549)
+- Used by: [`data/s8/`](src/CosmoFit/data/s8/),
+  [`likelihoods/s8.py`](src/CosmoFit/likelihoods/s8.py)
+
 ---
 
 ## Cosmological models
@@ -159,10 +202,19 @@ dust limit and a numerical closure check (a transcription error in
 the Lambert-W closure formula was caught this way during
 development -- see the commit history).
 
+Growth of structure: `mu(a) = 1/f_Q` (G_eff/G_N = 1/f_Q, the
+standard sub-horizon quasi-static result for f(Q) gravity),
+scale-independent, closing exactly to mu=1 at this model's own GR
+limit (lambda=0).
+
 - **Anagnostopoulos, Basilakos & Saridakis (2021)**, *First evidence
   that non-metricity f(Q) gravity could challenge ΛCDM*, Phys. Lett.
   B 822, 136634.
   [arXiv:2104.15123](https://arxiv.org/abs/2104.15123)
+- **Barros, Barreiro, Koivisto & Nunes (2020)**, *Testing F(Q)
+  gravity with redshift space distortions*, Phys. Dark Univ. 30,
+  100616.
+  [arXiv:2004.07867](https://arxiv.org/abs/2004.07867)
 - Implemented in: [`cosmology/models/fq.py`](src/CosmoFit/cosmology/models/fq.py)
 
 ### FRTLinear (f(R,T) gravity, linear model)
@@ -174,26 +226,43 @@ universe were derived from the source paper's own general-perfect-
 fluid equation and cross-checked against its dust-only special case
 (their eq. 26).
 
+Growth of structure: `mu(a) = 1 + 3*beta`, the same coupling already
+in this model's own `E(z)^2` -- a stated simplification (f(R,T) does
+not separately conserve the matter stress-energy tensor, so a full
+covariant perturbation theory is more involved), not a full
+derivation; see the class docstring.
+
 - **Harko, Lobo, Nojiri & Odintsov (2011)**, *f(R,T) gravity*, Phys.
   Rev. D 84, 024020.
   [arXiv:1104.2669](https://arxiv.org/abs/1104.2669)
+- **Asghari & Sheykhi (2025)**, *Growth of cosmic perturbations in
+  the modified f(R,T) gravity*, Phys. Dark Univ. 48.
+  [arXiv:2405.11840](https://arxiv.org/abs/2405.11840)
 - Implemented in: [`cosmology/models/frt.py`](src/CosmoFit/cosmology/models/frt.py)
 
 ### FRHuSawicki (f(R) gravity, Hu-Sawicki model)
 
 f(R) = -m²c₁(R/m²)ⁿ / (c₂(R/m²)ⁿ+1), the standard f(R) benchmark
-model. **Background expansion only, and identical to LCDM's by
+model. **Background expansion is identical to LCDM's by
 construction** -- the standard "designer f(R)" approach builds f(R)
-to reproduce an assumed target background; this model's real
-observational signature (its `f_R0`/`n` parameters) is in the growth
-of structure, not the expansion history, and isn't computed by this
-version of CosmoFit. Included for completeness, with this limitation
-stated explicitly in the class docstring and surfaced in the GUI --
-not silently omitted, but not silently overstated either.
+to reproduce an assumed target background; `f_R0`/`n` are invisible
+to any background-only probe (CC/BAO/SNe/Planck). **Growth of
+structure is where this model actually differs from LCDM**: a
+scale- and time-dependent, chameleon-screened `mu(a,k)`, derived
+directly from this model's own background (not transcribed) and
+numerically self-consistent (k->0 gives mu->1, k->infinity gives the
+well-known mu->4/3, f_R0->0 gives mu->1 at any k), held at a fixed
+fiducial pivot k=0.1 h/Mpc since this library's fsigma8 data are
+single per-z points, not a P(k) shape. Stated explicitly in the
+class docstring and surfaced in the GUI -- not silently omitted, but
+not silently overstated either.
 
 - **Hu & Sawicki (2007)**, *Models of f(R) Cosmic Acceleration that
   Evade Solar-System Tests*, Phys. Rev. D 76, 064004.
   [arXiv:0705.1158](https://arxiv.org/abs/0705.1158)
+- **Pogosian & Silvestri (2008)**, *The pattern of growth in viable
+  f(R) cosmologies*, Phys. Rev. D 77, 023503.
+  [arXiv:0709.0296](https://arxiv.org/abs/0709.0296)
 - Implemented in: [`cosmology/models/fr.py`](src/CosmoFit/cosmology/models/fr.py)
 
 ---
@@ -228,6 +297,20 @@ not silently omitted, but not silently overstated either.
   (`AnalyticOffsetMixin`), used by
   [`likelihoods/pantheon.py`](src/CosmoFit/likelihoods/pantheon.py) and
   [`likelihoods/des_sn5yr.py`](src/CosmoFit/likelihoods/des_sn5yr.py)
+
+### Linear growth of structure
+
+D'' + (2 + dlnH/dN) D' - (3/2) Omega_m(a) mu(a,k) D = 0, the standard
+sub-horizon, quasi-static growth equation for the linear matter
+density contrast, generalized to modified gravity through a single
+`mu(a,k)` (G_eff/G_N) hook -- no single-paper citation applies to
+the equation itself (a standard textbook result, e.g. Dodelson &
+Schmidt, *Modern Cosmology*, 2nd ed., Ch. 7); see each
+modified-gravity model's own section above for its `mu(a,k)`'s
+citation.
+
+- Implemented in: [`cosmology/calculators/growth.py`](src/CosmoFit/cosmology/calculators/growth.py)
+  (`GrowthCalculator`)
 
 ### MCMC
 

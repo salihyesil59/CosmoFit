@@ -457,6 +457,108 @@ class PlanckDataset:
 
 
 # ============================================================
+# Growth of structure (fsigma8)
+# ============================================================
+
+@dataclass(slots=True)
+class GrowthDataset:
+    """
+    Growth-rate (fsigma8) measurements, e.g. the "Gold-2018" RSD
+    compilation (:func:`~data.loader.load_fsigma8`).
+
+    z
+        Effective redshift of each measurement.
+    fsigma8
+        f(z) * sigma8(z) measurement.
+    sigma
+        Diagonal statistical uncertainty (used to build the
+        covariance's diagonal before any correlated blocks --
+        e.g. WiggleZ, SDSS -- are written in on top of it; see
+        the loader).
+    HdAz
+        Fiducial-cosmology H(z)*D_A(z) product [km/s] each survey
+        assumed when converting its raw RSD measurement into
+        fsigma8 -- used by
+        :class:`~likelihoods.fsigma8.FSigma8Likelihood` for the
+        Alcock-Paczynski correction every precision RSD analysis
+        applies (comparing a different test cosmology's H(z)*D_A(z)
+        against this fiducial value).
+    """
+
+    z: np.ndarray
+
+    fsigma8: np.ndarray
+
+    sigma: np.ndarray
+
+    HdAz: np.ndarray
+
+    covariance: "CovarianceBase | None" = None
+
+    reference: str = ""
+
+    # -----------------------------------------------------------
+
+    def __post_init__(self):
+
+        n = len(self.z)
+
+        if not (
+            len(self.fsigma8) == n
+            == len(self.sigma)
+            == len(self.HdAz)
+        ):
+
+            raise ValueError(
+                "Growth dataset arrays have inconsistent lengths.",
+            )
+
+        if (
+            self.covariance is not None
+            and self.covariance.shape != (n, n)
+        ):
+
+            raise ValueError(
+                "Growth dataset covariance has wrong shape.",
+            )
+
+    # -----------------------------------------------------------
+
+    @property
+    def size(self) -> int:
+        """
+        Number of measurements.
+        """
+
+        return len(self.z)
+
+
+# ============================================================
+# S8 weak-lensing prior
+# ============================================================
+
+@dataclass(slots=True)
+class S8Dataset:
+    """
+    A single Gaussian S8 = sigma8 * sqrt(Omega_m / 0.3) constraint
+    from a weak-lensing survey (e.g. KiDS-1000, DES Y3), used by
+    :class:`~likelihoods.s8.S8Likelihood`.
+    """
+
+    value: float
+
+    sigma: float
+
+    covariance: "CovarianceBase | None" = None
+
+    reference: str = ""
+
+    @property
+    def size(self) -> int:
+        return 1
+
+
+# ============================================================
 # Generic container (optional)
 # ============================================================
 

@@ -36,6 +36,8 @@ from CosmoFit.likelihoods.sdss_bao import SDSSBAOLikelihood
 from CosmoFit.likelihoods.pantheon import PantheonLikelihood
 from CosmoFit.likelihoods.des_sn5yr import DESSN5YRLikelihood
 from CosmoFit.likelihoods.planck import PlanckLikelihood
+from CosmoFit.likelihoods.fsigma8 import FSigma8Likelihood
+from CosmoFit.likelihoods.s8 import S8Likelihood
 from CosmoFit.likelihoods.joint import JointLikelihood
 
 from CosmoFit.plots import FitPlotter
@@ -59,6 +61,8 @@ DATASET_REGISTRY = {
     "pantheon": PantheonLikelihood,
     "des_sn5yr": DESSN5YRLikelihood,
     "planck": PlanckLikelihood,
+    "fsigma8": FSigma8Likelihood,
+    "s8": S8Likelihood,
 }
 
 
@@ -144,10 +148,10 @@ class Fitter:
         Which likelihoods to combine. Keys of
         :data:`DATASET_REGISTRY` (currently
         ``"cc"``, ``"desi"``, ``"sdss_bao"``, ``"pantheon"``,
-        ``"des_sn5yr"``, ``"planck"``). Do not combine
-        ``"desi"``/``"sdss_bao"`` or ``"pantheon"``/``"des_sn5yr"``
-        in the same fit -- see the corresponding likelihood
-        classes' docstrings for why.
+        ``"des_sn5yr"``, ``"planck"``, ``"fsigma8"``, ``"s8"``). Do
+        not combine ``"desi"``/``"sdss_bao"`` or
+        ``"pantheon"``/``"des_sn5yr"`` in the same fit -- see the
+        corresponding likelihood classes' docstrings for why.
 
     free_params : list[str]
         Names of the :class:`CosmologyParameters` fields that

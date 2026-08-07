@@ -58,11 +58,29 @@ class FQExponential(Cosmology):
     here, the accelerated expansion comes entirely from the modified
     gravitational sector.
 
+    **Growth of structure.** ``mu(a, k)`` implements the standard
+    sub-horizon, quasi-static result for f(Q) gravity's effective
+    gravitational coupling, G_eff/G_N = 1/f_Q where
+    f_Q = df/dQ (Barros, Barreiro, Koivisto & Nunes 2020,
+    arXiv:2004.07867, "Testing F(Q) gravity with redshift space
+    distortions" -- the same growth-rate observable this feeds into
+    here). For this model, f_Q = exp(lambda/E^2) (1 - lambda/E^2)
+    (derived by differentiating f(Q) above and using
+    Q0/Q = 1/E(z)^2), scale-independent (``k`` is accepted for
+    interface consistency with :meth:`Cosmology.mu` but ignored).
+    lambda=0 gives f_Q=1, i.e. mu=1 exactly -- by this model's own
+    closure condition (see ``_lam`` above), that is the
+    Omega_m -> 1 limit (matter-only, EdS), not Omega_m -> 0.
+
     References
     ----------
     Anagnostopoulos, Basilakos & Saridakis (2021), "First evidence
     that non-metricity f(Q) gravity could challenge LCDM", Phys.
     Lett. B 822, 136634, arXiv:2104.15123.
+
+    Barros, Barreiro, Koivisto & Nunes (2020), "Testing F(Q) gravity
+    with redshift space distortions", Phys. Dark Univ. 30, 100616,
+    arXiv:2004.07867.
     """
 
     MODEL_NAME = "FQExponential"
@@ -165,3 +183,21 @@ class FQExponential(Cosmology):
         z = np.asarray(z, dtype=float)
 
         return self.E(z) ** 2 - self.Omega_m * (1.0 + z) ** 3
+
+    # ---------------------------------------------------------
+
+    def mu(self, a, k=None):
+        """
+        Effective gravitational coupling G_eff/G_N = 1/f_Q -- see
+        the class docstring for the derivation.
+        """
+
+        a = np.asarray(a, dtype=float)
+        z = 1.0 / a - 1.0
+
+        lam = self._lam
+        x = 1.0 / self.E(z) ** 2
+
+        f_Q = np.exp(lam * x) * (1.0 - lam * x)
+
+        return 1.0 / f_Q

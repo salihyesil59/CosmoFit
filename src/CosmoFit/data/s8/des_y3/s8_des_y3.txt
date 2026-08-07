@@ -1,0 +1,7 @@
+# DES Year 3 3x2pt (cosmic shear + galaxy clustering + galaxy-galaxy
+# lensing) S8 = sigma8*sqrt(Omega_m/0.3) constraint.
+# DES Collaboration / Abbott et al. (2022), Phys. Rev. D 105, 023520,
+# arXiv:2105.13549. Reported as S8 = 0.776 +/- 0.017 (68% CL, symmetric).
+#
+# value    sigma
+0.776      0.017

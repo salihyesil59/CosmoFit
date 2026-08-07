@@ -1,0 +1,8 @@
+# KiDS-1000 cosmic shear S8 = sigma8*sqrt(Omega_m/0.3) constraint.
+# Asgari et al. (2021), A&A 645, A104, arXiv:2007.15633.
+# Reported as S8 = 0.759 (+0.024, -0.021) (68% CL); sigma below is
+# the symmetrized average of the two one-sided errors, (0.024+0.021)/2,
+# for use in a symmetric Gaussian likelihood.
+#
+# value    sigma
+0.759      0.0225

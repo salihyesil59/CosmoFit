@@ -47,6 +47,22 @@ class FRTLinear(Cosmology):
     convention for alpha in the papers surveyed for this couldn't be
     pinned down with confidence -- see the project's dev notes.
 
+    **Growth of structure.** ``mu(a, k)`` uses
+    ``mu(a) = 1 + 3*beta`` -- the same rescaling already derived
+    above for the matter term of this model's own ``E(z)^2``
+    (internally consistent with the background by construction).
+    This is a stated simplification, not a full derivation: unlike
+    f(Q) (where G_eff = G_N/f_Q is a settled sub-horizon result --
+    see ``FQExponential.mu``), f(R,T) does not separately conserve
+    the matter stress-energy tensor, so a full covariant linear
+    perturbation theory is genuinely more involved (see Asghari &
+    Sheykhi 2024, arXiv:2405.11840, who derive it for a general
+    f(R,T) form and find it suppresses structure growth relative to
+    LCDM -- the same qualitative direction ``mu(a) = 1+3*beta`` with
+    the fitted-negative ``beta`` typical of this model produces, but
+    not the same derivation). Scale-independent (``k`` accepted for
+    interface consistency, ignored). beta=0 (GR) gives mu=1 exactly.
+
     Parameters
     ----------
     Adds ``Omega_L`` (the Lambda-like component's density parameter,
@@ -58,6 +74,9 @@ class FRTLinear(Cosmology):
     ----------
     Harko, Lobo, Nojiri & Odintsov (2011), "f(R,T) gravity", Phys.
     Rev. D 84, 024020, arXiv:1104.2669.
+
+    Asghari & Sheykhi (2025), "Growth of cosmic perturbations in the
+    modified f(R,T) gravity", Phys. Dark Univ. 48, arXiv:2405.11840.
     """
 
     MODEL_NAME = "FRTLinear"
@@ -124,3 +143,13 @@ class FRTLinear(Cosmology):
         z = np.asarray(z, dtype=float)
 
         return np.full_like(z, (1.0 + 4.0 * self.beta) * self.Omega_L)
+
+    # ---------------------------------------------------------
+
+    def mu(self, a, k=None):
+        """
+        Effective gravitational coupling, mu(a) = 1 + 3*beta -- see
+        the class docstring for the (stated-simplification) caveat.
+        """
+
+        return np.full_like(np.asarray(a, dtype=float), 1.0 + 3.0 * self.beta)

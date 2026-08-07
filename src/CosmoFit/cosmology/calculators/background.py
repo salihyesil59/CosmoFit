@@ -100,6 +100,24 @@ class BackgroundCalculator:
 
         )
 
+    # ---------------------------------------------------------
+
+    def growth_rate(self, z):
+
+        return self.cosmo.growth.growth_rate(z)
+
+    # ---------------------------------------------------------
+
+    def sigma8(self, z):
+
+        return self.cosmo.growth.sigma8(z)
+
+    # ---------------------------------------------------------
+
+    def fsigma8(self, z):
+
+        return self.cosmo.growth.fsigma8(z)
+
     # --------------------------------------------------------
 
     def set_cosmology(

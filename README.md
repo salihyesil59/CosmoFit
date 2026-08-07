@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.16.0
+> **Current Version:** v0.17.0
 
 ---
 
@@ -22,13 +22,21 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * **GCG** (Generalized Chaplygin Gas) -- unified dark matter/dark energy fluid,
     p = -A/rho^alpha
 
-* Modified-gravity models (background level -- see Project Status for what that does and doesn't cover)
+* Modified-gravity models, at both background *and* growth-of-structure level (see Project
+  Status for exactly what's real vs. simplified in each)
 
   * **FQExponential** -- f(Q) gravity (symmetric teleparallel), f(Q) = Q exp(lambda Q0/Q)
   * **FRTLinear** -- f(R,T) gravity (linear), f(R,T) = R + 2 lambda T
   * **FRHuSawicki** -- f(R) gravity (Hu-Sawicki); background is identical to LCDM's by
-    construction, included with that limitation stated explicitly (see Project Status)
+    construction (stated explicitly, see Project Status), but growth of structure -- where
+    this model's `f_R0`/`n` parameters actually show up -- is now real: a scale- and
+    time-dependent, chameleon-screened `mu(a,k)`
 
+* Growth of structure: every model (not just the three above) gets a linear growth factor
+  D(z), growth rate f(z), and fsigma8(z)/S8 via a generic `mu(a,k)` hook on top of its own
+  E(z)/dE(z)dz (`cosmology.calculators.growth.GrowthCalculator`) -- `mu = 1` (standard GR
+  growth) for LCDM/wCDM/CPL/JBP/BA/GCG, a real derived `mu(a,k)` for the three
+  modified-gravity models above
 * Flexible parameter management
 * Built-in observational datasets
 
@@ -36,6 +44,9 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * BAO (DESI 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO) -- don't combine the two, see the note below
   * Supernova (Pantheon+, DES-SN5YR) -- don't combine the two, see the note below
   * CMB distance priors (Planck 2018 R, l_A, omega_b_h2)
+  * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
+  * S8 weak-lensing prior (KiDS-1000 or DES Y3, Gaussian) -- don't combine the two versions,
+    see the note below
 
 * Modular likelihood architecture
 * Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
@@ -566,6 +577,48 @@ overstated either. All three plug into the existing `EXTRA_PARAMS`
 mechanism (built for `define_model()`/custom models), so `Fitter`,
 every plot including `compare_*`, and the GUI's multi-model
 comparison all work with them with no further changes.
+
+Version **v0.17.0** adds growth-of-structure: the "phase 2" v0.16.0
+explicitly deferred, since a background-only treatment left
+FRHuSawicki's `f_R0`/`n` genuinely untestable (its background *is*
+LCDM's by construction). A new `cosmology.calculators.growth.GrowthCalculator`
+solves the standard sub-horizon, quasi-static linear growth ODE
+(`D'' + (2+dlnH/dN)D' - (3/2)Omega_m(a) mu(a,k) D = 0`) for every
+model via a `Cosmology.mu(a,k)` hook (default 1, i.e. standard GR
+growth -- LCDM/wCDM/CPL/JBP/BA/GCG all get this for free), exposing
+`fitter.cosmology.background.{growth_rate,sigma8,fsigma8}(z)`, plus
+a new `sigma8` cosmological parameter and two new datasets/likelihoods:
+`"fsigma8"` (the "Gold-2018" RSD growth-rate compilation, Sagredo,
+Nesseris & Sapone 2018, arXiv:1806.10822, 22 points, with the same
+Alcock-Paczynski correction the reference likelihood applies) and
+`"s8"` (a single Gaussian S8 = sigma8*sqrt(Omega_m/0.3) constraint,
+KiDS-1000 or DES Y3). Each of the three modified-gravity models now
+has a real, cited `mu(a,k)`: **FQExponential** uses the settled
+sub-horizon result G_eff/G_N = 1/f_Q (Barros, Barreiro, Koivisto &
+Nunes 2020, arXiv:2004.07867); **FRTLinear** uses
+`mu = 1 + 3*beta` (the same coupling already in its own `E(z)^2`,
+stated explicitly as a simplification rather than a full covariant
+perturbation derivation -- see the class docstring); and
+**FRHuSawicki** gets the standard chameleon-screened, scale- and
+time-dependent `mu(a,k)` (Pogosian & Silvestri 2008, arXiv:0709.0296),
+derived here directly from this model's own background rather than
+transcribed, held at a fixed fiducial pivot `k=0.1` h/Mpc since
+CosmoFit's fsigma8 data are single per-z points, not a P(k) shape --
+`f_R0`/`n` are still inert for background-only fits, but now
+genuinely shape `"fsigma8"`/`"s8"` predictions (verified end-to-end:
+a short FRHuSawicki fit against `"fsigma8"` alone now gives `f_R0` a
+real, visibly informative posterior, not a flat one spanning the
+whole prior). `fitter.plots.growth()`/`compare_growth()` add the
+fsigma8(z) diagram alongside the existing figures, and the GUI picks
+up both new datasets/the new plot automatically through the same
+`DATASET_REGISTRY`/`EXTRA_PARAMS` mechanism every other dataset/model
+already goes through.
+
+> **Note:** don't combine two different `"s8"` versions in the same
+> fit (default is `"kids1000"`; pass
+> `dataset_kwargs={"s8": {"version": "des_y3"}}` for the other) --
+> they're independent survey constraints, not a joint one. See the
+> `S8Likelihood` docstring.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
