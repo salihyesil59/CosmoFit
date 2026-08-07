@@ -477,7 +477,32 @@ class Fitter:
                 f"n_processes=1 for this model."
             ) from exc
 
-        return mp.Pool(n_processes, initializer=_init_worker, initargs=(recipe,))
+        # Explicitly request "fork" rather than using whatever
+        # `multiprocessing`'s *default* context is. That default
+        # isn't "fork" everywhere: Python 3.14 changed it to
+        # "forkserver" on Linux too (it already wasn't "fork" on
+        # macOS/Windows), and "forkserver"/"spawn" need every
+        # process-spawning call to happen behind an
+        # `if __name__ == "__main__":` guard -- a plain script
+        # without one crashes outright
+        # ("RuntimeError: ... before bootstrapping phase"), and even
+        # inside a Jupyter kernel (which sidesteps that crash) it
+        # measured *no* speedup at all in practice, only overhead.
+        # "fork" has neither problem and needs no such guard, and
+        # remains available as an explicit context on Linux/macOS
+        # even where it's no longer the default -- just not on
+        # Windows, where it was never available.
+        try:
+            ctx = mp.get_context("fork")
+        except ValueError as exc:
+            raise ValueError(
+                f"n_processes={n_processes} needs the 'fork' "
+                f"multiprocessing start method, which isn't available "
+                f"on this platform (e.g. Windows never has it). Use "
+                f"n_processes=1 here."
+            ) from exc
+
+        return ctx.Pool(n_processes, initializer=_init_worker, initargs=(recipe,))
 
     # ------------------------------------------------------------
 
