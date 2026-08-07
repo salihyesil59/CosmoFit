@@ -116,6 +116,12 @@ All five notebooks below are Colab-ready: click a badge to open it directly in G
 | [`cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb) | The deep dive: CPL fit to CC+DESI+Pantheon+, convergence diagnostics, every `fit.plots` figure, model comparison, and an independent Planck cross-check. |
 | [`cpl_mcmc_tfd42.ipynb`](examples/cpl_mcmc_tfd42.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_tfd42.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
 
+[`cpl_mcmc_tfd42.py`](examples/cpl_mcmc_tfd42.py) is a plain-script version of the same analysis --
+run it with `python examples/cpl_mcmc_tfd42.py` for the actual long run (`n_processes` gets its full
+speedup as a script; inside a live Jupyter kernel it currently doesn't -- see Project Status below).
+Results print to stdout as they run, every figure is saved as an SVG into
+`examples/cpl_mcmc_tfd42_figures/`, and the numeric results to `examples/cpl_mcmc_tfd42_result.json`.
+
 ---
 
 ## Quick Example
@@ -500,6 +506,24 @@ when exactly two models are properly nested), every `compare_*`
 figure alongside the existing single-model ones, and the CPL-family
 w(z)=-1-crossing/LCDM-distance posterior diagnostics -- so everything
 that notebook does is now also reachable with zero code.
+
+**Known limitation:** `n_processes` gets its full speedup as a plain
+script (confirmed ~2.4-3x on an 8-core machine) and through the GUI
+(confirmed ~2.3x, since Streamlit runs as a plain process too), but
+currently doesn't inside a live Jupyter kernel -- Jupyter Lab, VS
+Code's Jupyter extension, and `jupyter nbconvert --execute` were all
+observed to measure ~1x (no speedup) for the same fit on the same
+machine where a plain script gets the full benefit, even with the
+`fork` fix above and even on an otherwise idle system. The exact
+mechanism isn't root-caused yet -- ruled out so far: the
+fork/forkserver/spawn choice (all three measured equally slow inside
+a kernel), CPU affinity, cgroup CPU limits, BLAS thread
+oversubscription, Python's free-threaded build, and the `ipykernel`
+version. `examples/cpl_mcmc_tfd42.py` is a plain-script version of
+`cpl_mcmc_tfd42.ipynb` for exactly this reason -- use it (not the
+notebook) for the actual long publication run; it prints results to
+stdout as it runs and saves every figure as an SVG plus the numeric
+results as JSON, since there's no notebook cell to render them in.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
