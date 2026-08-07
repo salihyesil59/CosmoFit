@@ -1,5 +1,5 @@
 from .core import Cosmology, CosmologyParameters, constants
-from .models import LCDM, WCDM, CPL, JBP, BA, GCG
+from .models import LCDM, WCDM, CPL, JBP, BA, GCG, FQExponential, FRTLinear, FRHuSawicki
 from .numerics import DistanceIntegrator
 from .calculators import (
     BackgroundCalculator,
@@ -19,6 +19,9 @@ __all__ = [
     "JBP",
     "BA",
     "GCG",
+    "FQExponential",
+    "FRTLinear",
+    "FRHuSawicki",
     "DistanceIntegrator",
     "BackgroundCalculator",
     "DistanceCalculator",

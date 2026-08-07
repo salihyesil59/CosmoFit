@@ -38,6 +38,7 @@ import streamlit as st
 from CosmoFit import (
     __version__,
     LCDM, WCDM, CPL, JBP, BA, GCG,
+    FQExponential, FRTLinear, FRHuSawicki,
     Fitter,
     model_from_expression,
     CCLikelihood,
@@ -61,6 +62,9 @@ BUILTIN_MODELS = {
     "JBP": JBP,
     "BA": BA,
     "GCG": GCG,
+    "FQExponential": FQExponential,
+    "FRTLinear": FRTLinear,
+    "FRHuSawicki": FRHuSawicki,
 }
 
 DATASET_LABELS = {
@@ -89,6 +93,25 @@ MODEL_EQUATIONS = {
     "JBP": r"w(z) = w_0 + w_a \dfrac{z}{(1+z)^2}",
     "BA": r"w(z) = w_0 + w_a \dfrac{z(1+z)}{1+z^2}",
     "GCG": r"p = -\dfrac{A}{\rho^{\alpha}}",
+    "FQExponential": r"f(Q) = Q\, e^{\lambda Q_0/Q},\quad Q=6H^2",
+    "FRTLinear": r"f(R,T) = R + 2\lambda T",
+    "FRHuSawicki": r"f(R) = -m^2\dfrac{c_1(R/m^2)^n}{c_2(R/m^2)^n+1}",
+}
+
+#: Modified-gravity models whose background (E(z)) is, by
+#: construction, indistinguishable from LCDM here -- see
+#: cosmology/models/fr.py's docstring. Surfaced as a visible caveat
+#: next to the model picker, not just in a docstring nobody reads
+#: from the GUI.
+BACKGROUND_DEGENERATE_MODELS = {
+    "FRHuSawicki": (
+        "This model's background expansion is, by construction, "
+        "identical to LCDM's -- f_R0/n don't affect E(z) here. "
+        "Hu-Sawicki f(R)'s actual signature is in the growth of "
+        "structure (fsigma8), which this library doesn't (yet) "
+        "compute. Fitting f_R0/n against these datasets won't "
+        "meaningfully constrain them."
+    ),
 }
 
 #: Single-model figures (Fitter.plots.<name>()).
@@ -544,6 +567,9 @@ for i in range(n_models):
 
         if model_choice in MODEL_EQUATIONS:
             st.latex(MODEL_EQUATIONS[model_choice])
+
+        if model_choice in BACKGROUND_DEGENERATE_MODELS:
+            st.warning(BACKGROUND_DEGENERATE_MODELS[model_choice], icon="⚠️")
 
         if model_choice == "Custom":
 

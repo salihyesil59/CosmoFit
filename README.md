@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.15.0
+> **Current Version:** v0.16.0
 
 ---
 
@@ -21,6 +21,13 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * **BA** (Barboza-Alcaniz) -- w(z) = w0 + wa z(1+z)/(1+z^2)
   * **GCG** (Generalized Chaplygin Gas) -- unified dark matter/dark energy fluid,
     p = -A/rho^alpha
+
+* Modified-gravity models (background level -- see Project Status for what that does and doesn't cover)
+
+  * **FQExponential** -- f(Q) gravity (symmetric teleparallel), f(Q) = Q exp(lambda Q0/Q)
+  * **FRTLinear** -- f(R,T) gravity (linear), f(R,T) = R + 2 lambda T
+  * **FRHuSawicki** -- f(R) gravity (Hu-Sawicki); background is identical to LCDM's by
+    construction, included with that limitation stated explicitly (see Project Status)
 
 * Flexible parameter management
 * Built-in observational datasets
@@ -528,6 +535,37 @@ version. `examples/cpl_mcmc_tfd42.py` is a plain-script version of
 notebook) for the actual long publication run; it prints results to
 stdout as it runs and saves every figure as an SVG plus the numeric
 results as JSON, since there's no notebook cell to render them in.
+
+Version **v0.16.0** adds modified-gravity models -- **FQExponential**
+(f(Q) gravity), **FRTLinear** (f(R,T) gravity), and **FRHuSawicki**
+(f(R) gravity) -- a real category beyond dark-energy-on-top-of-GR
+reparametrizations (LCDM/wCDM/CPL/JBP/BA) or a unified fluid (GCG):
+these modify the gravitational field equations themselves.
+**Background (E(z)) level only** -- CosmoFit's datasets (CC, BAO,
+SNe, Planck distance priors) are all background/expansion-history
+probes, and growth-of-structure data (fσ8/RSD) plus the perturbation
+machinery to use it isn't implemented, so that's the honest ceiling
+of what's testable here for now. Both FQExponential's and FRTLinear's
+Friedmann equations were derived and verified directly against
+primary sources (Anagnostopoulos, Basilakos & Saridakis 2021,
+arXiv:2104.15123, for f(Q); Harko, Lobo, Nojiri & Odintsov 2011,
+arXiv:1104.2669, for f(R,T)) rather than taken from a single
+secondary source -- one transcription (a sign error in FQExponential's
+Lambert-W closure formula) was caught this way, by a numerical
+closure self-check (`E(z=0)` should equal 1 by construction; it
+didn't, until the sign was fixed) that's now a permanent part of the
+model's test coverage. **FRHuSawicki's background is identical to
+LCDM's by construction** -- the standard "designer f(R)" approach
+builds f(R) to reproduce an assumed target background, so `f_R0`/`n`
+are present as parameters but don't affect `E(z)` at all; fitting
+them against these datasets won't meaningfully constrain them. This
+is stated explicitly in the class docstring and shown as a visible
+warning next to the model picker in the GUI -- included for
+completeness rather than silently omitted, but not silently
+overstated either. All three plug into the existing `EXTRA_PARAMS`
+mechanism (built for `define_model()`/custom models), so `Fitter`,
+every plot including `compare_*`, and the GUI's multi-model
+comparison all work with them with no further changes.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 

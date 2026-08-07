@@ -146,6 +146,56 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
   [arXiv:gr-qc/0202064](https://arxiv.org/abs/gr-qc/0202064)
 - Implemented in: [`cosmology/models/gcg.py`](src/CosmoFit/cosmology/models/gcg.py)
 
+### FQExponential (f(Q) gravity, exponential model)
+
+f(Q) = Q exp(λQ₀/Q), Q = 6H² -- a genuine modification of the
+gravitational field equations (symmetric teleparallel gravity), not
+a dark-energy fluid on top of standard GR. λ is not independently
+free: it's fixed by Ωm via a Lambert-W closure condition, so this
+has exactly as many free parameters as flat LCDM. Background level
+only (the Friedmann equation is transcendental, solved numerically);
+implemented and cross-checked against the source paper's own eq. 26
+dust limit and a numerical closure check (a transcription error in
+the Lambert-W closure formula was caught this way during
+development -- see the commit history).
+
+- **Anagnostopoulos, Basilakos & Saridakis (2021)**, *First evidence
+  that non-metricity f(Q) gravity could challenge ΛCDM*, Phys. Lett.
+  B 822, 136634.
+  [arXiv:2104.15123](https://arxiv.org/abs/2104.15123)
+- Implemented in: [`cosmology/models/fq.py`](src/CosmoFit/cosmology/models/fq.py)
+
+### FRTLinear (f(R,T) gravity, linear model)
+
+f(R,T) = R + 2λT -- gravity coupled directly to the trace of the
+matter stress-energy tensor. Only the linear (in T) case is
+implemented; the field equations for a two-fluid (matter + Λ-like)
+universe were derived from the source paper's own general-perfect-
+fluid equation and cross-checked against its dust-only special case
+(their eq. 26).
+
+- **Harko, Lobo, Nojiri & Odintsov (2011)**, *f(R,T) gravity*, Phys.
+  Rev. D 84, 024020.
+  [arXiv:1104.2669](https://arxiv.org/abs/1104.2669)
+- Implemented in: [`cosmology/models/frt.py`](src/CosmoFit/cosmology/models/frt.py)
+
+### FRHuSawicki (f(R) gravity, Hu-Sawicki model)
+
+f(R) = -m²c₁(R/m²)ⁿ / (c₂(R/m²)ⁿ+1), the standard f(R) benchmark
+model. **Background expansion only, and identical to LCDM's by
+construction** -- the standard "designer f(R)" approach builds f(R)
+to reproduce an assumed target background; this model's real
+observational signature (its `f_R0`/`n` parameters) is in the growth
+of structure, not the expansion history, and isn't computed by this
+version of CosmoFit. Included for completeness, with this limitation
+stated explicitly in the class docstring and surfaced in the GUI --
+not silently omitted, but not silently overstated either.
+
+- **Hu & Sawicki (2007)**, *Models of f(R) Cosmic Acceleration that
+  Evade Solar-System Tests*, Phys. Rev. D 76, 064004.
+  [arXiv:0705.1158](https://arxiv.org/abs/0705.1158)
+- Implemented in: [`cosmology/models/fr.py`](src/CosmoFit/cosmology/models/fr.py)
+
 ---
 
 ## Methodology
