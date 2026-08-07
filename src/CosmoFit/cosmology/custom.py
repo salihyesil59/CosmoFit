@@ -77,6 +77,24 @@ def _wrap(func):
 
 # ------------------------------------------------------------
 
+def _wrap_mu(func):
+    """
+    Wrap a user ``f(params_dict, a, k) -> ndarray`` into a
+    ``Cosmology`` method ``self, a, k=None -> ndarray`` (matching
+    ``Cosmology.mu``'s signature).
+    """
+
+    def method(self, a, k=None):
+
+        a = np.asarray(a, dtype=float)
+
+        return np.asarray(func(self.params.as_dict(), a, k), dtype=float)
+
+    return method
+
+
+# ------------------------------------------------------------
+
 def _numerical_dEdz(self, z, h: float = 1e-4):
     """
     Central-finite-difference fallback for ``dEdz``, used when
@@ -102,6 +120,7 @@ def define_model(
     w=None,
     dEdz=None,
     Omega_de=None,
+    mu=None,
 ) -> type:
     """
     Build a new :class:`~cosmology.core.base.Cosmology` subclass
@@ -143,6 +162,22 @@ def define_model(
     Omega_de : callable(params, z) -> ndarray, optional
         Dark-energy density parameter, for ``background.Omega_de()``.
 
+    mu : callable(params: dict, a: ndarray, k: float or None) -> ndarray, optional
+        Effective-to-Newtonian gravitational coupling G_eff(a,k)/G_N,
+        for growth-of-structure predictions
+        (``background.{growth_rate,sigma8,fsigma8}``, the
+        ``"fsigma8"``/``"s8"`` datasets) -- see
+        :meth:`~cosmology.core.base.Cosmology.mu`. ``a`` is the
+        scale factor (an ``ndarray``, evaluated on a whole grid at
+        once, same convention as ``E``); ``k`` is a single
+        wavenumber [h/Mpc] (or ``None``, for a scale-independent
+        ``mu`` that never reads it). Defaults to 1 everywhere
+        (standard GR growth) if omitted -- correct for any model
+        that reparametrizes dark energy without touching gravity
+        itself; only give this for a genuinely modified-gravity
+        model, exactly as ``FQExponential``/``FRTLinear``/
+        ``FRHuSawicki`` do internally.
+
     Returns
     -------
     type
@@ -168,6 +203,9 @@ def define_model(
 
     if Omega_de is not None:
         attrs["Omega_de"] = _wrap(Omega_de)
+
+    if mu is not None:
+        attrs["mu"] = _wrap_mu(mu)
 
     return type(name, (Cosmology,), attrs)
 
@@ -202,28 +240,30 @@ _SAFE_NAMESPACE = {
 }
 
 
-def _compile_expression(expr: str):
+def _compile_expression(expr: str, var_names: tuple[str, ...] = ("z",)):
     """
     Compile a Python expression string into an
-    ``f(params: dict, z: ndarray) -> ndarray`` callable, for
+    ``f(params: dict, *vars) -> ndarray`` callable, for
     :func:`model_from_expression`.
 
     Evaluated with ``eval()`` but with builtins removed and only
     :data:`_SAFE_NAMESPACE`'s elementwise numpy functions, the
-    model's own current parameter values, and ``z`` available as
-    names -- no imports, attribute access, or builtins reach the
-    expression. This is a convenience for trusted, local use (e.g.
-    a GUI text box run on your own machine), not a hardened sandbox
-    for untrusted/publicly-submitted input.
+    model's own current parameter values, and whichever names in
+    ``var_names`` (``z`` for ``E``/``w``/``dEdz``/``Omega_de``; ``a``
+    and ``k`` for ``mu``) available as names -- no imports, attribute
+    access, or builtins reach the expression. This is a convenience
+    for trusted, local use (e.g. a GUI text box run on your own
+    machine), not a hardened sandbox for untrusted/publicly-submitted
+    input.
     """
 
     code = compile(expr, "<model expression>", "eval")
 
-    def f(params, z):
+    def f(params, *values):
 
         namespace = dict(_SAFE_NAMESPACE)
         namespace.update(params)
-        namespace["z"] = z
+        namespace.update(zip(var_names, values))
 
         return eval(code, {"__builtins__": {}}, namespace)
 
@@ -240,17 +280,20 @@ def model_from_expression(
     w: str | None = None,
     dEdz: str | None = None,
     Omega_de: str | None = None,
+    mu: str | None = None,
 ) -> type:
     """
     Same as :func:`define_model`, but ``E``/``w``/``dEdz``/
-    ``Omega_de`` are given as Python expression **strings** (e.g.
-    ``"sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0)))"``)
+    ``Omega_de``/``mu`` are given as Python expression **strings**
+    (e.g. ``"sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0)))"``)
     instead of callables -- convenient for text-entry UIs (see the
     Streamlit app under ``app/``), where asking for a Python
-    function isn't practical. Each expression sees ``z`` and every
-    current parameter value (standard ones plus any
-    ``extra_params``) as plain names; see :func:`_compile_expression`
-    for exactly what else is available.
+    function isn't practical. ``E``/``w``/``dEdz``/``Omega_de``
+    expressions see ``z`` and every current parameter value
+    (standard ones plus any ``extra_params``) as plain names;
+    ``mu`` instead sees ``a`` (scale factor) and ``k`` (wavenumber
+    [h/Mpc], or ``None`` if not supplied by the caller) -- see
+    :func:`_compile_expression` for exactly what else is available.
 
     Example
     -------
@@ -258,6 +301,16 @@ def model_from_expression(
     ...     "MyModel",
     ...     E="sqrt(Omega_m*(1+z)**3 + (1-Omega_m)*(1+z)**(3*(1+w0))*(1+beta*z))",
     ...     extra_params={"beta": {"default": 0.0, "bounds": (-2.0, 2.0)}},
+    ... )
+
+    A modified-gravity example (custom growth on top of an otherwise
+    LCDM background, in the spirit of ``FRTLinear``):
+
+    >>> MyMG = model_from_expression(
+    ...     "MyMG",
+    ...     E="sqrt(Omega_m*(1+z)**3 + (1-Omega_m))",
+    ...     mu="1 + 3*beta",
+    ...     extra_params={"beta": {"default": 0.0, "bounds": (-0.2, 0.2)}},
     ... )
     """
 
@@ -268,4 +321,5 @@ def model_from_expression(
         w=_compile_expression(w) if w else None,
         dEdz=_compile_expression(dEdz) if dEdz else None,
         Omega_de=_compile_expression(Omega_de) if Omega_de else None,
+        mu=_compile_expression(mu, var_names=("a", "k")) if mu else None,
     )
