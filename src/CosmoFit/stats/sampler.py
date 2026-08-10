@@ -212,6 +212,18 @@ class EnsembleSampler(BaseSampler):
             nwalkers, ndim, logpost, moves=self.moves, pool=pool,
         )
 
+        # `EnsembleSampler` otherwise seeds its own internal proposal
+        # RNG from OS entropy (`np.random.mtrand.RandomState()` with
+        # no argument, in emcee's own `__init__`) -- `seed` above
+        # only fixes the *initial walker positions*, not the
+        # step-by-step move/acceptance randomness that actually
+        # drives the chain. Without this, `run_mcmc(..., seed=42)`
+        # produces a different chain every time it's called, single-
+        # or multi-process alike (the pool only ever evaluates
+        # log-probabilities in parallel; the proposal RNG always
+        # lives in this process).
+        sampler.random_state = np.random.RandomState(seed).get_state()
+
         if callback is None:
             sampler.run_mcmc(pos, nsteps, progress=progress)
         else:
