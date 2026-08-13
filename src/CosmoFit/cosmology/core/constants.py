@@ -41,10 +41,40 @@ km = 1000.0
 #: Present CMB temperature [K]
 Tcmb = 2.7255
 
-#: Present-day photon density parameter times h^2, Omega_gamma * h^2,
-#: for Tcmb = 2.7255 K (Fixsen 2009 / standard value used
-#: throughout the CMB literature, e.g. Eisenstein & Hu 1998).
-Omega_gamma_h2 = 2.469e-5
+#: Present-day photon density parameter times h^2, Omega_gamma * h^2.
+#:
+#: Derived from `Tcmb` rather than hard-coded, so the two cannot
+#: drift apart:
+#:
+#:     Omega_gamma h^2 = (4 sigma_SB / c^3) T^4 / rho_crit,100
+#:
+#: with rho_crit,100 = 3 (100 km/s/Mpc)^2 / (8 pi G). For
+#: Tcmb = 2.7255 K (Fixsen 2009) this gives 2.4728e-5, the standard
+#: literature value.
+#:
+#: The previous hard-coded 2.469e-5 corresponds to Tcmb ~ 2.716 K,
+#: not to the 2.7255 K declared just above -- a 0.15% internal
+#: inconsistency that propagated into the radiation density and
+#: baryon loading R_b used by the sound-horizon integral, and hence
+#: into the Planck distance-prior likelihood.
+def _omega_gamma_h2(T_cmb: float) -> float:
+
+    sigma_SB = 5.670374419e-8          # W m^-2 K^-4
+    _c_si = 2.99792458e8               # m s^-1
+    _G = G
+    _Mpc = Mpc
+
+    # Photon energy density -> mass density [kg m^-3]
+    rho_gamma = 4.0 * sigma_SB * T_cmb**4 / _c_si**3
+
+    # Critical density for H = 100 km/s/Mpc [kg m^-3]
+    H100 = 100.0 * km / _Mpc           # s^-1
+    rho_crit_100 = 3.0 * H100**2 / (8.0 * 3.141592653589793 * _G)
+
+    return rho_gamma / rho_crit_100
+
+
+Omega_gamma_h2 = _omega_gamma_h2(Tcmb)
 
 #: Effective number of relativistic neutrino species (Standard
 #: Model prediction, Planck 2018 fiducial value).

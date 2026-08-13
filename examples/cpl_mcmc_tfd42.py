@@ -2,14 +2,23 @@
 CosmoFit -- CPL (w0waCDM) MCMC Analysis (4-dataset, publication-quality)
 
 Plain-script version of ``cpl_mcmc_tfd42.ipynb``, for a genuinely
-long, publication-scale run. Prefer this over the notebook for the
-actual run: ``run_mcmc(n_processes=...)`` gets its full multi-core
-speedup as a plain script, but currently doesn't inside a live
-Jupyter kernel (Jupyter Lab, VS Code, or otherwise) -- a kernel's own
-background threads (heartbeat, iopub, ...) interfere with
-multiprocessing in a way that isn't yet root-caused; the notebook
-remains the reference for reading through the analysis interactively,
-this script is for actually running it.
+long, publication-scale run. The notebook remains the reference for
+reading through the analysis interactively; this script is for
+actually running it (it prints as it goes and writes every figure to
+disk instead of rendering inline).
+
+Multi-core behaviour is the same either way. An earlier version of
+this note claimed multiprocessing "doesn't work inside a live Jupyter
+kernel, not yet root-caused" -- that was a misdiagnosis. Measured
+inside a real kernel, a worker pool parallelizes just as well as it
+does in a plain script. What was really happening: the per-evaluation
+cost was dominated by a *triangular solve* against the Pantheon+
+covariance, a sequential recurrence that neither BLAS threads nor
+extra worker processes can speed up much, so the speedup was
+underwhelming everywhere -- easy to read as "multiprocessing is
+broken in notebooks". That solve is now a threaded mat-vec (see
+``data.covariance.DenseCovariance``), so the MCMC saturates every
+core even at ``n_processes=1``.
 
 Usage
 -----
@@ -42,9 +51,13 @@ from CosmoFit.stats import model_comparison, cpl_diagnostics
 
 FIGURE_DIR = Path(__file__).parent / "cpl_mcmc_tfd42_figures"
 
-#: `os.cpu_count()` by default -- override with a smaller number to
-#: leave headroom for other work on the same machine.
-N_PROCESSES = os.cpu_count()
+#: "auto" lets CosmoFit size the worker pool itself -- every core
+#: this process is *allowed* to use (which is not the same as
+#: `os.cpu_count()` inside a container, cgroup, or SLURM job), and
+#: only when the run is long enough to earn back the startup cost.
+#: Override with an explicit integer to leave headroom for other
+#: work on the same machine.
+N_PROCESSES = "auto"
 
 
 def savefig(fit_or_fig, name, method=None, **kwargs):

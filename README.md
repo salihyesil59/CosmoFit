@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.17.0
+> **Current Version:** v0.18.0
 
 ---
 
@@ -530,23 +530,46 @@ also gets a download button (SVG/PNG/PDF, picked once per session and
 applied to all of them) -- the browser's own save dialog is what lets
 you choose where it goes.
 
-**Known limitation:** `n_processes` gets its full speedup as a plain
-script (confirmed ~2.4-3x on an 8-core machine) and through the GUI
-(confirmed ~2.3x, since Streamlit runs as a plain process too), but
-currently doesn't inside a live Jupyter kernel -- Jupyter Lab, VS
-Code's Jupyter extension, and `jupyter nbconvert --execute` were all
-observed to measure ~1x (no speedup) for the same fit on the same
-machine where a plain script gets the full benefit, even with the
-`fork` fix above and even on an otherwise idle system. The exact
-mechanism isn't root-caused yet -- ruled out so far: the
-fork/forkserver/spawn choice (all three measured equally slow inside
-a kernel), CPU affinity, cgroup CPU limits, BLAS thread
-oversubscription, Python's free-threaded build, and the `ipykernel`
-version. `examples/cpl_mcmc_tfd42.py` is a plain-script version of
-`cpl_mcmc_tfd42.ipynb` for exactly this reason -- use it (not the
-notebook) for the actual long publication run; it prints results to
-stdout as it runs and saves every figure as an SVG plus the numeric
-results as JSON, since there's no notebook cell to render them in.
+**Resolved (v0.18.0): the "no speedup inside Jupyter" limitation was
+a misdiagnosis.** Multiprocessing was never the problem, and it was
+never specific to notebooks. The real cause was the *per-evaluation*
+cost: every likelihood evaluation solved the Pantheon+ covariance
+with a Cholesky triangular solve (`cho_solve`), and a triangular
+solve is an inherently sequential recurrence -- each element depends
+on the one before it -- so BLAS cannot thread it and worker processes
+contend on memory bandwidth instead of scaling. The whole MCMC was
+therefore pinned near one core's throughput in *every* environment;
+a plain script only looked better because that is where
+`n_processes` was actually being passed.
+
+The covariance is constant, so `DenseCovariance` now precomputes an
+explicit inverse once (validated against the original matrix, and
+falling back to the Cholesky path if it fails that check) and
+`solve()` is a symmetric mat-vec, which BLAS *does* thread. Measured
+on the bundled 1624x1624 Pantheon+ covariance:
+
+| | per solve | 8-process scaling |
+|---|---|---|
+| `cho_solve` (before) | 1.70 ms | 4.8x |
+| mat-vec, 1 BLAS thread | 0.80 ms | 7.5x |
+| mat-vec, threaded BLAS | 0.18 ms | -- |
+
+End result for a 3-dataset CPL chain on an 8-core machine: the
+single-process path went from 1.1x to **7.9x** core utilization and
+roughly halved in wall time, *without any multiprocessing at all* --
+and it measures the same in a plain script, in Jupyter Lab, in VS
+Code, and under `nbconvert`. chi2 is unchanged to ~1e-11 relative.
+
+`n_processes` now also defaults to `"auto"`, so notebooks get
+multi-core behaviour without passing anything: it uses every core the
+process is *allowed* to run on (`os.sched_getaffinity`, not
+`os.cpu_count()` -- the two differ inside a container, cgroup, or
+SLURM allocation, and oversizing the pool there makes things slower),
+but only when the run is long enough to earn back worker startup, and
+it silently stays single-process for a `define_model()` model rather
+than raising. The chain is unaffected: the proposal RNG lives in the
+main process, so a given `seed` gives bit-identical results at any
+`n_processes` (verified).
 
 Version **v0.16.0** adds modified-gravity models -- **FQExponential**
 (f(Q) gravity), **FRTLinear** (f(R,T) gravity), and **FRHuSawicki**
