@@ -96,6 +96,48 @@ DATASET_REGISTRY = {
 _worker_fitter = None
 
 
+#: Below this estimated single-process MCMC wall time (seconds),
+#: ``n_processes="auto"`` stays single-process: starting N workers
+#: costs a `Fitter` rebuild each (re-reading every dataset and
+#: re-factorizing its covariance), which a short run never earns
+#: back. Long production chains -- the ones actually worth
+#: parallelizing -- clear this by orders of magnitude.
+_AUTO_PARALLEL_MIN_SECONDS = 8.0
+
+
+def usable_cpu_count() -> int:
+    """
+    Number of CPUs this process may actually run on.
+
+    ``os.cpu_count()`` reports the machine's total, ignoring any
+    affinity mask -- so it over-reports inside a container, a cgroup,
+    a SLURM/PBS allocation, or under ``taskset``. Oversizing the pool
+    that way oversubscribes the cores the job really has and makes
+    the MCMC *slower*. ``os.sched_getaffinity`` reports the real
+    allowance where it exists (Linux, including WSL); fall back to
+    ``os.cpu_count()`` elsewhere (macOS, Windows).
+    """
+
+    import os
+
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except AttributeError:
+        return max(1, os.cpu_count() or 1)
+
+
+def _fork_available() -> bool:
+    """
+    Whether the 'fork' start method -- the only one this library's
+    worker plumbing supports (see ``Fitter._mcmc_pool``) -- exists
+    on this platform.
+    """
+
+    import multiprocessing as mp
+
+    return "fork" in mp.get_all_start_methods()
+
+
 def _init_worker(recipe: dict) -> None:
     """
     Pool ``initializer``: build this worker process's own `Fitter`
@@ -336,7 +378,7 @@ class Fitter:
         progress: bool = True,
         moves=None,
         callback=None,
-        n_processes: int = 1,
+        n_processes: int | str = "auto",
     ):
         """
         Run an ``emcee`` ensemble MCMC, via
@@ -373,30 +415,51 @@ class Fitter:
             :meth:`~stats.sampler.EnsembleSampler.run`. Used by the
             GUI to drive a live progress bar.
 
-        n_processes : int
+        n_processes : int or "auto"
             Evaluate walkers' log-posteriors across this many worker
-            processes instead of one (default 1: no multiprocessing).
+            processes instead of one.
+
+            ``"auto"`` (the default) uses every CPU this process is
+            allowed to run on (:func:`usable_cpu_count`, which
+            respects container/cgroup/SLURM/``taskset`` affinity
+            rather than blindly taking the machine's core count) --
+            but only when the run is big enough to earn back the
+            cost of starting the workers, and only where the 'fork'
+            start method exists. Otherwise it stays at 1. Pass an
+            explicit integer to override, or ``n_processes=1`` to
+            force single-process.
+
             Each worker builds its own `Fitter` once (see the
             `stats.fitter` module docstring for why -- naive
             `pool=multiprocessing.Pool()` is often *slower* here, not
             faster), so this needs `model` to be picklable by
             reference: every built-in model works; a model built
             with `cosmology.custom.define_model()` /
-            `model_from_expression()` doesn't (raises `ValueError`
-            rather than an obscure pickling failure -- use
-            `n_processes=1` for those). Speedup is real but well
-            under `n_processes`x in practice (~2.5x measured on 8
-            processes for a 4-dataset CPL fit) -- per-step IPC has
-            its own cost. Reliable on Linux/macOS; multiprocessing
-            from a Windows notebook is fragile for reasons outside
-            this library's control (the `spawn` start method needs
-            worker functions re-importable from a real module, which
-            an interactive notebook session isn't).
+            `model_from_expression()` doesn't. ``"auto"`` detects
+            that case and quietly stays single-process; an explicit
+            ``n_processes > 1`` raises `ValueError` instead, rather
+            than failing later with an obscure pickling error.
+
+            Speedup is real but well under `n_processes`x -- per-step
+            IPC costs something, and the likelihood's dominant cost
+            (a covariance mat-vec) is memory-bandwidth-bound, so
+            worker processes contend for the same memory bus.
+            Reliable on Linux/macOS; not available on Windows, which
+            has no 'fork' (``"auto"`` falls back to 1 there).
+
+            Note that the chain itself does *not* depend on this:
+            the proposal RNG lives in this process and is seeded from
+            `seed`, so a given `seed` gives bit-identical results at
+            any `n_processes`.
 
         Returns
         -------
         emcee.EnsembleSampler
         """
+
+        n_processes = self._resolve_n_processes(
+            n_processes, nwalkers=nwalkers, nsteps=nsteps,
+        )
 
         backend = EnsembleSampler(moves=moves)
 
@@ -428,6 +491,110 @@ class Fitter:
         self.burnin = burnin
 
         return sampler
+
+    # ------------------------------------------------------------
+
+    def _model_is_picklable(self) -> bool:
+        """
+        Whether `model` survives a by-reference pickle, which the
+        worker plumbing requires. False for a dynamically-built
+        `define_model()`/`model_from_expression()` class.
+        """
+
+        import pickle
+
+        try:
+            pickle.dumps(self.model_cls)
+        except (pickle.PicklingError, AttributeError, TypeError):
+            return False
+
+        return True
+
+    # ------------------------------------------------------------
+
+    def _seconds_per_eval(self, n_eval: int = 20, n_warmup: int = 20) -> float:
+        """
+        Steady-state wall-clock cost of one log-posterior
+        evaluation, used by ``n_processes="auto"`` to decide whether
+        a run is long enough to be worth parallelizing.
+
+        The generous warmup is not just about filling caches: a
+        large covariance mat-vec (see
+        :class:`~data.covariance.DenseCovariance`) is threaded by
+        BLAS, and BLAS spins its thread pool up lazily. The first
+        ~20 evaluations are measurably erratic because of it --
+        timed here at 5 ms, then 8 ms, before settling to ~0.8 ms --
+        so timing only the first few overestimates the steady-state
+        cost several-fold. The median (rather than the mean) of the
+        timed calls then discards the occasional GC/scheduler
+        outlier. The whole probe costs ~40 ms, negligible against
+        any run this is used to make a decision about.
+        """
+
+        import time
+
+        theta = self.theta0
+
+        for _ in range(n_warmup):
+            self.logpost(theta)
+
+        timings = []
+
+        for _ in range(n_eval):
+            start = time.perf_counter()
+            self.logpost(theta)
+            timings.append(time.perf_counter() - start)
+
+        return float(np.median(timings))
+
+    # ------------------------------------------------------------
+
+    def _resolve_n_processes(self, n_processes, nwalkers: int, nsteps: int) -> int:
+        """
+        Turn the public ``n_processes`` argument (an int, or
+        ``"auto"``) into a concrete worker count.
+
+        See :meth:`run_mcmc` for the user-facing description of what
+        ``"auto"`` decides and why.
+        """
+
+        if n_processes != "auto":
+
+            n_processes = int(n_processes)
+
+            if n_processes < 1:
+                raise ValueError(
+                    f"n_processes must be >= 1 or \"auto\", "
+                    f"got {n_processes}."
+                )
+
+            return n_processes
+
+        # --- "auto" from here on: never raise, only decline ---
+
+        if not _fork_available():
+            return 1
+
+        if not self._model_is_picklable():
+            return 1
+
+        n_cpu = usable_cpu_count()
+
+        if n_cpu < 2:
+            return 1
+
+        # A pool costs one full `Fitter` rebuild per worker (every
+        # dataset re-read and re-factorized). Only pay that when the
+        # serial run would take long enough to earn it back.
+        estimated_serial = self._seconds_per_eval() * nwalkers * nsteps
+
+        if estimated_serial < _AUTO_PARALLEL_MIN_SECONDS:
+            return 1
+
+        # Never start more workers than there is work for: emcee
+        # evaluates the ensemble one half at a time, so only
+        # nwalkers/2 log-posteriors are ever in flight at once.
+        return max(1, min(n_cpu, nwalkers // 2))
 
     # ------------------------------------------------------------
 
@@ -572,11 +739,24 @@ class Fitter:
         chain = self.sampler.get_chain(discard=burnin)
         n_used, nwalkers, _ = chain.shape
 
+        # `discard=burnin`, matching `n_used` above: tau must be
+        # estimated on the *same* post-burn-in chain the convergence
+        # test and `n_effective` are then reported for. Estimating it
+        # on the full chain instead (`discard=0`) folds in the
+        # walkers' initial transient -- a one-way drift from the
+        # starting ball toward the posterior, which looks like an
+        # enormously long correlation time -- and so inflates tau
+        # while `n_used` still counts only post-burn-in steps. The
+        # two are then inconsistent: measured on a 3000-step,
+        # 1500-burn-in CPL chain, tau came out ~45% too large
+        # (118 vs 78) and `n_effective` ~35% too small, i.e. the
+        # reported effective sample size understated the real one.
+        #
         # `quiet=True`: report the (unreliable) estimate instead of
         # raising when the chain is too short to trust it -- that
         # is exactly the situation `converged` below is meant to
         # flag to the caller.
-        tau = self.sampler.get_autocorr_time(discard=0, quiet=True)
+        tau = self.sampler.get_autocorr_time(discard=burnin, quiet=True)
 
         tau_dict = dict(zip(self.free_params, map(float, tau)))
 

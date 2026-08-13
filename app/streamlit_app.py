@@ -50,6 +50,7 @@ from CosmoFit import (
     FSigma8Likelihood,
 )
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
+from CosmoFit.stats.fitter import usable_cpu_count
 
 
 # ============================================================
@@ -521,14 +522,25 @@ with st.sidebar:
             nsteps = st.number_input("Steps", min_value=50, value=3000, step=50)
             seed = st.number_input("Seed", min_value=0, value=42, step=1)
 
-        n_processes = st.number_input(
-            "Parallel processes", min_value=1,
-            max_value=max(1, os.cpu_count() or 1), value=1, step=1,
-            help="Evaluate walkers across multiple CPU cores for a "
-                 "real (if less than linear) speedup. Only works for "
-                 "built-in models, not a Custom one -- leave at 1 if "
-                 "any model below is Custom.",
+        auto_processes = st.checkbox(
+            "Use all available CPU cores", value=True,
+            help="Let CosmoFit decide how many worker processes to "
+                 "use (every core this session is allowed to run on, "
+                 "but only when the run is long enough to be worth "
+                 "it). Safe with a Custom model -- it detects that "
+                 "case and stays single-process instead of failing.",
         )
+
+        if auto_processes:
+            n_processes = "auto"
+        else:
+            n_processes = int(st.number_input(
+                "Parallel processes", min_value=1,
+                max_value=usable_cpu_count(), value=1, step=1,
+                help="Evaluate walkers across multiple CPU cores. "
+                     "Only works for built-in models, not a Custom "
+                     "one -- leave at 1 if any model below is Custom.",
+            ))
 
 # ------------------------------------------------------------
 # Main panel: models to compare
@@ -761,7 +773,7 @@ if run_clicked:
                 fit.run_mcmc(
                     nwalkers=int(nwalkers), nsteps=int(nsteps),
                     burnin=int(burnin), seed=int(seed), progress=False,
-                    n_processes=int(n_processes), callback=_on_step,
+                    n_processes=n_processes, callback=_on_step,
                 )
                 fit.best_fit()
 
