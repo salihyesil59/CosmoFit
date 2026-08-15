@@ -15,10 +15,28 @@ to a 3-vector
 evaluated against a Gaussian likelihood with the Planck-derived
 mean vector and covariance matrix (see :mod:`data.loader`).
 
-z* and r_s(z*) are obtained from
-:class:`cosmology.calculators.recombination.RecombinationCalculator`
-(fitting formulas -- see that module's docstring for the
-approximations involved and their literature sources).
+z*, r_s(z*) and the radiation-aware E(z) behind D_M(z*) all come from
+:class:`cosmology.calculators.recombination.RecombinationCalculator`,
+which follows Chen, Huang & Wang (2019)'s *own* definitions
+(their Eqs. 1-6) rather than a more detailed independent
+calculation.
+
+That is deliberate and it matters. These priors are not a measurement
+of the sky -- they are a compression of Planck's own fit, computed
+under a specific set of conventions, and the theory prediction has to
+share those conventions or the comparison is inconsistent. An earlier
+version of this module did not, and returned chi2 ~ 100 for 3 data
+points at *Planck's own best-fit LCDM* (l_A off by -8.9 sigma), which
+biased every joint fit that included this dataset. It now returns
+chi2 ~ 0.4 there. See the recombination module's docstring for the
+full diagnosis.
+
+Validation
+----------
+The prediction has been cross-checked two ways: against CAMB 2.0.1
+(z_star agrees to 0.002%), and against an independent ``scipy.quad``
+implementation of the CHW19 recipe across flat/open/closed LCDM and
+CPL (R and l_A agree to <0.01 sigma).
 
 References
 ----------
