@@ -152,15 +152,49 @@ def crossing_direction(w0_samples, wa_samples, z_min=0.0, z_max=2.5, z_ref=2.5):
 
 def mahalanobis_from_lcdm(w0_samples, wa_samples, lcdm_point=(-1.0, 0.0)):
     """
-    Mahalanobis distance (in "sigma") of the LCDM point
-    (w0, wa) = (-1, 0) from the 2D posterior mean, using the
-    posterior covariance.
+    How far the LCDM point (w0, wa) = (-1, 0) sits from the 2D
+    (w0, wa) posterior.
+
+    Returns both the raw Mahalanobis distance and -- separately --
+    the significance, because **the two are not the same number in
+    2D and conflating them overstates the tension with LCDM**.
+
+    ``distance`` (D) is the Mahalanobis distance,
+    ``sqrt((x-mu)^T C^-1 (x-mu))``. It is *not* a number of sigma.
+    For a 2D Gaussian, ``D^2`` follows a chi-square distribution with
+    **2** degrees of freedom, not 1, so the probability enclosed at a
+    given D is smaller than the familiar 1D intuition suggests:
+
+        D = 1.515  encloses 68.27%  (the "1 sigma" probability)
+        D = 2.486  encloses 95.45%  (the "2 sigma" probability)
+        D = 3.439  encloses 99.73%  (the "3 sigma" probability)
+
+    So a D of 2.20 is *not* 2.2 sigma -- it corresponds to 91.1%
+    exclusion, i.e. 1.70 sigma in the usual one-dimensional
+    two-tailed sense. ``sigma`` below applies that conversion; quote
+    it, not ``distance``, when reporting a deviation from LCDM.
 
     Returns
     -------
-    dict with keys: mean, covariance, distance (D, in sigma),
-    distance_squared (D^2).
+    dict with keys:
+        mean, covariance : the posterior mean and covariance used.
+        distance_squared : D^2.
+        distance : D, the Mahalanobis distance (NOT sigma).
+        p_value : P(chi2_2 > D^2), the probability of being at least
+            this far out under the posterior.
+        confidence_level : 1 - p_value, i.e. the confidence at which
+            LCDM is excluded.
+        sigma : the equivalent one-dimensional two-tailed
+            significance -- the number to report.
+
+    Note this is a Gaussian approximation to the posterior: it uses
+    only the mean and covariance, so a strongly non-Gaussian (e.g.
+    banana-shaped) w0-wa contour is not fully captured. Compare
+    against the fraction of samples further out than the LCDM point
+    if that matters.
     """
+
+    from scipy import stats as _stats
 
     samples = np.column_stack([
         np.asarray(w0_samples, dtype=float),
@@ -175,9 +209,18 @@ def mahalanobis_from_lcdm(w0_samples, wa_samples, lcdm_point=(-1.0, 0.0)):
 
     d2 = float(delta @ cov_inv @ delta)
 
+    # 2 degrees of freedom: the posterior is 2D (w0, wa).
+    p_value = float(_stats.chi2.sf(d2, df=2))
+
+    # Two-tailed 1D equivalent, the convention "n sigma" refers to.
+    sigma = float(_stats.norm.isf(p_value / 2.0))
+
     return {
         "mean": mean,
         "covariance": cov,
         "distance_squared": d2,
         "distance": float(np.sqrt(d2)),
+        "p_value": p_value,
+        "confidence_level": 1.0 - p_value,
+        "sigma": sigma,
     }
