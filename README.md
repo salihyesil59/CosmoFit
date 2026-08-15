@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.18.0
+> **Current Version:** v0.19.0
 
 ---
 
@@ -637,6 +637,64 @@ fsigma8(z) diagram alongside the existing figures, and the GUI picks
 up both new datasets/the new plot automatically through the same
 `DATASET_REGISTRY`/`EXTRA_PARAMS` mechanism every other dataset/model
 already goes through.
+
+Version **v0.19.0** fixes a real scientific error in the Planck
+distance-prior likelihood. Evaluated at *Planck's own best-fit
+LCDM* -- where a correct implementation must return chi2 ~ 0 -- the
+old code returned **chi2 ~ 100 for 3 data points**, with `l_A` off by
+**-8.9 sigma** (`R` and `omega_b_h2` were fine at 0.13 and 0.07
+sigma, which is what localized it to the sound horizon `r_s(z*)`).
+
+The cause was not a bug in the physics but a **definitional
+mismatch**, which is the classic trap with compressed likelihoods.
+These priors are not a measurement of the sky; they are a summary of
+Planck's own fit, computed by Chen, Huang & Wang (2019) under a
+specific set of conventions. CosmoFit was computing a *more detailed*
+prediction than the compression assumed -- radiation as photons plus
+3.046 massless neutrinos (`omega_r = 4.18e-5`) where CHW19 define
+`Omega_r = Omega_m/(1+z_eq)` (0.8% lower, massive neutrinos left in
+`Omega_m`), and `z*` from the Hu & Sugiyama (1996) fitting formula
+where CHW19 take it from the Planck chains, i.e. from CAMB. HS96 was
+calibrated against 1990s recombination physics and runs 0.22% high
+for Planck-like parameters (1091.9 vs CAMB's 1089.9); `l_A` is
+sensitive enough to `z*` that this alone is a ~4 sigma shift. Being
+*more* physical than the data's own definitions is still wrong when
+the data is a compression.
+
+`RecombinationCalculator` now follows CHW19 Eqs. (1)-(6) exactly, and
+`z*` comes from a fit calibrated directly against **CAMB 2.0.1** over
+a 12x14 grid in (`omega_b`, `omega_cb`) covering far more than the
+Planck posterior, accurate to **0.0018%** in `z*` (~0.04 sigma of the
+`l_A` prior). The radiation term is also renormalized properly:
+adding `Omega_r(1+z)^4` on top of a model's `E(z)` left
+`E(0)^2 = 1 + Omega_r`, over-closing the universe; the correction
+reuses each model's own dark-energy evolution, so it stays exact for
+curved and non-LCDM models alike. The same fiducial check now gives
+`l_A` +0.54 sigma, `R` -0.03 sigma, **chi2 = 0.39**.
+
+Cross-checked two independent ways: against CAMB (`z*` to 0.002%),
+and against a separate `scipy.quad` implementation of the CHW19
+recipe across flat/open/closed LCDM and CPL (`R` and `l_A` to
+<0.01 sigma). Per-evaluation cost is unchanged.
+
+**This changes results.** The bias did not show up as a bad fit --
+the sampler absorbed it by shifting parameters, which is exactly what
+makes this kind of error dangerous. Refitting CC+DESI+Pantheon+ +
+Planck:
+
+| | old | new |
+|---|---|---|
+| LCDM `H0` | 68.04 | **67.39** |
+| LCDM `Omega_m` | 0.3118 | **0.3149** |
+| CPL `w0` | -0.973 | **-0.881** |
+| CPL `wa` | -0.000 | **-0.298** |
+
+The CPL case is the headline: the old code put `wa` at essentially
+zero -- perfectly consistent with a cosmological constant -- while
+the corrected code prefers evolving dark energy, in the same
+direction and of comparable size to DESI's own published w0waCDM
+result. Any CPL/JBP/BA conclusion drawn from a Planck-including fit
+made with v0.18.0 or earlier should be regenerated.
 
 > **Note:** don't combine two different `"s8"` versions in the same
 > fit (default is `"kids1000"`; pass
