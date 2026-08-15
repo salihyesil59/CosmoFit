@@ -71,6 +71,12 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 * Model comparison plots (`fitter.plots.compare_*`): any of the figures above, overlaying this
   fit's curve with one or more other models' curves on the same data/axes -- defaults to this
   model vs. a quick LCDM reference, or an arbitrary N-model comparison via `other_fits=[...]`
+* Derived-quantity posteriors (`CosmoFit.stats.derived`): the acceleration transition
+  redshift `z_t` (where q(z) changes sign) and today's deceleration parameter `q0`, with
+  proper error bars -- every posterior sample is pushed back through the model's own
+  E(z)/dE(z)dz rather than the quantity being evaluated once at the best fit, and it works
+  for every model, not just CPL (whose w0/wa-specific diagnostics live in
+  `stats.cpl_diagnostics`)
 
 ---
 
