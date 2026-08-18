@@ -558,7 +558,15 @@ class CosmologyParameters(BaseParameters):
     MB : float, optional
         Supernova absolute magnitude nuisance parameter, used
         by likelihoods that do not analytically marginalize
-        over it.
+        over it (``marginalize_MB=False``/``marginalize_offset=False``
+        on :class:`~likelihoods.pantheon.PantheonLikelihood` /
+        :class:`~likelihoods.des_sn5yr.DESSN5YRLikelihood`).
+        Default is a typical SN Ia peak absolute magnitude,
+        inside :data:`DEFAULT_BOUNDS`'s ``"MB"`` range -- unlike
+        every other default here, ``0.0`` would sit *outside*
+        that range, which fails the initial-walker check if
+        ``MB`` is fit as free, or silently inflates chi2 by
+        ~19 magnitudes if it's left fixed instead.
     Omega_b : float, optional
         Present-day baryon density parameter. Not used by the
         background expansion (E(z)) itself, but required by the
@@ -593,7 +601,7 @@ class CosmologyParameters(BaseParameters):
     w0: float = -1.0
     wa: float = 0.0
     rd: float = 147.05
-    MB: float = 0.0
+    MB: float = -19.3
     Omega_b: float = 0.0493
     A_s: float = 0.7
     alpha: float = 0.0
