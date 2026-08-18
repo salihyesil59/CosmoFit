@@ -35,4 +35,5 @@ env/
 
 # MCMC chains
 chains/
+*.h5
 outputs/

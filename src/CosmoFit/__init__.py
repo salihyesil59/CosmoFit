@@ -19,6 +19,11 @@ directly from the top-level package:
 >>> fit.summary()
 >>> fit.plots.corner()
 
+Pass ``save="chains/cpl.h5"`` to ``run_mcmc`` and the chain is
+written as it is sampled, then reused instead of re-sampled the
+next time -- or reopened in a later session with
+``Fitter.from_chain("chains/cpl.h5")``. See ``CosmoFit.stats.chains``.
+
 The underlying subpackages (``CosmoFit.cosmology``, ``CosmoFit.data``,
 ``CosmoFit.likelihoods``, ``CosmoFit.stats``, ``CosmoFit.plots``) are
 still available for anything not re-exported here -- e.g.
@@ -75,6 +80,7 @@ from CosmoFit.likelihoods import (
 from CosmoFit.stats.fitter import Fitter
 from CosmoFit.stats.sampler import BaseSampler, EnsembleSampler
 from CosmoFit.stats.results import FitResult, BestFitResult, MCMCResult
+from CosmoFit.stats.chains import ChainFile, StoredSampler, open_chain, chain_info
 from CosmoFit.plots import FitPlotter
 
 # ============================================================
@@ -130,6 +136,11 @@ __all__ = [
     "BestFitResult",
     "MCMCResult",
     "FitPlotter",
+    # Saved chains
+    "ChainFile",
+    "StoredSampler",
+    "open_chain",
+    "chain_info",
     # Datasets
     "available_datasets",
     "available_versions",

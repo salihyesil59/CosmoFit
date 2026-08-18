@@ -6,7 +6,9 @@ A thin Streamlit layer over the public ``CosmoFit`` API
 tick which datasets to fit, configure one or more models (built-in or
 your own ``E(z)`` expression), choose which parameters are free, and
 run an MCMC fit + look at the resulting plots and model-comparison
-statistics -- no code required. Everything here is a consumer of
+statistics -- no code required. Chains are saved to disk and reused,
+so adding a model (or reopening the app) doesn't re-sample the fits
+that haven't changed. Everything here is a consumer of
 ``CosmoFit``'s existing public API; no fitting/plotting logic lives
 in this file.
 
@@ -50,6 +52,7 @@ from CosmoFit import (
     FSigma8Likelihood,
 )
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
+from CosmoFit.stats.chains import ChainFile, StoredSampler
 from CosmoFit.stats.fitter import usable_cpu_count
 
 
@@ -129,6 +132,7 @@ PLOT_LABELS = {
     "sdss_bao_distances": "BAO distances (SDSS)",
     "planck_residuals": "Planck residuals (pull plot)",
     "w_of_z": "w(z) evolution",
+    "w0_wa_plane": "w0-wa dark-energy plane",
     "deceleration": "Deceleration parameter q(z)",
     "growth": "Growth rate fsigma8(z)",
 }
@@ -141,6 +145,7 @@ COMPARE_PLOT_LABELS = {
     "compare_bao_distances": "BAO distances (DESI)",
     "compare_sdss_bao_distances": "BAO distances (SDSS)",
     "compare_w_of_z": "w(z) evolution",
+    "compare_w0_wa_plane": "w0-wa dark-energy plane",
     "compare_deceleration": "Deceleration parameter q(z)",
     "compare_growth": "Growth rate fsigma8(z)",
 }
@@ -292,6 +297,11 @@ def _available_plots(fit: Fitter) -> list[str]:
     if hasattr(fit.cosmology, "w"):
         methods.append("w_of_z")
 
+    # The w0-wa plane is a 2D posterior, so it needs both parameters
+    # sampled -- not just present in the model.
+    if fit.sampler is not None and {"w0", "wa"} <= set(fit.free_params):
+        methods.append("w0_wa_plane")
+
     methods.append("deceleration")
 
     return methods
@@ -299,7 +309,7 @@ def _available_plots(fit: Fitter) -> list[str]:
 
 # ------------------------------------------------------------
 
-def _available_compare_plots(anchor_fit: Fitter) -> list[str]:
+def _available_compare_plots(fits: list[Fitter]) -> list[str]:
     """
     Which ``compare_*`` methods apply, based on the anchor (first)
     fit's datasets -- same logic as `_available_plots`, mapped to
@@ -307,7 +317,13 @@ def _available_compare_plots(anchor_fit: Fitter) -> list[str]:
     are always valid (every model has an E(z), and models without
     their own w(z) fall back to the w=-1 line -- see
     `FitPlotter.compare_w_of_z`).
+
+    `compare_w0_wa_plane` is the exception that needs *every* fit,
+    not just the anchor: it overlays one posterior per model, so a
+    single model without w0/wa free has nothing to contribute to it.
     """
+
+    anchor_fit = fits[0]
 
     methods = []
 
@@ -325,6 +341,13 @@ def _available_compare_plots(anchor_fit: Fitter) -> list[str]:
             methods.append(method)
 
     methods.append("compare_w_of_z")
+
+    if all(
+        fit.sampler is not None and {"w0", "wa"} <= set(fit.free_params)
+        for fit in fits
+    ):
+        methods.append("compare_w0_wa_plane")
+
     methods.append("compare_deceleration")
 
     return methods
@@ -380,10 +403,23 @@ def _render_posterior(fit: Fitter) -> None:
             "Converged -- chain length exceeds 50x the "
             "autocorrelation time.", icon="✅",
         )
+    elif fit.chain is not None:
+        st.warning(
+            f"Not converged yet -- raise Steps above "
+            f"{result.mcmc.nsteps} and run again before trusting "
+            f"this posterior. The steps already sampled are saved, "
+            f"so only the new ones cost anything.", icon="⚠️",
+        )
     else:
         st.warning(
             "Not converged yet -- consider more steps before "
             "trusting this posterior.", icon="⚠️",
+        )
+
+    if fit.chain is not None:
+        st.caption(
+            f"Chain saved in `{fit.chain.path}` "
+            f"({result.mcmc.nsteps} steps x {result.mcmc.nwalkers} walkers)."
         )
 
     # CPL-family diagnostics (w(z)=-1 crossing redshift, direction,
@@ -419,13 +455,31 @@ def _render_posterior(fit: Fitter) -> None:
                     f"{direction['phantom_to_quintessence']:.1%}"
                 )
 
-            lcdm_distance = cpl_diagnostics.mahalanobis_from_lcdm(
+            regions = cpl_diagnostics.region_fractions(
                 samples["w0"], samples["wa"],
             )
             st.write(
-                f"**LCDM point** (w0, wa) = (-1, 0) is "
-                f"**{lcdm_distance['distance']:.2f}σ** from this "
-                f"posterior's mean."
+                "**Dark-energy region** (see the w0-wa plane plot): "
+                + "  ·  ".join(
+                    f"{name}: {fraction:.1%}"
+                    for name, fraction in regions.items()
+                )
+            )
+
+            lcdm_distance = cpl_diagnostics.mahalanobis_from_lcdm(
+                samples["w0"], samples["wa"],
+            )
+            # Report `sigma`, not `distance`: the Mahalanobis
+            # distance D is not a number of sigma in 2D (D^2 follows
+            # chi2 with 2 d.o.f.), and quoting it as one overstates
+            # the tension -- see `mahalanobis_from_lcdm`.
+            st.write(
+                f"**LCDM point** (w0, wa) = (-1, 0) is excluded at "
+                f"**{lcdm_distance['sigma']:.2f}σ** "
+                f"({lcdm_distance['confidence_level']:.1%} confidence; "
+                f"Mahalanobis distance D = "
+                f"{lcdm_distance['distance']:.2f}, which is *not* a "
+                f"number of sigma in 2D)."
             )
 
 
@@ -541,6 +595,31 @@ with st.sidebar:
                      "Only works for built-in models, not a Custom "
                      "one -- leave at 1 if any model below is Custom.",
             ))
+
+    st.markdown("### 💾 Saved chains")
+
+    with st.container(border=True):
+
+        reuse_chains = st.checkbox(
+            "Save chains and reuse them", value=True,
+            help="Write each model's MCMC chain to disk as it is "
+                 "sampled, and reuse it next time instead of "
+                 "sampling it again. Add a second model and the "
+                 "first one comes back instantly; raise Steps and "
+                 "only the extra steps are sampled; close the app "
+                 "and it's all still there. Changing a model, its "
+                 "datasets, free parameters, priors, walkers or "
+                 "seed makes a different fit, which gets its own "
+                 "file -- so nothing is ever silently reused when "
+                 "it shouldn't be.",
+        )
+
+        chain_dir = st.text_input(
+            "Folder", value="chains", disabled=not reuse_chains,
+            help="Where the .h5 chain files go, relative to "
+                 "wherever the app was started. Delete files in "
+                 "here to force a fresh run.",
+        )
 
 # ------------------------------------------------------------
 # Main panel: models to compare
@@ -770,12 +849,37 @@ if run_clicked:
                         ),
                     )
 
+                # One file per distinct fit (`chain_id` hashes the
+                # model, datasets, free parameters and priors, plus
+                # the two run settings a stored chain can't change
+                # halfway through). Same configuration as last
+                # time -> that file is picked up and nothing is
+                # re-sampled; anything changed -> a different file,
+                # sampled fresh, with the old one left alone.
+                save = None
+                if reuse_chains and chain_dir.strip():
+                    save = ChainFile(
+                        os.path.join(
+                            chain_dir.strip(),
+                            f"{fit.chain_id(nwalkers=int(nwalkers), seed=int(seed))}.h5",
+                        )
+                    )
+
                 fit.run_mcmc(
                     nwalkers=int(nwalkers), nsteps=int(nsteps),
                     burnin=int(burnin), seed=int(seed), progress=False,
                     n_processes=n_processes, callback=_on_step,
+                    save=save,
                 )
                 fit.best_fit()
+
+                # A fully-cached model never runs a step, so
+                # `_on_step` never fires -- move the bar on itself,
+                # or it sits at the previous model's position.
+                progress_bar.progress(
+                    (i + 1) / n_models,
+                    text=f"Fitted {model_label} ({i + 1}/{n_models})",
+                )
 
                 fits.append(fit)
 
@@ -784,7 +888,17 @@ if run_clicked:
             model_names = [f.model_cls.__name__ for f in fits]
             st.session_state["fits"] = fits
             st.session_state["fit_labels"] = _dedupe_labels(model_names)
-            st.toast("Fit complete.", icon="✅")
+
+            reused = sum(isinstance(f.sampler, StoredSampler) for f in fits)
+
+            if reused:
+                st.toast(
+                    f"Fit complete -- {reused} of {len(fits)} read "
+                    f"straight from a saved chain.",
+                    icon="✅",
+                )
+            else:
+                st.toast("Fit complete.", icon="✅")
 
         except Exception as exc:
             st.session_state.pop("fits", None)
@@ -909,7 +1023,7 @@ if fits:
 
         if multi:
 
-            compare_options = _available_compare_plots(fits[0])
+            compare_options = _available_compare_plots(fits)
             chosen = st.multiselect(
                 "Choose comparison plots (all models overlaid)",
                 options=compare_options,

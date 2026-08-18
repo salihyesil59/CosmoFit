@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.19.0"
+version = "0.21.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -45,6 +45,7 @@ keywords = [
     "boss",
     "likelihood",
     "mcmc",
+    "hdf5",
 ]
 
 classifiers = [
@@ -60,6 +61,7 @@ dependencies = [
     "pandas>=2.2",
     "matplotlib>=3.9",
     "emcee>=3.1",
+    "h5py>=3.10",
     "corner>=2.2",
     "tqdm>=4.66",
     "threadpoolctl>=3.0",

@@ -77,9 +77,14 @@ class EnsembleSampler(BaseSampler):
         progress: bool = True,
         callback=None,
         pool=None,
+        backend=None,
     ):
         """
         Initialize walkers around ``theta0`` and run the sampler.
+
+        With a ``backend`` that already holds steps, the walkers
+        are *not* re-initialized: sampling picks up exactly where
+        that stored chain stopped (see ``backend`` below).
 
         Parameters
         ----------
@@ -130,15 +135,45 @@ class EnsembleSampler(BaseSampler):
             ``logpost`` re-sends that data on every step, which is
             usually *slower* than a single process).
 
+        backend : emcee.backends.Backend, optional
+            Where emcee stores the chain. Given one, every step
+            is written out as it is taken -- so a run killed
+            halfway (Ctrl-C, a walltime limit, a closed laptop)
+            keeps everything it had already done.
+
+            If the backend already holds a chain, this is a
+            *resume*: the walkers, their log-probabilities and
+            the proposal RNG all continue from the stored final
+            state, and ``nsteps`` counts the steps to add on top
+            of it. ``theta0``, ``initial_scatter`` and ``seed``
+            are then ignored -- re-seeding a resumed chain would
+            replay the same proposal randomness the first run
+            already used, and re-scattering the walkers would
+            throw away the equilibrium they reached. Built by
+            :class:`~stats.chains.ChainFile`; see
+            ``Fitter.run_mcmc(save=...)``.
+
         Returns
         -------
         emcee.EnsembleSampler
-            Already run for ``nsteps`` steps.
+            Run for ``nsteps`` steps (on top of anything
+            ``backend`` already held).
         """
 
         import emcee
 
         ndim = prior.ndim
+
+        # A backend holding steps means "continue that chain",
+        # not "start a new one into this file". Everything below
+        # that prepares a *starting* walker cloud is then not
+        # just unnecessary but wrong -- see `backend` in the
+        # docstring.
+        resuming = (
+            backend is not None
+            and backend.initialized
+            and backend.iteration > 0
+        )
 
         # emcee doesn't enforce this itself, but with fewer walkers
         # than free parameters the initial walker cloud can't span
@@ -154,75 +189,116 @@ class EnsembleSampler(BaseSampler):
                 f"initialize a non-degenerate walker cloud."
             )
 
-        # `theta0` outside the prior gets clipped to the boundary a
-        # few lines down (`np.clip`), which -- like zero scatter --
-        # collapses every walker onto the same edge value and trips
-        # the same opaque emcee error. Name the offender instead.
-        outside = [
-            f"{prior.names[i]}={theta0[i]:g} (bounds "
-            f"[{prior.lower[i]:g}, {prior.upper[i]:g}])"
-            for i in range(ndim)
-            if not (prior.lower[i] <= theta0[i] <= prior.upper[i])
-        ]
-        if outside:
-            raise ValueError(
-                f"Initial value outside its prior bounds for "
-                f"parameter(s): {'; '.join(outside)}. Fix `initial=` "
-                f"(or the GUI's Initial column) for these."
-            )
+        # The stored chain fixes both dimensions of the ensemble.
+        # emcee refuses a mismatch too, but only in terms of raw
+        # shapes; say which argument to change and what the file
+        # was written with.
+        if resuming:
 
-        if initial_scatter is None:
-            scatter = 0.01 * (prior.upper - prior.lower)
-        else:
-            scatter = np.array(
-                [initial_scatter[n] for n in prior.names],
-                dtype=float,
-            )
+            stored_nwalkers, stored_ndim = backend.shape
 
-        # A parameter with zero (or negative) scatter puts every
-        # walker at the exact same value along that axis, which
-        # makes the initial walker cloud linearly dependent -- emcee
-        # then refuses to start, with a "large condition number"
-        # error that doesn't say which parameter caused it. Usually
-        # means that parameter's prior bounds are equal (e.g. a
-        # `bounds=` override, or the GUI's Lower/Upper columns, with
-        # lower == upper); catch it here with a message that does.
-        degenerate = [
-            prior.names[i] for i in range(ndim) if not scatter[i] > 0
-        ]
-        if degenerate:
-            raise ValueError(
-                f"Zero (or negative) initial walker scatter for "
-                f"parameter(s) {degenerate}. This usually means "
-                f"their prior bounds have lower == upper (check "
-                f"`bounds=`, or the GUI's Lower/Upper columns) -- "
-                f"widen them, or pass an explicit `initial_scatter=` "
-                f"for these parameter(s)."
-            )
+            if (stored_nwalkers, stored_ndim) != (nwalkers, ndim):
+                raise ValueError(
+                    f"The saved chain has {stored_nwalkers} walkers "
+                    f"and {stored_ndim} free parameter(s), but this "
+                    f"run asks for {nwalkers} and {ndim}. A chain "
+                    f"can only be continued with the ensemble it was "
+                    f"sampled with -- match `nwalkers`/`free_params` "
+                    f"to the file, or save to a different one."
+                )
 
-        rng = np.random.default_rng(seed)
+        if not resuming:
 
-        pos = theta0 + scatter * rng.normal(size=(nwalkers, ndim))
+            # `theta0` outside the prior gets clipped to the boundary a
+            # few lines down (`np.clip`), which -- like zero scatter --
+            # collapses every walker onto the same edge value and trips
+            # the same opaque emcee error. Name the offender instead.
+            outside = [
+                f"{prior.names[i]}={theta0[i]:g} (bounds "
+                f"[{prior.lower[i]:g}, {prior.upper[i]:g}])"
+                for i in range(ndim)
+                if not (prior.lower[i] <= theta0[i] <= prior.upper[i])
+            ]
+            if outside:
+                raise ValueError(
+                    f"Initial value outside its prior bounds for "
+                    f"parameter(s): {'; '.join(outside)}. Fix `initial=` "
+                    f"(or the GUI's Initial column) for these."
+                )
 
-        # Keep the initial walker positions safely inside the prior.
-        eps = 1e-6 * (prior.upper - prior.lower)
-        pos = np.clip(pos, prior.lower + eps, prior.upper - eps)
+            if initial_scatter is None:
+                scatter = 0.01 * (prior.upper - prior.lower)
+            else:
+                scatter = np.array(
+                    [initial_scatter[n] for n in prior.names],
+                    dtype=float,
+                )
+
+            # A parameter with zero (or negative) scatter puts every
+            # walker at the exact same value along that axis, which
+            # makes the initial walker cloud linearly dependent -- emcee
+            # then refuses to start, with a "large condition number"
+            # error that doesn't say which parameter caused it. Usually
+            # means that parameter's prior bounds are equal (e.g. a
+            # `bounds=` override, or the GUI's Lower/Upper columns, with
+            # lower == upper); catch it here with a message that does.
+            degenerate = [
+                prior.names[i] for i in range(ndim) if not scatter[i] > 0
+            ]
+            if degenerate:
+                raise ValueError(
+                    f"Zero (or negative) initial walker scatter for "
+                    f"parameter(s) {degenerate}. This usually means "
+                    f"their prior bounds have lower == upper (check "
+                    f"`bounds=`, or the GUI's Lower/Upper columns) -- "
+                    f"widen them, or pass an explicit `initial_scatter=` "
+                    f"for these parameter(s)."
+                )
+
+            rng = np.random.default_rng(seed)
+
+            pos = theta0 + scatter * rng.normal(size=(nwalkers, ndim))
+
+            # Keep the initial walker positions safely inside the prior.
+            eps = 1e-6 * (prior.upper - prior.lower)
+            pos = np.clip(pos, prior.lower + eps, prior.upper - eps)
 
         sampler = emcee.EnsembleSampler(
             nwalkers, ndim, logpost, moves=self.moves, pool=pool,
+            backend=backend,
         )
 
-        # `EnsembleSampler` otherwise seeds its own internal proposal
-        # RNG from OS entropy (`np.random.mtrand.RandomState()` with
-        # no argument, in emcee's own `__init__`) -- `seed` above
-        # only fixes the *initial walker positions*, not the
-        # step-by-step move/acceptance randomness that actually
-        # drives the chain. Without this, `run_mcmc(..., seed=42)`
-        # produces a different chain every time it's called, single-
-        # or multi-process alike (the pool only ever evaluates
-        # log-probabilities in parallel; the proposal RNG always
-        # lives in this process).
-        sampler.random_state = np.random.RandomState(seed).get_state()
+        if resuming:
+
+            # Nothing to seed and nothing to place: `EnsembleSampler`
+            # has already restored both the proposal RNG state and the
+            # final walker positions from the backend (in its own
+            # `__init__`), which is exactly what continuing a chain
+            # means. Overwriting `random_state` with `seed` here would
+            # instead replay the proposal randomness the stored steps
+            # already used.
+            pos = sampler.get_last_sample()
+
+        else:
+
+            # `EnsembleSampler` otherwise seeds its own internal proposal
+            # RNG from OS entropy (`np.random.mtrand.RandomState()` with
+            # no argument, in emcee's own `__init__`) -- `seed` above
+            # only fixes the *initial walker positions*, not the
+            # step-by-step move/acceptance randomness that actually
+            # drives the chain. Without this, `run_mcmc(..., seed=42)`
+            # produces a different chain every time it's called, single-
+            # or multi-process alike (the pool only ever evaluates
+            # log-probabilities in parallel; the proposal RNG always
+            # lives in this process).
+            sampler.random_state = np.random.RandomState(seed).get_state()
+
+        # A resume whose target length is already stored: there is
+        # genuinely nothing to sample, and `sample(iterations=0)`
+        # would raise rather than no-op. The sampler still comes back
+        # fully usable -- it is reading the stored chain.
+        if nsteps <= 0:
+            return sampler
 
         if callback is None:
             sampler.run_mcmc(pos, nsteps, progress=progress)

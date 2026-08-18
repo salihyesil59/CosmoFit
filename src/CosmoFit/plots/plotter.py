@@ -5,7 +5,8 @@ Plotting for a fitted :class:`~stats.fitter.Fitter`.
 MCMC diagnostics (chain, corner), the standard publication-style
 cosmology figures for a single fit (Hubble diagram, H(z)
 compilation, BAO distance plot, w(z) evolution, deceleration
-parameter), and multi-model comparison versions of those same
+parameter, the (w0, wa) dark-energy plane), and multi-model
+comparison versions of those same
 figures (``compare_hz``, ``compare_deceleration``, ``compare_w_of_z``,
 ``compare_hubble_diagram``, ``compare_des_hubble_diagram``,
 ``compare_bao_distances``, ``compare_sdss_bao_distances``) that
@@ -53,6 +54,24 @@ COLOR_REFERENCE = "#6c757d"
 COMPARISON_PALETTE = [
     "#d1495b", "#2b6a99", "#3ca67a", "#e8a33d", "#7b52ab", "#4d4d4d",
 ]
+
+#: Colors for the dark-energy regions of the (w0, wa) plane
+#: (:meth:`FitPlotter.w0_wa_plane`). The two "always on one side of
+#: w = -1" regions are shaded; the two quintom (crossing) regions
+#: are left unshaded and carry only a label, which is how this
+#: figure is drawn in the literature.
+COLOR_PHANTOM = "#d9d9d9"
+COLOR_QUINTESSENCE = "#c9edc9"
+COLOR_QUINTESSENCE_TEXT = "#1a7a1a"
+COLOR_QUINTOM_A = "#1f3fd1"
+COLOR_QUINTOM_B = "#e02020"
+COLOR_REGION_BOUNDARY = "#7b2d8e"
+
+#: Contour color for a posterior in the (w0, wa) plane, and the
+#: per-level fill opacities (outermost first). Reused by
+#: `compare_w0_wa_plane` via `COMPARISON_PALETTE` instead.
+COLOR_POSTERIOR = "#5b9bd5"
+CONTOUR_ALPHAS = (0.30, 0.60)
 
 
 def _style_axes(ax) -> None:
@@ -238,6 +257,364 @@ class FitPlotter:
             crossings.append(z0 - y0 * (z1 - z0) / (y1 - y0))
 
         return crossings
+
+    # ============================================================
+    # (w0, wa) plane helpers
+    # ============================================================
+
+    def _w0_wa_samples(self, burnin=None):
+        """
+        Posterior samples of ``(w0, wa)`` for this fit, with the
+        checks the (w0, wa) plane needs: both must actually have
+        been sampled, and the model's ``w(z)`` must tend to
+        ``w0 + wa`` at high z -- that limit *is* the diagonal
+        boundary the plane is divided by, so a model with a
+        different asymptote would be classified against a line
+        that doesn't mean what the axes say it does.
+        """
+
+        fitter = self.fitter
+
+        if fitter.sampler is None:
+            raise RuntimeError("Call run_mcmc() first.")
+
+        missing = [n for n in ("w0", "wa") if n not in fitter.free_params]
+
+        if missing:
+            raise ValueError(
+                f"The (w0, wa) plane needs both w0 and wa to be free "
+                f"parameters, but {missing} "
+                f"{'is' if len(missing) == 1 else 'are'} not among "
+                f"this fit's ({fitter.free_params}). Add "
+                f"{'it' if len(missing) == 1 else 'them'} to "
+                f"`free_params=` and re-run the MCMC."
+            )
+
+        cosmology = fitter.cosmology
+
+        if not hasattr(cosmology, "w"):
+            raise NotImplementedError(
+                f"{type(cosmology).__name__} does not define w(z), so "
+                f"there is no equation of state to classify. The "
+                f"(w0, wa) plane applies to CPL-type models."
+            )
+
+        # Does w(z) really tend to w0 + wa at high z? Exactly, for
+        # CPL and BA; not for JBP (which returns to w0), nor
+        # necessarily for a custom model -- and there the diagonal
+        # `wa = -1 - w0` boundary would split the plane along
+        # something that isn't the model's own high-z limit.
+        #
+        # Tested on the functional form at a probe point where wa
+        # visibly matters, not at the fitted values: every one of
+        # these models has the same asymptote when wa happens to sit
+        # near zero, so checking there could pass by accident.
+        probe_w0, probe_wa = -0.9, -0.5
+        reference = self._reference_theta()
+
+        try:
+            cosmology.params.update(w0=probe_w0, wa=probe_wa)
+            cosmology.refresh()
+            w_infinity = float(np.atleast_1d(cosmology.w(1e6))[0])
+        finally:
+            # w0 and wa are free here (checked above), so this puts
+            # the shared cosmology back exactly as it was.
+            fitter.logpost._apply(reference)
+
+        if not np.isclose(w_infinity, probe_w0 + probe_wa, rtol=1e-3, atol=1e-3):
+            raise ValueError(
+                f"{type(cosmology).__name__}'s w(z) does not tend to "
+                f"w0 + wa at high z: at the test point "
+                f"(w0, wa) = ({probe_w0}, {probe_wa}) it tends to "
+                f"{w_infinity:.4g} instead of "
+                f"{probe_w0 + probe_wa:.4g}. The "
+                f"phantom/quintessence/quintom regions of this figure "
+                f"are bounded by w(z->inf) = -1, i.e. the line "
+                f"wa = -1 - w0, which only classifies a model whose "
+                f"high-z limit *is* w0 + wa (CPL, BA). Use "
+                f"plots.w_of_z() for this model instead -- it shows "
+                f"the same physics without assuming that limit."
+            )
+
+        samples = fitter.samples_dict(burnin=burnin)
+
+        return samples["w0"], samples["wa"]
+
+    # ------------------------------------------------------------
+
+    @staticmethod
+    def _posterior_density(x, y, bins=80, smooth=1.5):
+        """
+        Smoothed 2D histogram of a posterior, and the density
+        thresholds enclosing the requested probability mass -- the
+        two ingredients of a credible-region contour.
+
+        A histogram rather than a kernel density estimate on
+        purpose: a chain here is 10^5-10^6 samples, and evaluating
+        a `gaussian_kde` over a grid that size costs
+        (grid points x samples) operations -- minutes, for a
+        picture indistinguishable from a binned-and-smoothed one.
+
+        Returns
+        -------
+        x_centers, y_centers : ndarray
+            Bin centers along each axis.
+        density : ndarray, shape (len(y_centers), len(x_centers))
+            Smoothed counts, oriented for ``contour``/``contourf``
+            (rows are y, columns are x).
+        """
+
+        from scipy.ndimage import gaussian_filter
+
+        counts, x_edges, y_edges = np.histogram2d(x, y, bins=bins)
+
+        if smooth:
+            counts = gaussian_filter(counts, smooth)
+
+        x_centers = 0.5 * (x_edges[1:] + x_edges[:-1])
+        y_centers = 0.5 * (y_edges[1:] + y_edges[:-1])
+
+        return x_centers, y_centers, counts.T
+
+    # ------------------------------------------------------------
+
+    @staticmethod
+    def _credible_levels(density, levels=(0.68, 0.95)):
+        """
+        Density thresholds enclosing ``levels`` of the total
+        posterior mass, ascending (outermost contour first as a
+        *value*, i.e. lowest density last enclosed).
+
+        These are 2D credible regions -- the smallest area holding
+        68%/95% of the samples -- not "1 sigma"/"2 sigma" in the
+        1D sense. In two dimensions the familiar 1D numbers enclose
+        much less (39.3% and 86.5%), which is why the levels are
+        stated as probabilities here rather than in sigma.
+        """
+
+        flat = np.sort(density.ravel())[::-1]
+
+        cumulative = np.cumsum(flat)
+
+        if cumulative[-1] <= 0:
+            raise ValueError(
+                "The posterior samples produced an empty density "
+                "map -- nothing to draw contours from."
+            )
+
+        cumulative = cumulative / cumulative[-1]
+
+        thresholds = [
+            float(flat[min(int(np.searchsorted(cumulative, level)), flat.size - 1)])
+            for level in levels
+        ]
+
+        # `contourf` needs strictly increasing levels. Two requested
+        # probabilities can land on the same threshold when the chain
+        # is short (or the bins coarse); nudge them apart rather than
+        # letting matplotlib raise.
+        thresholds = sorted(thresholds)
+
+        for i in range(1, len(thresholds)):
+            if thresholds[i] <= thresholds[i - 1]:
+                thresholds[i] = np.nextafter(thresholds[i - 1], np.inf)
+
+        return thresholds
+
+    # ------------------------------------------------------------
+
+    def _plot_credible_regions(
+        self, ax, x, y, color, label=None,
+        levels=(0.68, 0.95), bins=80, smooth=1.5,
+    ):
+        """
+        Filled + outlined credible regions for one 2D posterior,
+        drawn darkest-innermost, plus a legend proxy for ``label``.
+        """
+
+        from matplotlib.colors import to_rgba
+
+        x_centers, y_centers, density = self._posterior_density(
+            x, y, bins=bins, smooth=smooth,
+        )
+
+        thresholds = self._credible_levels(density, levels=levels)
+
+        # One fill per band (outermost first), so the overlapping
+        # regions read as increasing opacity toward the peak.
+        n_bands = len(thresholds)
+        alphas = [
+            CONTOUR_ALPHAS[min(i, len(CONTOUR_ALPHAS) - 1)]
+            if n_bands <= len(CONTOUR_ALPHAS)
+            else 0.2 + 0.5 * i / max(n_bands - 1, 1)
+            for i in range(n_bands)
+        ]
+
+        ax.contourf(
+            x_centers, y_centers, density,
+            levels=thresholds + [density.max() * 1.01],
+            colors=[to_rgba(color, a) for a in alphas],
+        )
+        ax.contour(
+            x_centers, y_centers, density,
+            levels=thresholds,
+            colors=[color], linewidths=0.8, alpha=0.9,
+        )
+
+        if label:
+            # `contourf` produces no legend handle of its own, and a
+            # bare `Patch` can't be added to an Axes (it has no path).
+            # An empty filled polygon is a real artist with the right
+            # face color, so `legend()` finds it like any other.
+            ax.fill(
+                [np.nan, np.nan], [np.nan, np.nan],
+                color=to_rgba(color, alphas[-1]), label=label,
+            )
+
+    # ------------------------------------------------------------
+
+    @staticmethod
+    def _w0_wa_limits(w0_sets, wa_sets, w0_range=None, wa_range=None):
+        """
+        Axis limits for the (w0, wa) plane: wide enough for every
+        posterior *and* for the LCDM point, since a plane that
+        doesn't show (-1, 0) can't show what the fit is being
+        compared against.
+        """
+
+        if w0_range is not None and wa_range is not None:
+            return tuple(w0_range), tuple(wa_range)
+
+        w0_all = np.concatenate([np.asarray(s) for s in w0_sets])
+        wa_all = np.concatenate([np.asarray(s) for s in wa_sets])
+
+        def span(values, anchor, pad_fraction=0.22, minimum=0.25):
+            # 0.5/99.5 rather than min/max: a handful of stray
+            # walker excursions shouldn't set the frame and squash
+            # the contours into a corner of it.
+            lo = min(float(np.percentile(values, 0.5)), anchor)
+            hi = max(float(np.percentile(values, 99.5)), anchor)
+            pad = max(pad_fraction * (hi - lo), minimum)
+            return lo - pad, hi + pad
+
+        return (
+            tuple(w0_range) if w0_range is not None else span(w0_all, -1.0),
+            tuple(wa_range) if wa_range is not None else span(wa_all, 0.0),
+        )
+
+    # ------------------------------------------------------------
+
+    def _draw_w0_wa_background(self, ax, w0_lim, wa_lim, annotate_regions=True):
+        """
+        The physics behind the contours: the four dark-energy
+        regions of the (w0, wa) plane, their boundaries, and the
+        LCDM point.
+
+        The classification is by where w(z) sits relative to -1 at
+        the two ends of the model's history -- today (w0) and at
+        high z (w0 + wa):
+
+            phantom       w < -1 always
+            quintessence  w > -1 always
+            quintom-A     w > -1 in the past, w < -1 today
+            quintom-B     w < -1 in the past, w > -1 today
+
+        which the two lines w0 = -1 and wa = -1 - w0 cut the plane
+        into. Crossing w = -1 at all (either quintom region) is the
+        interesting case: no single canonical scalar field can do
+        it, so a posterior sitting there points at something more
+        than quintessence.
+        """
+
+        x0, x1 = w0_lim
+        y0, y1 = wa_lim
+
+        # Phantom: w0 < -1 (phantom today) and wa < -1 - w0
+        # (still phantom at high z).
+        xs = np.linspace(x0, min(-1.0, x1), 200)
+        if xs.size > 1:
+            upper = np.minimum(y1, -1.0 - xs)
+            ax.fill_between(
+                xs, y0, upper, where=upper > y0,
+                color=COLOR_PHANTOM, linewidth=0, zorder=0,
+            )
+
+        # Quintessence: the mirror image -- above -1 at both ends.
+        xs = np.linspace(max(-1.0, x0), x1, 200)
+        if xs.size > 1:
+            lower = np.maximum(y0, -1.0 - xs)
+            ax.fill_between(
+                xs, lower, y1, where=lower < y1,
+                color=COLOR_QUINTESSENCE, linewidth=0, zorder=0,
+            )
+
+        ax.axvline(
+            -1.0, color=COLOR_REGION_BOUNDARY, lw=1.3, zorder=1,
+        )
+        ax.plot(
+            [x0, x1], [-1.0 - x0, -1.0 - x1],
+            color=COLOR_REGION_BOUNDARY, lw=1.3, zorder=1,
+        )
+
+        # LCDM: w = -1 at every redshift, i.e. the one point both
+        # boundaries pass through.
+        ax.plot(
+            -1.0, 0.0, marker="*", ms=13, color="black",
+            markeredgewidth=0, zorder=6, clip_on=False,
+        )
+        ax.annotate(
+            r"$\Lambda$CDM", (-1.0, 0.0),
+            textcoords="offset points", xytext=(9, 9),
+            fontsize=11, zorder=6,
+        )
+
+        # Label the diagonal *on* the diagonal (just below it),
+        # three-quarters of the way across, where it can't be
+        # confused with the vertical w0 = -1 boundary.
+        x_label = x0 + 0.75 * (x1 - x0)
+        ax.annotate(
+            r"$w_a + w_0 = -1$", (x_label, -1.0 - x_label),
+            textcoords="offset points", xytext=(0, -14),
+            ha="center", va="top", fontsize=10,
+            color=COLOR_REGION_BOUNDARY, zorder=6,
+        )
+
+        if not annotate_regions:
+            return
+
+        # Anchor each label in its own corner -- but only if that
+        # corner really is in that region. Zoom in far enough (or
+        # pass explicit ranges) and a corner can fall on the wrong
+        # side of a boundary, where the label would be a plain
+        # mislabelling of the plot.
+        from CosmoFit.stats.cpl_diagnostics import classify_region
+
+        pad_x = 0.03 * (x1 - x0)
+        pad_y = 0.045 * (y1 - y0)
+
+        regions = [
+            ("Phantom", "#404040",
+             (x0 + pad_x, y0 + pad_y), "left", "bottom"),
+            ("Quintessence", COLOR_QUINTESSENCE_TEXT,
+             (x1 - pad_x, y1 - pad_y), "right", "top"),
+            ("Quintom-A", COLOR_QUINTOM_A,
+             (x0 + pad_x, y1 - pad_y), "left", "top"),
+            # Not in the corner: the legend lives there. A quarter
+            # of the way up the panel is still unambiguously inside
+            # this region for any frame wide enough to show it.
+            ("Quintom-B", COLOR_QUINTOM_B,
+             (x1 - pad_x, y0 + 0.25 * (y1 - y0)), "right", "center"),
+        ]
+
+        for name, color, (px, py), ha, va in regions:
+
+            if classify_region(px, py) != name.lower():
+                continue
+
+            ax.text(
+                px, py, name, color=color, fontsize=11, weight="bold",
+                ha=ha, va=va, zorder=6,
+            )
 
     # ============================================================
     # MCMC diagnostics
@@ -718,6 +1095,173 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
+    def w0_wa_plane(
+        self,
+        burnin=None,
+        levels=(0.68, 0.95),
+        bins=80,
+        smooth=1.5,
+        w0_range=None,
+        wa_range=None,
+        annotate_regions=True,
+        show_fractions=False,
+        label=None,
+        color=COLOR_POSTERIOR,
+        save_path=None,
+    ):
+        """
+        The (w0, wa) plane: this fit's 2D posterior contours on
+        top of the four dark-energy regions -- phantom,
+        quintessence, quintom-A, quintom-B -- with LCDM marked at
+        (-1, 0).
+
+        This is the headline figure of every recent
+        evolving-dark-energy result (DESI DR2 and the papers
+        responding to it): where the contours sit relative to
+        (-1, 0) is the whole "is dark energy a cosmological
+        constant?" question, and which region they sit *in* says
+        what kind of dark energy it would have to be if not.
+        The two boundaries are ``w0 = -1`` (the equation of state
+        today) and ``wa = -1 - w0`` (its high-z limit
+        ``w0 + wa``); see
+        :func:`~stats.cpl_diagnostics.classify_region` for what
+        each region means physically.
+
+        Needs ``w0`` and ``wa`` to both be free parameters of a
+        completed MCMC run, and a model whose ``w(z)`` really does
+        tend to ``w0 + wa`` (CPL, BA) -- otherwise the diagonal
+        boundary would not be the model's own high-z limit, and
+        this raises rather than mislabel the regions.
+
+        Parameters
+        ----------
+        burnin : int, optional
+            Steps to discard. Defaults to the fitter's own.
+
+        levels : tuple of float
+            Credible *probabilities* to contour, as fractions of
+            the posterior mass (default 68% and 95%). Note these
+            are 2D regions: 68% here is not the 1D "1 sigma"
+            interval, which in two dimensions encloses only 39%.
+
+        bins, smooth : int, float
+            Resolution of the density estimate behind the
+            contours, and the Gaussian smoothing (in bins)
+            applied to it. Raise ``bins`` for a long chain,
+            lower ``smooth`` if the contours look over-rounded.
+
+        w0_range, wa_range : tuple, optional
+            Axis limits. Both default to a window sized around
+            the posterior that always includes the LCDM point.
+
+        annotate_regions : bool
+            Label the four regions in the corners. A label is
+            drawn only where its corner genuinely falls in that
+            region, so a zoomed-in view silently drops the ones
+            that no longer apply rather than mislabelling them.
+
+        show_fractions : bool
+            Add each region's posterior probability (from
+            :func:`~stats.cpl_diagnostics.region_fractions`) under
+            its label -- the same statement the figure makes, as
+            a number.
+
+        label : str, optional
+            Legend entry for the contours. Defaults to this fit's
+            dataset combination, e.g. ``"cc+desi+pantheon"``.
+
+        color : str
+            Contour color.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+
+        import matplotlib.pyplot as plt
+
+        w0, wa = self._w0_wa_samples(burnin=burnin)
+
+        w0_lim, wa_lim = self._w0_wa_limits(
+            [w0], [wa], w0_range=w0_range, wa_range=wa_range,
+        )
+
+        if label is None:
+            label = "+".join(self.fitter.dataset_names)
+
+        fig, ax = plt.subplots(figsize=(8, 5.5))
+
+        self._draw_w0_wa_background(
+            ax, w0_lim, wa_lim, annotate_regions=annotate_regions,
+        )
+        self._plot_credible_regions(
+            ax, w0, wa, color=color, label=label,
+            levels=levels, bins=bins, smooth=smooth,
+        )
+
+        if show_fractions:
+            self._annotate_region_fractions(ax, w0, wa, w0_lim, wa_lim)
+
+        self._finish_w0_wa_axes(ax, w0_lim, wa_lim)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    @staticmethod
+    def _finish_w0_wa_axes(ax, w0_lim, wa_lim):
+
+        ax.set_xlim(*w0_lim)
+        ax.set_ylim(*wa_lim)
+        ax.set_xlabel("$w_0$")
+        ax.set_ylabel("$w_a$")
+        ax.legend(loc="lower right", framealpha=0.9, fontsize=9)
+
+        _style_axes(ax)
+
+        # The region fills already carry the eye; a grid on top of
+        # them reads as clutter, so keep it fainter than elsewhere.
+        ax.grid(alpha=0.15, linewidth=0.5)
+
+    # ------------------------------------------------------------
+
+    def _annotate_region_fractions(self, ax, w0, wa, w0_lim, wa_lim):
+        """
+        Posterior probability of each region, printed just under
+        that region's corner label.
+        """
+
+        from CosmoFit.stats.cpl_diagnostics import region_fractions
+
+        fractions = region_fractions(w0, wa)
+
+        x0, x1 = w0_lim
+        y0, y1 = wa_lim
+        pad_x = 0.03 * (x1 - x0)
+        pad_y = 0.045 * (y1 - y0)
+        line = 0.055 * (y1 - y0)
+
+        placements = {
+            "phantom": (x0 + pad_x, y0 + pad_y + line, "left", "bottom"),
+            "quintessence": (x1 - pad_x, y1 - pad_y - line, "right", "top"),
+            "quintom-a": (x0 + pad_x, y1 - pad_y - line, "left", "top"),
+            "quintom-b": (x1 - pad_x, y0 + 0.25 * (y1 - y0) - line, "right", "center"),
+        }
+
+        for region, (px, py, ha, va) in placements.items():
+
+            ax.text(
+                px, py, f"{100 * fractions[region]:.1f}%",
+                color="#404040", fontsize=9, ha=ha, va=va, zorder=6,
+            )
+
+    # ------------------------------------------------------------
+
     def deceleration(self, z_max=2.5, save_path=None, n_draws=300, seed=0):
         """
         Deceleration parameter q(z) = -1 + (1+z) E'(z)/E(z), with
@@ -1059,6 +1603,107 @@ class FitPlotter:
             zero_line=-1.0, mark_crossings=True,
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
+
+    # ------------------------------------------------------------
+
+    def compare_w0_wa_plane(
+        self,
+        other_fits=None,
+        labels=None,
+        burnin=None,
+        levels=(0.68, 0.95),
+        bins=80,
+        smooth=1.5,
+        w0_range=None,
+        wa_range=None,
+        annotate_regions=True,
+        save_path=None,
+    ):
+        """
+        The (w0, wa) plane (see :meth:`w0_wa_plane`) with several
+        posteriors overlaid -- the "what does adding this dataset
+        do to w0-wa?" figure, one contour set per fit.
+
+        Unlike the other ``compare_*`` methods, every fit here
+        must have its own MCMC chain with ``w0`` and ``wa`` free:
+        this figure *is* the posteriors, so there is no
+        best-fit-only curve to fall back on. For that reason
+        ``other_fits=None`` does not auto-build an LCDM
+        reference either -- LCDM has no (w0, wa) posterior, it is
+        the point at (-1, 0) already marked on the plot.
+
+        Typically compared across dataset combinations rather
+        than models::
+
+            fit_desi.plots.compare_w0_wa_plane(
+                other_fits=[fit_desi_sn, fit_desi_sn_cmb],
+                labels=["DESI", "DESI+SN", "DESI+SN+CMB"],
+            )
+
+        Parameters
+        ----------
+        other_fits : Fitter or list[Fitter]
+            The other fitted posteriors to overlay.
+
+        labels : list[str], optional
+            One per fit (this one first). Defaults to each fit's
+            dataset combination rather than its model name, since
+            these are usually the same model on different data.
+
+        The remaining parameters are as in :meth:`w0_wa_plane`.
+        """
+
+        import matplotlib.pyplot as plt
+
+        if other_fits is None:
+            fits = [self.fitter]
+        elif isinstance(other_fits, (list, tuple)):
+            fits = [self.fitter, *other_fits]
+        else:
+            fits = [self.fitter, other_fits]
+
+        if labels is None:
+            labels = ["+".join(f.dataset_names) for f in fits]
+        elif len(labels) != len(fits):
+            raise ValueError(
+                f"Got {len(labels)} label(s) for {len(fits)} "
+                f"posterior(s) being compared -- labels must match "
+                f"one-to-one (this fit first, then `other_fits`)."
+            )
+
+        samples = [
+            fit.plots._w0_wa_samples(burnin=burnin) for fit in fits
+        ]
+
+        w0_lim, wa_lim = self._w0_wa_limits(
+            [w0 for w0, _ in samples],
+            [wa for _, wa in samples],
+            w0_range=w0_range, wa_range=wa_range,
+        )
+
+        fig, ax = plt.subplots(figsize=(8, 5.5))
+
+        self._draw_w0_wa_background(
+            ax, w0_lim, wa_lim, annotate_regions=annotate_regions,
+        )
+
+        # Later fits drawn on top, but every fill is translucent,
+        # so an overlap still shows both.
+        for i, ((w0, wa), label) in enumerate(zip(samples, labels)):
+            self._plot_credible_regions(
+                ax, w0, wa,
+                color=COMPARISON_PALETTE[i % len(COMPARISON_PALETTE)],
+                label=label, levels=levels, bins=bins, smooth=smooth,
+            )
+
+        self._finish_w0_wa_axes(ax, w0_lim, wa_lim)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
 
     # ------------------------------------------------------------
 

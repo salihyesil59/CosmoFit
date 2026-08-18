@@ -33,8 +33,15 @@ cpl_mcmc_tfd42.log``). Every figure is saved as an SVG into
 instead of being displayed -- there's no notebook cell to render them
 inline in. Open them afterwards in a browser or image viewer.
 
+Both chains are saved to ``examples/cpl_mcmc_tfd42_chains/`` as they
+are sampled, and reused on a re-run -- so running this script a
+second time (after adding a figure, or after interrupting it) skips
+straight past the MCMC to the analysis. Delete that directory to
+force a fresh run.
+
 Runtime: CPU-bound, on the order of several minutes to tens of
-minutes depending on core count (see ``N_PROCESSES`` below).
+minutes depending on core count (see ``N_PROCESSES`` below) -- the
+first time. Seconds on a re-run, thanks to the saved chains.
 """
 
 from __future__ import annotations
@@ -50,6 +57,13 @@ from CosmoFit import LCDM, CPL, Fitter, PlanckLikelihood
 from CosmoFit.stats import model_comparison, cpl_diagnostics
 
 FIGURE_DIR = Path(__file__).parent / "cpl_mcmc_tfd42_figures"
+
+#: Where the two MCMC chains are saved. They are written as they
+#: are sampled and reused on the next run, so re-running this
+#: script -- to add a figure, tweak a number, or pick up after a
+#: Ctrl-C -- costs seconds instead of re-sampling everything.
+#: Delete this directory to force a genuinely fresh run.
+CHAIN_DIR = Path(__file__).parent / "cpl_mcmc_tfd42_chains"
 
 #: "auto" lets CosmoFit size the worker pool itself -- every core
 #: this process is *allowed* to use (which is not the same as
@@ -86,7 +100,8 @@ def main():
     FIGURE_DIR.mkdir(exist_ok=True)
 
     print(f"Using n_processes={N_PROCESSES}")
-    print(f"Figures will be saved to {FIGURE_DIR}/\n")
+    print(f"Figures will be saved to {FIGURE_DIR}/")
+    print(f"Chains will be saved to {CHAIN_DIR}/ (and reused on a re-run)\n")
 
     # ------------------------------------------------------------
     # Building the CPL fit
@@ -122,9 +137,15 @@ def main():
     print("Running the MCMC (nwalkers=64, nsteps=12000)")
     print("=" * 70)
 
+    # `save=` writes the chain out step by step and picks it back
+    # up next time: an unchanged re-run samples nothing, a raised
+    # `nsteps` samples only the difference, and an interrupted run
+    # keeps everything it had already done. `nsteps` is the total
+    # length to reach, not the number of steps to add.
     fit.run_mcmc(
         nwalkers=64, nsteps=12000, burnin=2000, seed=42,
         progress=True, n_processes=N_PROCESSES,
+        save=CHAIN_DIR / "cpl.h5",
     )
 
     # ------------------------------------------------------------
@@ -180,6 +201,7 @@ def main():
     savefig(fit, "hz", method="hz")
     savefig(fit, "bao_distances", method="bao_distances")
     savefig(fit, "w_of_z", method="w_of_z")
+    savefig(fit, "w0_wa_plane", method="w0_wa_plane", show_fractions=True)
     savefig(fit, "deceleration", method="deceleration")
 
     # ------------------------------------------------------------
@@ -207,12 +229,27 @@ def main():
         print(f"  phantom -> quintessence: "
               f"{direction['phantom_to_quintessence']:.1%}")
 
+    regions = cpl_diagnostics.region_fractions(samples["w0"], samples["wa"])
+    print("\nDark-energy region of the (w0, wa) plane "
+          "(see the w0_wa_plane figure):")
+    for region, fraction in regions.items():
+        print(f"  {region:>13s}: {fraction:6.1%}")
+
     lcdm_distance = cpl_diagnostics.mahalanobis_from_lcdm(
         samples["w0"], samples["wa"],
     )
-    print(f"\nLCDM point (w0, wa) = (-1, 0) is "
-          f"{lcdm_distance['distance']:.2f} sigma from the CPL "
-          f"posterior mean {tuple(np.round(lcdm_distance['mean'], 3))}")
+
+    # Report `sigma`, not `distance`. In 2D the Mahalanobis distance D
+    # is not a number of sigma: D^2 follows chi-square with 2 degrees
+    # of freedom, so D = 2.49 (not 2.00) is what encloses the "2
+    # sigma" probability. Quoting D directly overstates the tension.
+    print(f"\nLCDM point (w0, wa) = (-1, 0) vs the CPL posterior mean "
+          f"{tuple(np.round(lcdm_distance['mean'], 3))}:")
+    print(f"  Mahalanobis distance D = {lcdm_distance['distance']:.2f} "
+          f"(a distance, not a significance)")
+    print(f"  excluded at {lcdm_distance['confidence_level']:.2%} "
+          f"confidence (p = {lcdm_distance['p_value']:.4f}, 2 d.o.f.)")
+    print(f"  => {lcdm_distance['sigma']:.2f} sigma equivalent")
 
     # ------------------------------------------------------------
     # Model comparison: CPL vs. flat LCDM
@@ -232,6 +269,7 @@ def main():
     fit_lcdm.run_mcmc(
         nwalkers=32, nsteps=8000, burnin=1500, seed=42,
         progress=True, n_processes=N_PROCESSES,
+        save=CHAIN_DIR / "lcdm.h5",
     )
     fit_lcdm.best_fit()
 
