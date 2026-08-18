@@ -57,6 +57,11 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   (potentially large) likelihood across processes
 * Consolidated result object (`fitter.result`): best-fit + MCMC posterior in one printable,
   JSON-serializable snapshot
+* Saved MCMC chains (`fitter.run_mcmc(save="chains/fit.h5")`): the chain is written to HDF5 as
+  it is sampled and reused instead of re-sampled next time, so reopening a notebook, adding a
+  plot, or extending a run costs seconds rather than hours -- an interrupted run keeps every
+  step it had already taken, and `Fitter.from_chain(...)` reopens a finished one in a later
+  session with no configuration to retype
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
   extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
 * Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, configure
@@ -67,7 +72,9 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
-  diagram, BAO distance plot, Planck pull plot, w(z) evolution, deceleration parameter
+  diagram, BAO distance plot, Planck pull plot, w(z) evolution, deceleration parameter, and the
+  w0-wa dark-energy plane (2D credible contours over the phantom/quintessence/quintom regions,
+  with ΛCDM marked) -- the headline figure of the DESI evolving-dark-energy results
 * Model comparison plots (`fitter.plots.compare_*`): any of the figures above, overlaying this
   fit's curve with one or more other models' curves on the same data/axes -- defaults to this
   model vs. a quick LCDM reference, or an arbitrary N-model comparison via `other_fits=[...]`
@@ -115,7 +122,7 @@ CosmoFit/
 │   ├── cosmology/     # models (LCDM, wCDM, CPL), parameters, distances, background
 │   ├── data/          # dataset loaders + bundled CC/DESI/Pantheon+/Planck data files
 │   ├── likelihoods/   # per-dataset chi2/likelihood classes + joint likelihood
-│   ├── stats/         # Fitter (MCMC/best-fit), priors, posterior, model comparison
+│   ├── stats/         # Fitter (MCMC/best-fit), priors, posterior, saved chains, model comparison
 │   └── plots/         # FitPlotter -- every figure, attached as fitter.plots
 ├── examples/          # example notebooks
 └── pyproject.toml
@@ -147,6 +154,9 @@ run it with `python examples/cpl_mcmc_tfd42.py` for the actual long run (`n_proc
 speedup as a script; inside a live Jupyter kernel it currently doesn't -- see Project Status below).
 Results print to stdout as they run, every figure is saved as an SVG into
 `examples/cpl_mcmc_tfd42_figures/`, and the numeric results to `examples/cpl_mcmc_tfd42_result.json`.
+Both chains are saved to `examples/cpl_mcmc_tfd42_chains/` and reused on a re-run (see
+[Saved Chains](#saved-chains)), so running it a second time -- or picking up after a Ctrl-C --
+skips straight past the MCMC. The notebook version does the same.
 
 ---
 
@@ -191,6 +201,178 @@ fitter.plots.corner()
 fitter.plots.hubble_diagram()
 fitter.plots.w_of_z()
 ```
+
+---
+
+## Saved Chains
+
+The MCMC is the expensive part of a fit; everything built on top of it -- summaries,
+convergence diagnostics, corner plots, derived quantities, model comparison -- is seconds.
+Add `save=` and the chain goes to an HDF5 file as it is sampled, so the expensive part
+happens once:
+
+```python
+fitter.run_mcmc(
+    nwalkers=48,
+    nsteps=6000,
+    burnin=1000,
+    save="chains/cpl.h5",
+)
+```
+
+Run that same code again -- next week, in a new session, after adding three more plots below
+it -- and nothing is re-sampled: the stored chain is read back and `summary()`,
+`convergence()`, `best_fit()` and every `plots.*` figure work off it exactly as before.
+
+`nsteps` is the *total* chain length to end up with, which is what makes re-running a script
+or a notebook cell idempotent:
+
+| what you do | what happens |
+|---|---|
+| run it again unchanged | nothing is sampled; the stored chain is loaded |
+| raise `nsteps` to 10000 | only the missing 4000 steps are sampled, continuing the same chain |
+| Ctrl-C halfway through | every step taken so far is already on disk; run again to carry on |
+| change the model, datasets, free parameters, or priors | refused, loudly, naming what differs -- samples from two different posteriors must never be merged |
+
+A resumed chain is bit-identical to the uninterrupted one it would have been: emcee's proposal
+RNG state travels in the file with the walkers, so `nsteps=6000` in one go and `1500 -> 6000`
+in four sittings give the same samples.
+
+### Reopening a chain later
+
+`Fitter.from_chain` rebuilds the whole fit from what the file records -- model, datasets, free
+parameters, priors, fixed values -- with nothing to retype and nothing that can drift out of
+sync with the samples:
+
+```python
+from CosmoFit import Fitter
+
+fit = Fitter.from_chain("chains/cpl.h5")
+
+fit.summary()
+fit.plots.corner()
+fit.best_fit()          # the datasets are live again, so this works too
+```
+
+For posterior summaries alone, skip the fitter entirely -- this reads no dataset and evaluates
+no likelihood:
+
+```python
+from CosmoFit.stats.chains import open_chain, chain_info
+
+chain = open_chain("chains/cpl.h5")
+chain.summary()
+chain.samples_dict()["w0"]
+
+chain_info("chains/cpl.h5")   # model, datasets, parameters, steps, when it was run
+```
+
+### Details worth knowing
+
+* **The file is self-describing.** Alongside emcee's own `mcmc` group (plain
+  `h5py`/`emcee` can read it with or without CosmoFit) sits a `cosmofit` group recording the
+  model, datasets, free parameters, prior bounds, fixed parameter values, burn-in, seed and
+  versions. That record is what makes a resume safe, and what `from_chain` rebuilds from.
+* **`resume`** defaults to `"auto"` (continue if there's a chain, start one if not). Pass
+  `resume=True` to *require* an existing chain -- "analyze last night's run, don't quietly
+  start a fresh 12-hour one if the file moved" -- or `resume=False` to discard what's stored
+  and sample from scratch. That last one is the only destructive option and is never reached
+  by default.
+* **Naming files automatically.** `fitter.chain_id()` is a short, stable hash of the
+  posterior (`"CPL_3f9a1c04"`), identical across sessions and machines for the same fit and
+  different as soon as anything about it changes:
+
+  ```python
+  fit.run_mcmc(nsteps=6000, save=f"chains/{fit.chain_id(nwalkers=48)}.h5")
+  ```
+
+  Saving under it reuses a chain exactly when reuse is correct, and starts a separate file --
+  rather than colliding with, or overwriting, the old one -- when it isn't. This is how the
+  GUI keeps one chain per configuration.
+* **Several chains in one file.** Pass a `ChainFile` instead of a path to put a model
+  comparison's chains side by side:
+
+  ```python
+  from CosmoFit.stats.chains import ChainFile
+
+  fit_cpl.run_mcmc(nsteps=6000, save=ChainFile("chains/comparison.h5", name="CPL"))
+  fit_lcdm.run_mcmc(nsteps=6000, save=ChainFile("chains/comparison.h5", name="LCDM"))
+  ```
+
+---
+
+## The w0-wa Plane
+
+`fitter.plots.w0_wa_plane()` draws the figure the recent
+evolving-dark-energy literature is built around: the 2D posterior of the CPL parameters over the
+four dark-energy regions of the (w0, wa) plane, with ΛCDM marked at (-1, 0).
+
+```python
+from CosmoFit import CPL, Fitter
+
+fit = Fitter(
+    model=CPL,
+    datasets=["cc", "desi", "pantheon"],
+    free_params=["H0", "Omega_m", "w0", "wa"],
+    initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "wa": 0.0, "rd": 147.1},
+)
+fit.run_mcmc(nwalkers=32, nsteps=15000, burnin=3000, save="chains/cpl.h5")
+
+fit.plots.w0_wa_plane()
+```
+
+The plane is cut by two lines -- `w0 = -1` (the equation of state today) and `wa = -1 - w0`
+(its high-z limit `w0 + wa`) -- into the four cases the classification is made of:
+
+| region | w(z) | meaning |
+|---|---|---|
+| **Phantom** | below -1 at all times | ρ grows with expansion; a Big Rip future |
+| **Quintessence** | above -1 at all times | reachable by an ordinary canonical scalar field |
+| **Quintom-A** | quintessence in the past, phantom today | crosses w = -1 |
+| **Quintom-B** | phantom in the past, quintessence today | crosses w = -1 the other way |
+
+The crossing is the physically loaded part: no single canonical (or single phantom) scalar field
+can cross `w = -1` at all, so a posterior sitting in either quintom region calls for something
+more -- two fields, a non-canonical kinetic term, or modified gravity.
+
+Useful options:
+
+```python
+fit.plots.w0_wa_plane(show_fractions=True)          # posterior probability of each region
+fit.plots.w0_wa_plane(levels=(0.68, 0.95, 0.997))   # add a third contour
+fit.plots.w0_wa_plane(w0_range=(-1.3, 0.0), wa_range=(-3, 1))
+fit.plots.w0_wa_plane(bins=120, smooth=1.0)         # finer density estimate
+```
+
+`levels` are 2D credible **probabilities** (the smallest area holding that fraction of the
+samples), not sigmas -- in two dimensions the familiar "1σ"/"2σ" contours enclose only 39% and
+86.5%, and conflating the two is the usual way this figure gets over-read.
+
+The same numbers without the picture:
+
+```python
+from CosmoFit.stats import cpl_diagnostics
+
+cpl_diagnostics.region_fractions(*[fit.samples_dict()[k] for k in ("w0", "wa")])
+# {'phantom': 0.004, 'quintessence': 0.221, 'quintom-a': 0.012, 'quintom-b': 0.763}
+
+cpl_diagnostics.classify_region(-0.85, -0.6)   # 'quintom-b'
+```
+
+To overlay several dataset combinations -- the "what does adding this data do to w0-wa?"
+figure -- every fit needs its own chain, and then:
+
+```python
+fit_desi.plots.compare_w0_wa_plane(
+    other_fits=[fit_desi_sn, fit_desi_sn_cmb],
+    labels=["DESI", "DESI+SN", "DESI+SN+CMB"],
+)
+```
+
+Both methods need `w0` and `wa` to be free parameters of a completed MCMC, and a model whose
+w(z) really does tend to `w0 + wa` at high z (CPL, BA). For JBP -- whose w(z) returns to `w0`
+instead -- the diagonal boundary would not be that model's own limit, so they refuse rather than
+mislabel the regions; use `plots.w_of_z()` there.
 
 ---
 
@@ -293,6 +475,14 @@ Or, without touching a terminal: double-click `run_gui.sh` (Linux/macOS)
 or `run_gui.bat` (Windows) in the repository root. Either installs
 whatever's missing on first run and then opens the app in your
 browser; safe to double-click again any time to relaunch it.
+
+Chains are saved and reused (the "Saved chains" box in the sidebar,
+on by default): add a second model to compare against and the first
+one comes back instantly instead of being re-sampled, raise Steps and
+only the extra steps are run, close the app and it's all still there.
+Each distinct configuration gets its own file (see
+[Saved Chains](#saved-chains)), so nothing is reused when it
+shouldn't be.
 
 It lets you: tick which built-in datasets to fit; pick one of the
 six built-in models, or write a custom one directly as an `E(z)`
@@ -707,6 +897,56 @@ made with v0.18.0 or earlier should be regenerated.
 > `dataset_kwargs={"s8": {"version": "des_y3"}}` for the other) --
 > they're independent survey constraints, not a joint one. See the
 > `S8Likelihood` docstring.
+
+Version **v0.20.0** makes MCMC chains persistent. Until now a chain
+lived only in memory: closing the notebook, or adding one more plot
+to the bottom of a script, meant sampling the whole posterior again
+from step zero -- hours, to recompute samples that hadn't changed.
+`run_mcmc(save="chains/fit.h5")` now writes the chain to HDF5 as it
+is sampled (emcee's own `HDFBackend`, plus a `cosmofit` metadata
+group), and picks it back up on the next call instead of re-running
+it. `nsteps` counts the *total* length to reach, so re-running an
+unchanged script samples nothing, raising `nsteps` samples only the
+difference, and an interrupted run keeps every step it had already
+taken. `Fitter.from_chain("chains/fit.h5")` reopens a finished run in
+a later session -- model, datasets, free parameters, priors and fixed
+values all come back out of the file -- and
+`CosmoFit.stats.chains.open_chain()` reads the posterior with no
+dataset loaded at all.
+
+Resuming is exact, not approximate: emcee's proposal RNG state is
+stored with the walkers, so a chain sampled in four sittings is
+bit-identical to the same chain sampled in one (verified directly, as
+is multi-core `n_processes` writing through the same file). The
+metadata is also what keeps it *safe* -- a resume whose model,
+datasets, free parameters, prior bounds or fixed parameter values
+differ from the stored chain's is refused, naming exactly what
+differs, rather than silently welding samples from two different
+posteriors into one array. The GUI uses the same machinery
+(`fitter.chain_id()`, a stable hash of the posterior, as the
+filename), so adding a model to a comparison no longer re-runs the
+models already fitted. `h5py` is now a dependency.
+
+Version **v0.21.0** adds the w0-wa dark-energy plane
+(`fitter.plots.w0_wa_plane()`, and `compare_w0_wa_plane()` for
+several posteriors at once): 2D credible contours over the
+phantom/quintessence/quintom-A/quintom-B regions with ΛCDM marked at
+(-1, 0) -- the figure the DESI evolving-dark-energy results are
+argued in. The classification behind it is available on its own as
+`cpl_diagnostics.classify_region()` /
+`cpl_diagnostics.region_fractions()`, which turns "the contours sit
+in the quintom-B region" into a posterior probability. Contour levels
+are stated as 2D credible probabilities (68%/95% of the samples), not
+sigmas, since in two dimensions the familiar 1D contours enclose only
+39%/86.5%.
+
+The same release fixes a reporting bug in the GUI's w0-wa
+diagnostics: it printed the Mahalanobis distance D of the ΛCDM point
+with a σ suffix. In 2D, D is not a number of sigma (D² follows χ² with
+2 degrees of freedom), so this overstated the tension -- D = 2.20
+reads as "2.2σ" but is really 1.70σ. The library was corrected in
+v0.19.0; the GUI now reports `sigma` (with the confidence level, and D
+labelled as what it is) too.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 

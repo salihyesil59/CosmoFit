@@ -22,6 +22,19 @@ Example
 >>> fit.best_fit()
 >>> fit.summary()
 >>> fit.plots.corner()
+
+Add ``save=`` to that MCMC call and the chain is written to
+disk as it is sampled, and picked back up instead of re-sampled
+the next time the same code runs::
+
+>>> fit.run_mcmc(nwalkers=48, nsteps=6500, burnin=1000,
+...              save="chains/cpl.h5")
+
+...or reopened later without setting the fit up again at all::
+
+>>> fit = Fitter.from_chain("chains/cpl.h5")
+
+See :mod:`stats.chains`.
 """
 
 from __future__ import annotations
@@ -46,6 +59,13 @@ from .priors import UniformPrior
 from .posterior import LogPosterior
 from .sampler import EnsembleSampler
 from .results import FitResult, BestFitResult, MCMCResult
+from .chains import (
+    ChainFile,
+    DEFAULT_CHAIN_NAME,
+    build_metadata,
+    compare_signatures,
+    signature_id,
+)
 
 
 # ============================================================
@@ -169,6 +189,59 @@ def _worker_log_prob(theta):
 
 
 # ============================================================
+# Rebuilding a model from a saved chain
+# ============================================================
+
+def _resolve_model(meta: dict):
+    """
+    Import the model class a saved chain was sampled with, from
+    the name and module recorded in its metadata (see
+    :meth:`Fitter.from_chain`).
+
+    Tries the recorded module first -- so a user's own
+    ``Cosmology`` subclass in ``my_models.py`` comes back too,
+    not just built-in ones -- then falls back to CosmoFit's own
+    model package, which covers a chain written before a model
+    moved between modules.
+    """
+
+    import importlib
+
+    name = meta.get("model")
+    module = meta.get("model_module")
+
+    if not name:
+        raise ValueError(
+            "The saved chain's metadata doesn't record which model "
+            "it was sampled with; pass `model=` explicitly."
+        )
+
+    if module:
+        try:
+            found = getattr(importlib.import_module(module), name, None)
+        except ImportError:
+            found = None
+
+        if found is not None:
+            return found
+
+    from CosmoFit.cosmology import models as builtin_models
+
+    found = getattr(builtin_models, name, None)
+
+    if found is not None:
+        return found
+
+    raise ValueError(
+        f"Can't import the model {name!r} the saved chain was "
+        f"sampled with (recorded module: {module!r}). A model built "
+        f"with `define_model()`/`model_from_expression()` only "
+        f"exists in the session that defined it -- rebuild it and "
+        f"pass it as `Fitter.from_chain(..., model=MyModel)`."
+    )
+
+
+# ============================================================
 # Fitter
 # ============================================================
 
@@ -269,6 +342,17 @@ class Fitter:
 
         self.initial = {name: values[name] for name in self.free_params}
 
+        # Every parameter's starting value, free and fixed alike,
+        # snapshotted here because `self.params` does *not* stay
+        # put: the posterior writes each proposed theta into it on
+        # every single MCMC step (`LogPosterior._apply`), so after a
+        # run it holds the last walker's position, not the input.
+        # Saved chains record this instead -- it is what
+        # `Fitter.from_chain` rebuilds an equivalent fitter from.
+        self._initial_all = {
+            name: values[name] for name in params_cls.names()
+        }
+
         self.params = params_cls(
             **{name: values[name] for name in params_cls.names()}
         )
@@ -316,6 +400,13 @@ class Fitter:
         self.sampler = None
         self.burnin = 0
         self.best_fit_result = None
+
+        #: The :class:`~stats.chains.ChainFile` this fit's chain
+        #: is stored in, once `run_mcmc(save=...)`, `load_chain`
+        #: or `from_chain` has pointed it at one -- so "where did
+        #: this posterior come from" stays answerable from the
+        #: fitter itself.
+        self.chain = None
 
         # ------------------------------------------------------
         # Plots
@@ -379,6 +470,8 @@ class Fitter:
         moves=None,
         callback=None,
         n_processes: int | str = "auto",
+        save=None,
+        resume="auto",
     ):
         """
         Run an ``emcee`` ensemble MCMC, via
@@ -452,13 +545,83 @@ class Fitter:
             `seed`, so a given `seed` gives bit-identical results at
             any `n_processes`.
 
+        save : str, Path or ChainFile, optional
+            Write the chain to this HDF5 file as it is sampled,
+            and reuse it on the next call. This is what makes an
+            analysis re-runnable without re-sampling: the same
+            three lines of code cost hours the first time and
+            seconds every time after, so adding a plot or a
+            derived quantity later is cheap. Because every step is
+            written as it is taken, an interrupted run (Ctrl-C, a
+            walltime limit) also keeps everything it had already
+            done -- call again to carry on from there.
+
+            Pass a :class:`~stats.chains.ChainFile` instead of a
+            path to keep several chains in one file (its
+            ``name=``), e.g. one per model in a comparison.
+
+            The file also records which posterior the chain came
+            from -- model, datasets, free parameters, prior
+            bounds, fixed parameter values -- and a resume that
+            doesn't match on all of them is refused rather than
+            silently gluing samples from two different
+            distributions together.
+
+        resume : {"auto", True, False}
+            What to do when ``save`` already holds a chain.
+            Ignored without ``save``.
+
+            ``"auto"`` (default)
+                Continue it if it exists, start it if it doesn't.
+                ``nsteps`` is then the *total* chain length to
+                end up with, already-stored steps included: a
+                second call asking for the same ``nsteps`` has
+                nothing left to sample and returns immediately,
+                while a larger ``nsteps`` extends the chain by
+                the difference. That's what makes re-running a
+                script (or a notebook cell) idempotent.
+
+            ``True``
+                The same, but require the chain to already exist
+                -- for "analyze what I sampled last night, don't
+                quietly start a fresh 12-hour run if the file
+                moved".
+
+            ``False``
+                Ignore and **discard** whatever is stored, and
+                sample from scratch. The only destructive option,
+                and never reached by default.
+
         Returns
         -------
-        emcee.EnsembleSampler
+        emcee.EnsembleSampler or stats.chains.StoredSampler
+            The sampler that ran. When ``resume`` had nothing
+            left to sample, the stored chain is returned instead,
+            read back from the file -- either way,
+            :meth:`summary`, :meth:`convergence`,
+            :meth:`best_fit` and the plots work off it the same.
         """
 
+        chain, chain_backend, steps_to_run = self._prepare_chain(
+            save, resume,
+            nwalkers=nwalkers, nsteps=nsteps, burnin=burnin, seed=seed,
+        )
+
+        # A saved chain that is already `nsteps` long: the whole
+        # point of `save=`. Read it back and stop -- no pool, no
+        # sampler, no likelihood evaluated. Everything downstream
+        # (`summary`, `convergence`, `best_fit`, the plots) reads
+        # the chain through the same interface either way.
+        if chain is not None and steps_to_run <= 0:
+
+            self.sampler = chain.open()
+            self.burnin = burnin
+            self.chain = chain
+
+            return self.sampler
+
         n_processes = self._resolve_n_processes(
-            n_processes, nwalkers=nwalkers, nsteps=nsteps,
+            n_processes, nwalkers=nwalkers, nsteps=steps_to_run,
         )
 
         backend = EnsembleSampler(moves=moves)
@@ -479,16 +642,29 @@ class Fitter:
                 self.prior,
                 self.theta0,
                 nwalkers=nwalkers,
-                nsteps=nsteps,
+                nsteps=steps_to_run,
                 initial_scatter=initial_scatter,
                 seed=seed,
                 progress=progress,
                 callback=callback,
                 pool=pool,
+                backend=chain_backend,
             )
 
         self.sampler = sampler
         self.burnin = burnin
+        self.chain = chain
+
+        if chain is not None:
+            # Re-stamp now that the run has finished, so `updated`
+            # dates the chain's last *completed* step rather than
+            # the moment sampling started.
+            chain.write_metadata(
+                self._chain_metadata(
+                    previous=chain.metadata,
+                    burnin=burnin, seed=seed, nwalkers=nwalkers,
+                )
+            )
 
         return sampler
 
@@ -812,6 +988,398 @@ class Fitter:
             }
 
         return result
+
+    # ============================================================
+    # Saved chains
+    # ============================================================
+
+    def _chain_signature(self) -> dict:
+        """
+        What has to match for a saved chain to belong to *this*
+        fit: everything that defines the posterior being sampled.
+
+        Not a checksum of the run (walkers, steps, seed, burn-in
+        are all free to change between sessions -- that's the
+        point of resuming) but of the *distribution*. Continue a
+        chain under a different model, dataset combination, free
+        parameter list, prior bound or fixed parameter value and
+        the result is one array of samples drawn from two
+        different posteriors, with nothing in the file to say so.
+        :func:`~stats.chains.compare_signatures` compares two of
+        these; :meth:`_check_chain_compatible` refuses the resume.
+        """
+
+        return {
+            "model": self.model_cls.__name__,
+            "datasets": list(self.dataset_names),
+            "free_params": list(self.free_params),
+            "bounds": {
+                name: [float(lo), float(hi)]
+                for name, lo, hi in zip(
+                    self.prior.names, self.prior.lower, self.prior.upper,
+                )
+            },
+            "fixed": {
+                name: value
+                for name, value in self._initial_all.items()
+                if name not in self.free_params
+            },
+            "dataset_kwargs": self.dataset_kwargs or {},
+        }
+
+    # ------------------------------------------------------------
+
+    def chain_id(self, **extra) -> str:
+        """
+        A filename-safe name identifying this exact fit, e.g.
+        ``"CPL_3f9a1c04"`` -- for saving chains without inventing
+        a name for each one.
+
+        Two fitters over the same posterior produce the same id
+        in any session on any machine; change the model, the
+        datasets, the free parameters, a prior bound or a fixed
+        value and the id changes with it. Saving under it
+        therefore reuses a chain exactly when reusing it is
+        correct, and starts a new file (rather than colliding
+        with, or overwriting, the old one) when it isn't::
+
+            fit.run_mcmc(
+                nsteps=6000,
+                save=f"chains/{fit.chain_id(nwalkers=48)}.h5",
+            )
+
+        Parameters
+        ----------
+        **extra
+            Folded into the id, for anything that should force a
+            separate file without being part of the posterior --
+            ``nwalkers`` and ``seed`` are the useful ones, since
+            a stored chain can't change either one halfway
+            through.
+        """
+
+        return (
+            f"{self.model_cls.__name__}_"
+            f"{signature_id(self._chain_signature(), extra)}"
+        )
+
+    # ------------------------------------------------------------
+
+    def _chain_metadata(self, previous=None, *, burnin, seed, nwalkers) -> dict:
+        """
+        The full metadata block written next to a saved chain:
+        the signature above, plus the run settings and the model's
+        import path (which :meth:`from_chain` needs to rebuild an
+        equivalent fitter from the file alone).
+        """
+
+        return build_metadata(
+            self._chain_signature(),
+            previous=previous,
+            model_module=self.model_cls.__module__,
+            initial=dict(self._initial_all),
+            burnin=int(burnin),
+            seed=int(seed),
+            nwalkers=int(nwalkers),
+        )
+
+    # ------------------------------------------------------------
+
+    def _check_chain_compatible(self, chain: ChainFile, nwalkers=None) -> None:
+        """
+        Refuse a stored chain that wasn't sampled from this
+        fitter's posterior, naming what differs.
+        """
+
+        meta = chain.metadata
+
+        if not meta:
+            raise ValueError(
+                f"{chain.path} already holds a chain, but no CosmoFit "
+                f"metadata describing it -- there is no way to tell "
+                f"which model, datasets or priors it was sampled with, "
+                f"so it can't safely be continued or reused. Save to a "
+                f"different path, or pass `resume=False` to discard "
+                f"what's there and sample from scratch."
+            )
+
+        differences = compare_signatures(meta, self._chain_signature())
+
+        if differences:
+            raise ValueError(
+                "The saved chain was sampled from a different "
+                "posterior than this fit:\n  - "
+                + "\n  - ".join(differences)
+                + f"\n({chain.path}). Samples from two different "
+                f"posteriors must not be merged into one chain -- "
+                f"save this fit to a different path, or pass "
+                f"`resume=False` to discard the stored chain and "
+                f"sample from scratch."
+            )
+
+        shape = chain.shape
+
+        if shape is not None:
+
+            stored_nwalkers, stored_ndim = shape
+
+            if stored_ndim != self.ndim:
+                raise ValueError(
+                    f"The saved chain has {stored_ndim} free "
+                    f"parameter(s), this fit has {self.ndim} "
+                    f"({chain.path})."
+                )
+
+            if nwalkers is not None and stored_nwalkers != nwalkers:
+                raise ValueError(
+                    f"The saved chain was sampled with "
+                    f"{stored_nwalkers} walkers, but this run asks "
+                    f"for {nwalkers} ({chain.path}). A chain can only "
+                    f"be continued with the ensemble it was sampled "
+                    f"with -- pass nwalkers={stored_nwalkers}, or save "
+                    f"to a different path."
+                )
+
+    # ------------------------------------------------------------
+
+    def _prepare_chain(self, save, resume, *, nwalkers, nsteps, burnin, seed):
+        """
+        Turn ``run_mcmc``'s ``save``/``resume`` into the three
+        things the run itself needs: the :class:`ChainFile` (or
+        None), the emcee backend to write through (or None), and
+        how many steps are actually left to sample.
+
+        Also writes the metadata *before* sampling starts, so a
+        run that never finishes still leaves behind a file that
+        says what it was.
+        """
+
+        if save is None:
+            return None, None, nsteps
+
+        if resume not in ("auto", True, False):
+            raise ValueError(
+                f'resume must be "auto", True or False, got {resume!r}.'
+            )
+
+        if resume != "auto":
+            # `True`/`False` are the meaningful values, but 1/0
+            # arrive here too and `is False` would quietly miss
+            # them.
+            resume = bool(resume)
+
+        chain = save if isinstance(save, ChainFile) else ChainFile(save)
+
+        stored_steps = chain.iteration
+
+        if resume is False:
+
+            # The one destructive path in this method, and only
+            # ever taken because the caller asked for it by name.
+            if stored_steps:
+                chain.reset(nwalkers, self.ndim)
+
+            previous = None
+            steps_to_run = nsteps
+
+        elif stored_steps == 0:
+
+            if resume is True:
+                raise FileNotFoundError(
+                    f"resume=True, but there is no saved chain to "
+                    f"resume at {chain.path} (chain '{chain.name}'). "
+                    f'Use resume="auto" to start one there if it '
+                    f"doesn't exist yet."
+                )
+
+            previous = None
+            steps_to_run = nsteps
+
+        else:
+
+            self._check_chain_compatible(chain, nwalkers=nwalkers)
+
+            # `nsteps` is the *total* length to end up with, so
+            # re-running an unchanged script is a no-op instead of
+            # doubling the chain. See `run_mcmc`'s `resume`.
+            previous = chain.metadata
+            steps_to_run = nsteps - stored_steps
+
+        chain.write_metadata(
+            self._chain_metadata(
+                previous=previous,
+                burnin=burnin, seed=seed, nwalkers=nwalkers,
+            )
+        )
+
+        return chain, chain.backend(), steps_to_run
+
+    # ------------------------------------------------------------
+
+    def load_chain(self, path, name: str = DEFAULT_CHAIN_NAME, burnin=None):
+        """
+        Attach a chain saved by an earlier
+        ``run_mcmc(save=...)`` to this fitter, without sampling
+        anything.
+
+        Everything that reads the posterior -- :meth:`summary`,
+        :meth:`convergence`, :meth:`samples_dict`,
+        :meth:`best_fit`, :attr:`result`, ``plots.corner()``, the
+        derived-quantity posteriors -- then works exactly as it
+        would have straight after the original run.
+
+        This is the explicit version of what
+        ``run_mcmc(save=..., resume=True)`` does implicitly; use
+        it when you want to be sure nothing can start sampling,
+        or to point an existing fitter at a chain stored under a
+        different filename.
+
+        Parameters
+        ----------
+        path : str, Path or ChainFile
+            The saved chain.
+
+        name : str
+            Which chain inside the file, if it holds more than
+            one. Ignored when ``path`` is a
+            :class:`~stats.chains.ChainFile`.
+
+        burnin : int, optional
+            Steps to discard. Defaults to the burn-in recorded
+            when the chain was sampled.
+
+        Returns
+        -------
+        stats.chains.StoredSampler
+
+        Raises
+        ------
+        FileNotFoundError
+            If there is no such chain.
+        ValueError
+            If it was sampled from a different posterior than
+            this fitter's -- see :meth:`_chain_signature`.
+        """
+
+        chain = path if isinstance(path, ChainFile) else ChainFile(path, name=name)
+
+        if not chain.exists:
+            raise FileNotFoundError(
+                f"No chain '{chain.name}' in {chain.path}."
+            )
+
+        self._check_chain_compatible(chain)
+
+        stored = chain.open()
+
+        self.sampler = stored
+        self.burnin = int(stored.burnin if burnin is None else burnin)
+        self.chain = chain
+
+        return stored
+
+    # ------------------------------------------------------------
+
+    @classmethod
+    def from_chain(
+        cls,
+        path,
+        name: str = DEFAULT_CHAIN_NAME,
+        model=None,
+        burnin=None,
+        **overrides,
+    ):
+        """
+        Rebuild a fitter from a saved chain and attach that
+        chain: the "open last week's results and keep working"
+        entry point.
+
+        The chain file records the model, datasets, free
+        parameters, prior bounds and fixed parameter values it
+        was sampled with, which is exactly the fitter's
+        constructor -- so nothing has to be re-typed, and it
+        can't drift out of sync with the samples.
+
+        The datasets *are* re-read (that's what makes
+        :meth:`best_fit`, per-dataset chi2 and the model-vs-data
+        plots work); no likelihood is evaluated and no sampling
+        happens. For posterior summaries alone, skip the fitter
+        entirely -- :func:`stats.chains.open_chain` reads the
+        same file with no data loading at all.
+
+        Parameters
+        ----------
+        path : str, Path or ChainFile
+            The saved chain.
+
+        name : str
+            Which chain inside the file, if it holds more than
+            one.
+
+        model : type, optional
+            The model class, when it can't be imported back from
+            the name and module recorded in the file -- which is
+            the case for a model built by
+            :func:`cosmology.custom.define_model` /
+            ``model_from_expression`` (it exists only in the
+            session that defined it). Rebuild the same model and
+            pass it here.
+
+        burnin : int, optional
+            Steps to discard. Defaults to the burn-in recorded
+            when the chain was sampled.
+
+        **overrides
+            Passed on to the constructor, overriding what the
+            file recorded (e.g. ``dataset_kwargs=``).
+
+        Examples
+        --------
+        >>> fit = Fitter.from_chain("chains/cpl.h5")
+        >>> fit.summary()
+        >>> fit.plots.corner()
+        >>> fit.best_fit()          # datasets are live again
+        """
+
+        chain = path if isinstance(path, ChainFile) else ChainFile(path, name=name)
+
+        if not chain.exists:
+            raise FileNotFoundError(
+                f"No chain '{chain.name}' in {chain.path}."
+            )
+
+        meta = chain.metadata
+
+        if not meta:
+            raise ValueError(
+                f"{chain.path} holds a chain but no CosmoFit metadata, "
+                f"so there is nothing to rebuild a Fitter from (it was "
+                f"probably written by emcee directly). Construct the "
+                f"Fitter yourself and use `fit.load_chain(...)`, or "
+                f"read the samples with "
+                f"`CosmoFit.stats.chains.open_chain(...)`."
+            )
+
+        model_cls = model if model is not None else _resolve_model(meta)
+
+        kwargs = dict(
+            model=model_cls,
+            datasets=meta["datasets"],
+            free_params=meta["free_params"],
+            initial=meta.get("initial") or meta.get("fixed", {}),
+            bounds={
+                key: tuple(value)
+                for key, value in (meta.get("bounds") or {}).items()
+            },
+            dataset_kwargs=meta.get("dataset_kwargs") or None,
+        )
+        kwargs.update(overrides)
+
+        fit = cls(**kwargs)
+
+        fit.load_chain(chain, burnin=burnin)
+
+        return fit
 
     # ============================================================
     # Best fit
