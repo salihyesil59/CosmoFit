@@ -993,6 +993,20 @@ Dataset combinations in legends also spell themselves out
 joining registry keys. No numerical result changes from any of this --
 it is labels, titles and legends only.
 
+The DES-SN5YR Hubble diagram is also legible for the first time. That
+release ships 81 supernovae (of 1820) with `mu_err` between 5 and 468
+mag -- entries the survey de-weights rather than removes -- and
+matplotlib autoscales an errorbar plot to contain every whisker, so
+the panel spanned +/-500 mag with the actual 35-45 mag Hubble diagram
+compressed into a sliver of it. Panels are now scaled by the
+measurements rather than by their largest error bars, and a bar may
+only stretch the view if it is extreme both as a fraction of the
+data's spread *and* as a multiple of that dataset's median error --
+which caps nothing at all on CC, DESI, Pantheon+ or fsigma8, where
+matplotlib's own limits are reproduced exactly. The 81 points stay on
+the plot, drawn without the whiskers that no longer fit and counted
+in the legend.
+
 One functional bug surfaced while testing the above and is fixed here
 too: **`FitResult.save_json()` (and the GUI's JSON download) failed
 for any fit that used `run_mcmc(save=...)`**, with
