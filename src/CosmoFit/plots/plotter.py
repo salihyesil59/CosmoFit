@@ -127,6 +127,97 @@ def _title_formats(flat: np.ndarray) -> list[str]:
     return formats
 
 
+def _robust_ylim(
+    values, errors, include=(),
+    cap_fraction=0.25, cap_multiple=10.0, margin=0.04,
+):
+    """
+    Y-axis limits for a data panel, sized by the *measurements*
+    rather than by their largest error bars.
+
+    Matplotlib autoscales an ``errorbar`` to contain every whisker,
+    which a handful of enormous uncertainties can hijack: DES-SN5YR
+    ships 77 (of 1820) supernovae with ``mu_err`` between 5 and 468
+    mag -- entries the survey effectively de-weights rather than
+    removes. Those are real data and stay plotted, but letting them
+    set the scale squeezes the actual Hubble diagram (35-45 mag)
+    into a sliver of a +/-500 mag panel.
+
+    So an error bar may only stretch the view so far. The threshold
+    has to satisfy *both* of two conditions, because either alone
+    misfires on a real dataset: a fraction of the data's own spread
+    (which alone would clip the Gold-2018 fsigma8 points, whose
+    largest errors are a sizeable part of a narrow range), and a
+    multiple of the dataset's *typical* error (which alone would
+    clip Cosmic Chronometers, where a few genuinely uncertain H(z)
+    points sit well above the median). Taking the larger of the two
+    only flags an error bar that is extreme by both measures.
+
+    On every dataset CosmoFit ships this caps nothing at all --
+    CC, DESI, Pantheon+, fsigma8 -- and reproduces matplotlib's own
+    limits. Only DES-SN5YR's 81 de-weighted entries trip it.
+
+    Parameters
+    ----------
+    values, errors : ndarray
+        The plotted points and their 1-sigma uncertainties.
+
+    include : iterable of float, optional
+        Extra values that must stay in view -- e.g. the ends of the
+        model curve, which may extend past the data.
+
+    cap_fraction : float
+        How far an error bar may stretch the limits, as a fraction
+        of the data's own range.
+
+    cap_multiple : float
+        ...and as a multiple of the median error. The effective cap
+        is the larger of the two.
+
+    margin : float
+        Padding added to each side, as a fraction of the range.
+
+    Returns
+    -------
+    (low, high) : tuple of float
+        The limits.
+    oversized : ndarray of bool
+        Which points' error bars exceed the cap. The caller is
+        expected to say something about these rather than let them
+        run off the panel silently.
+    cap : float
+        The threshold applied, in data units.
+    """
+
+    values = np.asarray(values, dtype=float)
+    errors = np.asarray(errors, dtype=float)
+
+    spread = float(values.max() - values.min())
+
+    if not spread > 0:
+        # Every point at the same value (a single measurement, say):
+        # nothing to scale from, so let the errors define the view.
+        cap = float(np.max(errors)) if errors.size else 0.0
+    else:
+        cap = max(
+            cap_fraction * spread,
+            cap_multiple * float(np.median(errors)),
+        )
+
+    effective = np.minimum(errors, cap)
+
+    low = float((values - effective).min())
+    high = float((values + effective).max())
+
+    for extra in include:
+        low = min(low, float(extra))
+        high = max(high, float(extra))
+
+    pad = margin * (high - low)
+
+    return (low - pad, high + pad), errors > cap, cap
+
+
 def _sn_model_label(symbol: str, marginalized: bool) -> str:
     """
     Legend entry for a supernova model curve, saying where its
@@ -318,11 +409,16 @@ class FitPlotter:
 
     @staticmethod
     def _plot_band(ax, z, band, label="68% posterior"):
+        """
+        Shade the 68% posterior-predictive band, and return the
+        artist (or None if there is no chain yet) so a caller can
+        place it in a legend of its own ordering.
+        """
 
         if band is None:
-            return
+            return None
 
-        ax.fill_between(
+        return ax.fill_between(
             z, band[16], band[84],
             color=COLOR_BAND, alpha=0.25, linewidth=0, label=label,
         )
@@ -819,28 +915,79 @@ class FitPlotter:
             gridspec_kw={"height_ratios": [3, 1]},
         )
 
-        ax_top.errorbar(
-            lk.data.z_hd, y_data,
-            yerr=lk.covariance.sigma,
-            fmt="o", ms=2.5, elinewidth=0.6, alpha=0.5,
-            color=COLOR_DATA, label=f"{dataset_label} ({lk.n_data})",
+        z = lk.data.z_hd
+        sigma = lk.covariance.sigma
+        residual = y_data - y_model
+
+        # Scale the panel to the measurements, not to the largest
+        # error bars -- see `_robust_ylim`. The model curve is kept
+        # in view: it extends below the data at low z, where the
+        # survey has no supernovae.
+        ylim, oversized, cap = _robust_ylim(
+            y_data, sigma, include=(curve.min(), curve.max()),
         )
-        self._plot_band(ax_top, z_grid, band)
-        ax_top.plot(z_grid, curve, color=COLOR_MODEL, lw=1.8, label=model_label)
+
+        # A whisker taller than the panel is drawn as a full-height
+        # line, and 81 of them (DES-SN5YR's de-weighted entries)
+        # turn the figure into a picket fence. Those points stay --
+        # dropping data to tidy a plot is not on -- but without the
+        # bars that no longer carry readable information, called out
+        # in the legend so nobody mistakes them for well-measured
+        # supernovae.
+        shown = ~oversized
+
+        handles = []
+
+        for ax, values in ((ax_top, y_data), (ax_bot, residual)):
+
+            drawn = ax.errorbar(
+                z[shown], values[shown], yerr=sigma[shown],
+                fmt="o", ms=2.5, elinewidth=0.6, alpha=0.5,
+                color=COLOR_DATA,
+                label=f"{dataset_label} ({lk.n_data})",
+            )
+
+            if ax is ax_top:
+                handles.append(drawn)
+
+            if oversized.any():
+
+                flagged, = ax.plot(
+                    z[oversized], values[oversized],
+                    "o", ms=3.5, alpha=0.55, color=COLOR_DATA,
+                    markerfacecolor="none", linestyle="none",
+                    label=(
+                        f"{int(oversized.sum())} with "
+                        rf"$\sigma > {cap:.1f}$ mag (bars omitted)"
+                    ),
+                )
+
+                if ax is ax_top:
+                    handles.append(flagged)
+
+        band_artist = self._plot_band(ax_top, z_grid, band)
+
+        if band_artist is not None:
+            handles.append(band_artist)
+
+        model_curve, = ax_top.plot(
+            z_grid, curve, color=COLOR_MODEL, lw=1.8, label=model_label,
+        )
+        handles.append(model_curve)
 
         ax_top.set_xscale("log")
         ax_top.set_ylabel(y_label)
-        ax_top.legend(frameon=False)
+        ax_top.set_ylim(*ylim)
+        # Explicit handles: matplotlib orders a legend by artist
+        # type before creation order, which buries the data the
+        # figure is about under the annotations about it.
+        ax_top.legend(handles=handles, frameon=False)
         _style_axes(ax_top)
 
-        residual = y_data - y_model
-        ax_bot.errorbar(
-            lk.data.z_hd, residual, yerr=lk.covariance.sigma,
-            fmt="o", ms=2.5, elinewidth=0.6, alpha=0.5, color=COLOR_DATA,
-        )
         ax_bot.axhline(0.0, color=COLOR_REFERENCE, lw=1.0, ls="--")
         ax_bot.set_ylabel(residual_label)
         ax_bot.set_xlabel("Redshift $z$")
+        ax_bot.set_ylim(*_robust_ylim(residual, sigma, include=(0.0,))[0])
         _style_axes(ax_bot)
 
         fig.tight_layout()
@@ -893,6 +1040,14 @@ class FitPlotter:
         curve includes the analytically marginalized zero-point
         offset (or ``cosmology.MB`` if it was fit explicitly) so
         both are on the same scale, and the legend says which.
+
+        This release ships 81 supernovae (of 1820) with ``mu_err``
+        between 5 and 468 mag -- entries the survey de-weights
+        rather than removes. They are plotted like any other point,
+        but their error bars are left off and flagged in the
+        legend: drawn, they are full-height lines that force the
+        panel to +/-500 mag and bury the Hubble diagram itself. See
+        :func:`_robust_ylim`.
         """
 
         lk = self._require_likelihood(DESSN5YRLikelihood, "des_sn5yr")
@@ -1531,17 +1686,20 @@ class FitPlotter:
 
         fig, ax = plt.subplots(figsize=(8, 5.5))
 
-        ax.errorbar(
-            data_z, data_y, yerr=data_yerr,
-            fmt="o", ms=3.5, elinewidth=0.7, alpha=0.5, color=COLOR_DATA,
-            label=data_label,
-        )
+        # Boolean-mask indexing below needs arrays, and callers pass
+        # whatever their dataset holds.
+        data_z = np.asarray(data_z, dtype=float)
+        data_y = np.asarray(data_y, dtype=float)
+        data_yerr = np.asarray(data_yerr, dtype=float)
+
+        curves = []
 
         for fit, label, color in zip(fits, labels, colors):
 
             curve, band = fit.plots._predictive_band(
                 lambda c, f=fit: func(f, c), n_draws=n_draws, seed=seed,
             )
+            curves.append(curve)
 
             if band is not None:
                 ax.fill_between(
@@ -1550,6 +1708,32 @@ class FitPlotter:
                 )
 
             ax.plot(z_grid, curve, color=color, lw=1.8, label=label)
+
+        # Same treatment as the single-model panels: a few enormous
+        # uncertainties must not set the scale, and the points they
+        # belong to are kept, flagged, without their unreadable
+        # whiskers. A no-op for every dataset whose errors are sane.
+        ylim, oversized, cap = _robust_ylim(
+            data_y, data_yerr,
+            include=[c.min() for c in curves] + [c.max() for c in curves],
+        )
+        shown = ~oversized
+
+        ax.errorbar(
+            data_z[shown], data_y[shown], yerr=data_yerr[shown],
+            fmt="o", ms=3.5, elinewidth=0.7, alpha=0.5, color=COLOR_DATA,
+            label=data_label,
+        )
+
+        if oversized.any():
+            ax.plot(
+                data_z[oversized], data_y[oversized],
+                "o", ms=4.5, alpha=0.55, color=COLOR_DATA,
+                markerfacecolor="none", linestyle="none",
+                label=f"{int(oversized.sum())} with large errors (bars omitted)",
+            )
+
+        ax.set_ylim(*ylim)
 
         if log_x:
             ax.set_xscale("log")
