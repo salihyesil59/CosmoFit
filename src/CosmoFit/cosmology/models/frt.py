@@ -80,6 +80,7 @@ class FRTLinear(Cosmology):
     """
 
     MODEL_NAME = "FRTLinear"
+    MODEL_LABEL = r"$f(R,T)$ linear"
 
     #: ``beta``'s bounds are deliberately narrow: this is a weak-
     #: coupling perturbation around GR (beta=0), and literature fits

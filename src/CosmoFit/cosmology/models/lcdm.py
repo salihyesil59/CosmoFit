@@ -14,6 +14,9 @@ class LCDM(Cosmology):
     generalization of the flat-LCDM expansion history.
     """
 
+    MODEL_NAME = "LCDM"
+    MODEL_LABEL = r"$\Lambda$CDM"
+
     def E(self, z):
 
         z = np.asarray(z, dtype=float)

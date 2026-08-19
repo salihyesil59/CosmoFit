@@ -84,6 +84,7 @@ class FQExponential(Cosmology):
     """
 
     MODEL_NAME = "FQExponential"
+    MODEL_LABEL = r"$f(Q)$ exponential"
 
     #: Newton iterations for solving E^2 -- the relation is smooth
     #: and monotonic over the physical range, so this converges to

@@ -11,6 +11,19 @@ from CosmoFit.data.loader import load_desi
 from .base import BaseLikelihood
 
 
+#: Maps each observable name appearing in a BAO dataset's
+#: ``observable`` column to the model prediction for it.
+#:
+#: The keys are DESI's own spelling, taken verbatim from the
+#: released data file, and they say ``rs`` where the predictions
+#: below divide by ``m.rd``. That is not an inconsistency: both
+#: denote the sound horizon *at the drag epoch*, ``r_s(z_d)``,
+#: which the BAO literature writes as either ``r_s`` or ``r_d``.
+#: CosmoFit calls it ``rd`` throughout (the parameter, the
+#: `SoundHorizon` calculator, and :data:`OBSERVABLE_LABELS` below),
+#: so that figures and code agree on one symbol; only these keys
+#: keep the data file's wording, so a dataset can be loaded
+#: without renaming its own columns.
 MODEL_MAP = {
 
     "DM_over_rs": lambda m, z:
@@ -22,6 +35,17 @@ MODEL_MAP = {
     "DV_over_rs": lambda m, z:
         m.distance.DV(z) / m.rd,
 
+}
+
+
+#: LaTeX label for each observable in :data:`MODEL_MAP`, for figure
+#: titles and axes (:meth:`~plots.FitPlotter.bao_distances`). Written
+#: with ``r_d``, matching what the predictions above actually
+#: compute, rather than transliterating the key.
+OBSERVABLE_LABELS = {
+    "DM_over_rs": r"$D_M(z)\,/\,r_d$",
+    "DH_over_rs": r"$D_H(z)\,/\,r_d$",
+    "DV_over_rs": r"$D_V(z)\,/\,r_d$",
 }
 
 

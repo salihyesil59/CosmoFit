@@ -53,6 +53,7 @@ from CosmoFit import (
 )
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 from CosmoFit.stats.chains import ChainFile, StoredSampler
+from CosmoFit.stats.results import _json_default
 from CosmoFit.stats.fitter import usable_cpu_count
 
 
@@ -246,6 +247,34 @@ def _build_model_class(slot: int, model_choice: str):
         dEdz=dEdz_expr,
         mu=mu_expr,
     )
+
+
+# ------------------------------------------------------------
+
+def _fit_labels(fits: list[Fitter]) -> tuple[list[str], list[str]]:
+    """
+    Two index-aligned label lists for a set of fits: plain text for
+    the UI (dropdowns, tables, JSON keys) and LaTeX for figure
+    legends.
+
+    Both are needed because they go to renderers with different
+    abilities. Streamlit shows a string literally, so a selectbox
+    option must read ``wCDM``, not ``$w$CDM``; matplotlib renders
+    ``$...$`` as mathtext, so a legend should read ``ΛCDM`` rather
+    than the ASCII spelling of the class name. Disambiguating
+    suffixes (two fits of the same model) are applied to the plain
+    names and then copied onto the LaTeX ones, so the two lists
+    never disagree about which fit is "(2)".
+    """
+
+    plain = _dedupe_labels([f.model_cls.plain_name() for f in fits])
+
+    latex = [
+        f.model_cls.plot_label() + label[len(f.model_cls.plain_name()):]
+        for f, label in zip(fits, plain)
+    ]
+
+    return plain, latex
 
 
 # ------------------------------------------------------------
@@ -885,9 +914,10 @@ if run_clicked:
 
             progress_bar.empty()
 
-            model_names = [f.model_cls.__name__ for f in fits]
+            plain_labels, plot_labels = _fit_labels(fits)
             st.session_state["fits"] = fits
-            st.session_state["fit_labels"] = _dedupe_labels(model_names)
+            st.session_state["fit_labels"] = plain_labels
+            st.session_state["fit_plot_labels"] = plot_labels
 
             reused = sum(isinstance(f.sampler, StoredSampler) for f in fits)
 
@@ -903,6 +933,7 @@ if run_clicked:
         except Exception as exc:
             st.session_state.pop("fits", None)
             st.session_state.pop("fit_labels", None)
+            st.session_state.pop("fit_plot_labels", None)
             progress_bar.empty()
             st.error(f"Fit failed: {exc}", icon="🚫")
 
@@ -912,6 +943,7 @@ if run_clicked:
 
 fits = st.session_state.get("fits")
 fit_labels = st.session_state.get("fit_labels")
+fit_plot_labels = st.session_state.get("fit_plot_labels")
 
 st.divider()
 
@@ -1036,7 +1068,7 @@ if fits:
                 with plot_cols[idx % 2]:
                     try:
                         fig = getattr(fits[0].plots, name)(
-                            other_fits=fits[1:], labels=fit_labels,
+                            other_fits=fits[1:], labels=fit_plot_labels,
                         )
                         _render_figure(fig, name, download_format, key=f"dl_compare_{name}")
                     except Exception as exc:
@@ -1097,6 +1129,10 @@ if fits:
         data=json.dumps(
             {label: f.result.to_dict() for label, f in zip(fit_labels, fits)},
             indent=2,
+            # Same coercion `FitResult.save_json` uses -- a chain read
+            # back from HDF5 reports numpy counters, which plain
+            # `json.dumps` refuses.
+            default=_json_default,
         ),
         file_name="cosmofit_result.json",
         mime="application/json",

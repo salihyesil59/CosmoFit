@@ -117,6 +117,7 @@ def define_model(
     E,
     *,
     extra_params: dict | None = None,
+    label: str | None = None,
     w=None,
     dEdz=None,
     Omega_de=None,
@@ -148,6 +149,14 @@ def define_model(
         instead passed to ``Fitter(bounds=...)``), and ``"label"``
         (str, optional, LaTeX label for corner plots). Names must
         not collide with the standard set.
+
+    label : str, optional
+        How the model's *name* should appear in figure legends and
+        titles (``model.MODEL_LABEL``), when ``name`` is really a
+        set of symbols spelled out as an identifier -- e.g.
+        ``name="MyQuintessence", label=r"$\\phi$CDM"``. Matplotlib
+        renders the ``$...$`` spans with mathtext. Defaults to
+        ``name`` used verbatim, which is right for an acronym.
 
     w : callable(params, z) -> ndarray, optional
         Dark-energy equation of state, for
@@ -189,6 +198,7 @@ def define_model(
 
     attrs = {
         "MODEL_NAME": name,
+        "MODEL_LABEL": label,
         "EXTRA_PARAMS": extra_params,
         "E": _wrap(E),
     }
@@ -277,6 +287,7 @@ def model_from_expression(
     E: str,
     *,
     extra_params: dict | None = None,
+    label: str | None = None,
     w: str | None = None,
     dEdz: str | None = None,
     Omega_de: str | None = None,
@@ -318,6 +329,7 @@ def model_from_expression(
         name,
         E=_compile_expression(E),
         extra_params=extra_params,
+        label=label,
         w=_compile_expression(w) if w else None,
         dEdz=_compile_expression(dEdz) if dEdz else None,
         Omega_de=_compile_expression(Omega_de) if Omega_de else None,

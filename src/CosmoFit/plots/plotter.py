@@ -80,6 +80,73 @@ def _style_axes(ax) -> None:
     ax.tick_params(direction="in", top=True, right=True)
 
 
+def _title_formats(flat: np.ndarray) -> list[str]:
+    """
+    A number format per parameter for the titles above a corner
+    plot's histograms, chosen so each one shows its uncertainty to
+    two significant figures.
+
+    ``corner``'s own default is a single ``".2f"`` for every
+    parameter -- two decimal places regardless of scale. That works
+    for ``H0`` (67.57 +0.75 -0.72) and destroys anything small:
+    ``Omega_b`` (0.049 +/- 0.0011) is reported as
+    "0.05 +0.00 -0.00", a title with no information in it. Since
+    ``corner`` accepts a list of formats, size each one from that
+    parameter's own posterior width instead, the way an uncertainty
+    is quoted in print.
+
+    Parameters
+    ----------
+    flat : ndarray, shape (n_samples, ndim)
+        The flat posterior samples the plot is built from.
+
+    Returns
+    -------
+    list of str
+        One ``".Nf"`` spec per column of ``flat``.
+    """
+
+    formats = []
+
+    for column in flat.T:
+
+        q16, q50, q84 = np.percentile(column, [16, 50, 84])
+
+        error = max(q84 - q50, q50 - q16)
+
+        if error > 0 and np.isfinite(error):
+            # e.g. error 0.0011 -> 4 decimals ("0.0011", 2 sig figs);
+            # error 0.75 -> 2; error 25 -> 0. Capped so a pathological
+            # (near-zero-width) posterior can't ask for 300 decimals.
+            decimals = min(int(-np.floor(np.log10(error))) + 1, 8)
+        else:
+            decimals = 4
+
+        formats.append(f".{max(decimals, 0)}f")
+
+    return formats
+
+
+def _sn_model_label(symbol: str, marginalized: bool) -> str:
+    """
+    Legend entry for a supernova model curve, saying where its
+    absolute-magnitude/zero-point normalization came from.
+
+    Without this the curve is labelled just "Model" while sitting
+    on an axis whose zero point was *fitted out* -- a reader has no
+    way to tell whether ``symbol`` was a fitted parameter of the
+    cosmology or an analytic nuisance the likelihood integrated
+    over. Both are supported (see ``PantheonLikelihood``'s
+    ``marginalize_MB``), and they mean different things about the
+    figure, so the curve says which one it is.
+    """
+
+    if marginalized:
+        return f"Model ({symbol} marginalized)"
+
+    return f"Model (fitted {symbol})"
+
+
 # ============================================================
 # FitPlotter
 # ============================================================
@@ -134,6 +201,28 @@ class FitPlotter:
             )
 
         return lk
+
+    # ------------------------------------------------------------
+
+    def _param_labels(self) -> list[str]:
+        """
+        LaTeX labels for this fit's free parameters, in order --
+        ``["$H_0$", "$\\Omega_m$", "$w_0$", ...]`` rather than the
+        Python identifiers ``["H0", "Omega_m", "w0"]``.
+
+        The labels come from the model's own parameter container
+        (:meth:`~cosmology.core.parameters.CosmologyParameters.parameter_set`),
+        so a custom model's ``extra_params={"beta": {"label": ...}}``
+        is honoured here too, and a parameter with no declared
+        label falls back to its name.
+        """
+
+        parameters = self.fitter.params_cls.parameter_set()
+
+        return [
+            parameters[name].label if name in parameters else name
+            for name in self.fitter.free_params
+        ]
 
     # ------------------------------------------------------------
 
@@ -641,9 +730,9 @@ class FitPlotter:
         if fitter.ndim == 1:
             axes = [axes]
 
-        for i, name in enumerate(fitter.free_params):
+        for i, label in enumerate(self._param_labels()):
             axes[i].plot(chain[:, :, i], alpha=0.15, color=COLOR_MODEL)
-            axes[i].set_ylabel(name)
+            axes[i].set_ylabel(label)
             _style_axes(axes[i])
 
         axes[-1].set_xlabel("MCMC step")
@@ -667,9 +756,10 @@ class FitPlotter:
         flat = self.fitter.flat_samples(burnin=burnin)
 
         kwargs = dict(
-            labels=self.fitter.free_params,
+            labels=self._param_labels(),
             quantiles=[0.16, 0.50, 0.84],
             show_titles=True,
+            title_fmt=_title_formats(flat),
             smooth=1.0,
         )
         kwargs.update(corner_kwargs)
@@ -692,6 +782,8 @@ class FitPlotter:
         offset_fn,
         dataset_label,
         y_label,
+        residual_label,
+        model_label,
         n_draws,
         seed,
         save_path,
@@ -734,7 +826,7 @@ class FitPlotter:
             color=COLOR_DATA, label=f"{dataset_label} ({lk.n_data})",
         )
         self._plot_band(ax_top, z_grid, band)
-        ax_top.plot(z_grid, curve, color=COLOR_MODEL, lw=1.8, label="Model")
+        ax_top.plot(z_grid, curve, color=COLOR_MODEL, lw=1.8, label=model_label)
 
         ax_top.set_xscale("log")
         ax_top.set_ylabel(y_label)
@@ -747,7 +839,7 @@ class FitPlotter:
             fmt="o", ms=2.5, elinewidth=0.6, alpha=0.5, color=COLOR_DATA,
         )
         ax_bot.axhline(0.0, color=COLOR_REFERENCE, lw=1.0, ls="--")
-        ax_bot.set_ylabel(r"$\Delta\mu$")
+        ax_bot.set_ylabel(residual_label)
         ax_bot.set_xlabel("Redshift $z$")
         _style_axes(ax_bot)
 
@@ -762,13 +854,17 @@ class FitPlotter:
 
     def hubble_diagram(self, save_path=None, n_draws=300, seed=0):
         """
-        Pantheon+ Hubble diagram: distance modulus vs. redshift,
-        with a residuals sub-panel.
+        Pantheon+ Hubble diagram: corrected apparent magnitude vs.
+        redshift, with a residuals sub-panel.
 
-        Data are shown at their calibrated apparent magnitude
-        (``m_b_corr``); the model curve includes the analytically
-        marginalized absolute-magnitude offset (or ``cosmology.MB``
-        if it was fit explicitly) so both are on the same scale.
+        The y axis is the *apparent* magnitude ``m_B``
+        (``data.m_b_corr``, ~11-27 mag), not the distance modulus:
+        the model curve is ``mu(z)`` plus the absolute-magnitude
+        offset, which brings it onto the data's scale. That offset
+        is normally the analytically marginalized ``M_B`` (see
+        ``PantheonLikelihood``'s ``marginalize_MB``), and the
+        legend says so -- with ``M_B`` integrated out, no ``M_B``
+        appears on the axis either.
         """
 
         lk = self._require_likelihood(PantheonLikelihood, "pantheon")
@@ -778,7 +874,9 @@ class FitPlotter:
             y_data=lk.data.m_b_corr,
             offset_fn=lambda: lk.best_fit_offset() if lk.marginalize_MB else 0.0,
             dataset_label="Pantheon+",
-            y_label=r"$\mu = m_B - M_B$",
+            y_label=r"$m_B$ [mag]",
+            residual_label=r"$\Delta m_B$",
+            model_label=_sn_model_label(r"$M_B$", lk.marginalize_MB),
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
 
@@ -791,9 +889,10 @@ class FitPlotter:
 
         Unlike Pantheon+, DES-SN5YR's data vector (``mu``) is
         already a distance modulus (computed assuming a fiducial
-        H0=70); the model curve includes the analytically
-        marginalized zero-point offset (or ``cosmology.MB`` if it
-        was fit explicitly) so both are on the same scale.
+        H0=70), so the y axis really is ``mu`` here; the model
+        curve includes the analytically marginalized zero-point
+        offset (or ``cosmology.MB`` if it was fit explicitly) so
+        both are on the same scale, and the legend says which.
         """
 
         lk = self._require_likelihood(DESSN5YRLikelihood, "des_sn5yr")
@@ -803,7 +902,11 @@ class FitPlotter:
             y_data=lk.data.mu,
             offset_fn=lambda: lk.best_fit_offset() if lk.marginalize_offset else 0.0,
             dataset_label="DES-SN5YR",
-            y_label=r"$\mu$",
+            y_label=r"$\mu$ [mag]",
+            residual_label=r"$\Delta\mu$",
+            model_label=_sn_model_label(
+                "zero-point", lk.marginalize_offset,
+            ),
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
 
@@ -878,7 +981,7 @@ class FitPlotter:
         ax.errorbar(
             lk.data.z, lk.data.fsigma8, yerr=lk.covariance.sigma,
             fmt="o", ms=4, elinewidth=0.8, color=COLOR_DATA,
-            label=f"Growth rate ({lk.n_data})",
+            label=f"RSD $f\\sigma_8$ ({lk.n_data})",
         )
         self._plot_band(ax, z_grid, band)
         ax.plot(z_grid, curve, color=COLOR_MODEL, lw=1.8, label="Model")
@@ -910,7 +1013,7 @@ class FitPlotter:
 
         import matplotlib.pyplot as plt
 
-        from CosmoFit.likelihoods.desi import MODEL_MAP
+        from CosmoFit.likelihoods.desi import MODEL_MAP, OBSERVABLE_LABELS
 
         observables = sorted(set(lk.data.observable.tolist()))
 
@@ -943,12 +1046,16 @@ class FitPlotter:
             self._plot_band(ax, z_grid, band)
             ax.plot(z_grid, curve, color=COLOR_MODEL, lw=1.8, label="Model")
 
-            ax.set_title(observable.replace("_", " "))
+            ax.set_title(OBSERVABLE_LABELS.get(observable, observable))
             ax.set_xlabel("Redshift $z$")
             ax.legend(frameon=False)
             _style_axes(ax)
 
-        axes[0].set_ylabel("Distance / $r_d$")
+        # Each panel's title carries the full ratio; this states the
+        # shared denominator once, in the same symbol the titles and
+        # `MODEL_MAP`'s predictions use (r_d, not the data file's r_s
+        # spelling for the same quantity).
+        axes[0].set_ylabel(r"Distance $/\ r_d$")
 
         fig.tight_layout()
 
@@ -964,6 +1071,12 @@ class FitPlotter:
         DESI BAO distance plot: one panel per observable type
         (D_M/r_d, D_H/r_d, D_V/r_d), each showing the tracers'
         measurements against the model curve.
+
+        Panel titles and the y axis both say ``r_d``, which is what
+        the predictions divide by. DESI's data file spells the same
+        quantity ``rs`` in its ``observable`` column (and so do
+        :data:`~likelihoods.desi.MODEL_MAP`'s keys) -- both mean the
+        sound horizon at the drag epoch; see that map's comment.
         """
 
         lk = self._require_likelihood(DESILikelihood, "desi")
@@ -1020,9 +1133,13 @@ class FitPlotter:
         ax.axhspan(-1, 1, color=COLOR_BAND, alpha=0.12, linewidth=0)
         ax.bar(x, pull, color=COLOR_MODEL, width=0.5)
 
+        from CosmoFit.likelihoods.planck import OBSERVABLE_LABELS
+
         ax.set_xticks(x)
-        ax.set_xticklabels(lk.data.labels)
-        ax.set_ylabel(r"$(\mathrm{data} - \mathrm{model}) / \sigma$")
+        ax.set_xticklabels([
+            OBSERVABLE_LABELS.get(name, name) for name in lk.data.labels
+        ])
+        ax.set_ylabel(r"$(\mathrm{data} - \mathrm{model}) \,/\, \sigma$")
         _style_axes(ax)
 
         fig.tight_layout()
@@ -1187,7 +1304,12 @@ class FitPlotter:
         )
 
         if label is None:
-            label = "+".join(self.fitter.dataset_names)
+            # Deferred, and aliased: `stats.fitter` imports this
+            # module, and `dataset_label` is also a parameter name in
+            # the data-vs-model methods above.
+            from CosmoFit.stats.fitter import dataset_label as _combo
+
+            label = _combo(self.fitter.dataset_names)
 
         fig, ax = plt.subplots(figsize=(8, 5.5))
 
@@ -1364,7 +1486,11 @@ class FitPlotter:
             fits.append(other_fits)
 
         if labels is None:
-            labels = [f.model_cls.__name__ for f in fits]
+            # `plot_label()`, not `__name__`: a legend should read
+            # "$\Lambda$CDM" and "$w$CDM", not the ASCII spelling of
+            # the Python class ("LCDM", "WCDM"). See
+            # `Cosmology.MODEL_LABEL`.
+            labels = [f.model_cls.plot_label() for f in fits]
         elif len(labels) != len(fits):
             raise ValueError(
                 f"Got {len(labels)} label(s) for {len(fits)} model(s) "
@@ -1545,7 +1671,7 @@ class FitPlotter:
             fits, labels, colors, z_grid,
             func=lambda f, c: c.background.fsigma8(z_grid),
             data_z=lk.data.z, data_y=lk.data.fsigma8, data_yerr=lk.covariance.sigma,
-            data_label=f"Growth rate ({lk.n_data})",
+            data_label=f"RSD $f\\sigma_8$ ({lk.n_data})",
             xlabel="Redshift $z$", ylabel=r"$f\sigma_8(z)$",
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
@@ -1663,7 +1789,9 @@ class FitPlotter:
             fits = [self.fitter, other_fits]
 
         if labels is None:
-            labels = ["+".join(f.dataset_names) for f in fits]
+            from CosmoFit.stats.fitter import dataset_label as _combo
+
+            labels = [_combo(f.dataset_names) for f in fits]
         elif len(labels) != len(fits):
             raise ValueError(
                 f"Got {len(labels)} label(s) for {len(fits)} "
@@ -1757,12 +1885,13 @@ class FitPlotter:
         Pantheon+ Hubble diagram (see :meth:`hubble_diagram`) with
         this fit's curve and one or more other models' curves over
         the same supernova data -- the standard model-vs-model
-        distance-modulus comparison figure.
+        apparent-magnitude comparison figure. Each model's own
+        marginalized ``M_B`` sets its own curve's normalization.
         """
 
         return self._compare_sn_hubble_diagram(
             PantheonLikelihood, "pantheon", "marginalize_MB", "m_b_corr",
-            "Pantheon+", r"$\mu = m_B - M_B$",
+            "Pantheon+", r"$m_B$ [mag]",
             other_fits, labels, n_draws, seed, save_path,
         )
 
@@ -1780,7 +1909,7 @@ class FitPlotter:
 
         return self._compare_sn_hubble_diagram(
             DESSN5YRLikelihood, "des_sn5yr", "marginalize_offset", "mu",
-            "DES-SN5YR", r"$\mu$",
+            "DES-SN5YR", r"$\mu$ [mag]",
             other_fits, labels, n_draws, seed, save_path,
         )
 
@@ -1799,7 +1928,7 @@ class FitPlotter:
 
         import matplotlib.pyplot as plt
 
-        from CosmoFit.likelihoods.desi import MODEL_MAP
+        from CosmoFit.likelihoods.desi import MODEL_MAP, OBSERVABLE_LABELS
 
         anchor_lk = self._require_likelihood(lk_cls, dataset_name)
         observables = sorted(set(anchor_lk.data.observable.tolist()))
@@ -1843,12 +1972,16 @@ class FitPlotter:
 
                 ax.plot(z_grid, curve, color=color, lw=1.8, label=label)
 
-            ax.set_title(observable.replace("_", " "))
+            ax.set_title(OBSERVABLE_LABELS.get(observable, observable))
             ax.set_xlabel("Redshift $z$")
             ax.legend(frameon=False)
             _style_axes(ax)
 
-        axes[0].set_ylabel("Distance / $r_d$")
+        # Each panel's title carries the full ratio; this states the
+        # shared denominator once, in the same symbol the titles and
+        # `MODEL_MAP`'s predictions use (r_d, not the data file's r_s
+        # spelling for the same quantity).
+        axes[0].set_ylabel(r"Distance $/\ r_d$")
 
         fig.tight_layout()
 
