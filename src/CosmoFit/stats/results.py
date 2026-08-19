@@ -29,6 +29,26 @@ from typing import Optional
 import numpy as np
 
 
+def _json_default(value):
+    """
+    Last-resort JSON encoder for values ``json`` doesn't know:
+    numpy scalars become their Python equivalents, numpy arrays
+    become lists. Anything else still raises, so a genuinely
+    unserializable object isn't silently stringified.
+    """
+
+    if isinstance(value, np.generic):
+        return value.item()
+
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+
+    raise TypeError(
+        f"Object of type {type(value).__name__} is not JSON "
+        f"serializable"
+    )
+
+
 # ============================================================
 # Best-fit result
 # ============================================================
@@ -182,7 +202,13 @@ class FitResult:
         """
 
         with open(path, "w") as f:
-            json.dump(self.to_dict(), f, indent=2)
+            # `default=`: numpy scalars reach here easily (a chain
+            # read back from HDF5 reports `np.int64` counters, and
+            # `np.float32` shows up from user-supplied arrays), and
+            # `json` rejects anything that isn't a Python builtin --
+            # `np.float64` only survives because it subclasses
+            # `float`. Coerce rather than fail on a save.
+            json.dump(self.to_dict(), f, indent=2, default=_json_default)
 
     # ------------------------------------------------------------
 

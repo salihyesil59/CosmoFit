@@ -98,6 +98,7 @@ class FRHuSawicki(LCDM):
     """
 
     MODEL_NAME = "FRHuSawicki"
+    MODEL_LABEL = r"$f(R)$ Hu-Sawicki"
 
     EXTRA_PARAMS = {
         "f_R0": {

@@ -19,7 +19,7 @@ from .chains import (
     list_chains,
     signature_id,
 )
-from .fitter import Fitter, DATASET_REGISTRY
+from .fitter import Fitter, DATASET_REGISTRY, DATASET_LABELS, dataset_label
 from . import model_comparison
 from . import cpl_diagnostics
 from . import derived
@@ -40,6 +40,8 @@ __all__ = [
     "signature_id",
     "Fitter",
     "DATASET_REGISTRY",
+    "DATASET_LABELS",
+    "dataset_label",
     "model_comparison",
     "cpl_diagnostics",
     "derived",

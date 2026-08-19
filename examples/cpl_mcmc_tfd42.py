@@ -305,14 +305,14 @@ def main():
     print("CPL vs. LCDM comparison figures")
     print("=" * 70)
 
-    savefig(fit, "compare_hz", method="compare_hz",
-            other_fits=fit_lcdm, labels=["CPL", "LCDM"])
+    # No `labels=`: each model names itself, in the form a figure
+    # wants -- "CPL" and "$\\Lambda$CDM" (Cosmology.plot_label()).
+    savefig(fit, "compare_hz", method="compare_hz", other_fits=fit_lcdm)
     savefig(fit, "compare_hubble_diagram", method="compare_hubble_diagram",
-            other_fits=fit_lcdm, labels=["CPL", "LCDM"])
-    savefig(fit, "compare_w_of_z", method="compare_w_of_z",
-            other_fits=fit_lcdm, labels=["CPL", "LCDM"])
+            other_fits=fit_lcdm)
+    savefig(fit, "compare_w_of_z", method="compare_w_of_z", other_fits=fit_lcdm)
     savefig(fit, "compare_deceleration", method="compare_deceleration",
-            other_fits=fit_lcdm, labels=["CPL", "LCDM"])
+            other_fits=fit_lcdm)
 
     # ------------------------------------------------------------
     # Planck residuals

@@ -46,6 +46,44 @@ class Cosmology:
     #: `EXTRA_PARAMS`.
     PARAMS_CLASS = CosmologyParameters
 
+    #: Plain-text name for this model, for tables, JSON and log
+    #: lines. `None` falls back to the class name -- see
+    #: :meth:`plain_name`.
+    MODEL_NAME: str | None = None
+
+    #: The same name written for a *figure*: a LaTeX math string
+    #: where the plain name is really a set of symbols
+    #: (``LCDM`` -> ``$\Lambda$CDM``), `None` where the plain name
+    #: is already what a reader should see (an acronym like ``CPL``).
+    #: See :meth:`plot_label`.
+    MODEL_LABEL: str | None = None
+
+    # ---------------------------------------------------------
+
+    @classmethod
+    def plain_name(cls) -> str:
+        """
+        This model's name as plain text: ``MODEL_NAME`` if it
+        declares one, else the class name.
+        """
+
+        return cls.MODEL_NAME or cls.__name__
+
+    @classmethod
+    def plot_label(cls) -> str:
+        """
+        This model's name as it should appear in a figure legend
+        or title -- ``MODEL_LABEL`` (LaTeX) if it declares one,
+        else :meth:`plain_name`.
+
+        Matplotlib renders ``$...$`` spans with mathtext, so a
+        legend built from this shows the symbols a paper would
+        (``ΛCDM``, ``wCDM``, ``f(R)``) rather than the ASCII
+        spelling of a Python identifier.
+        """
+
+        return cls.MODEL_LABEL or cls.plain_name()
+
     # ---------------------------------------------------------
 
     def __init_subclass__(cls, **kwargs) -> None:

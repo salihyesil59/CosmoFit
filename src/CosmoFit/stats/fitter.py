@@ -86,6 +86,42 @@ DATASET_REGISTRY = {
 }
 
 
+#: How each dataset name should be *written* -- the short form used
+#: in figure legends and captions, where the registry key above is
+#: an identifier rather than a name a reader recognizes
+#: (``"des_sn5yr"`` -> ``"DES-SN5YR"``). Short on purpose: several of
+#: these are joined together to describe a fit, so this is the
+#: abbreviation, not the GUI's full descriptive label.
+DATASET_LABELS = {
+    "cc": "CC",
+    "desi": "DESI",
+    "sdss_bao": "SDSS",
+    "pantheon": "Pantheon+",
+    "des_sn5yr": "DES-SN5YR",
+    "planck": "Planck",
+    "fsigma8": r"$f\sigma_8$",
+    "s8": r"$S_8$",
+}
+
+
+def dataset_label(names) -> str:
+    """
+    A fit's dataset combination as one short, readable string:
+    ``["cc", "desi", "des_sn5yr"]`` -> ``"CC + DESI + DES-SN5YR"``.
+
+    Used for figure legends (see
+    :meth:`~plots.FitPlotter.w0_wa_plane`), where joining the raw
+    registry keys would put Python identifiers on a published plot.
+    An unknown name is passed through unchanged rather than dropped.
+
+    Separated by ``" + "`` rather than a bare ``"+"``: one of these
+    names already ends in a plus (``Pantheon+``), and the tight form
+    renders it as ``Pantheon++Planck``.
+    """
+
+    return " + ".join(DATASET_LABELS.get(name, name) for name in names)
+
+
 # ============================================================
 # Multiprocessing worker plumbing (for Fitter.run_mcmc(n_processes=...))
 # ============================================================
@@ -1481,8 +1517,14 @@ class Fitter:
             mcmc = MCMCResult(
                 summary=self.summary(),
                 convergence=self.convergence(),
-                nwalkers=self.sampler.nwalkers,
-                nsteps=self.sampler.iteration,
+                # `int()`: with `run_mcmc(save=...)` the sampler's
+                # counters come from HDF5 attributes, so emcee hands
+                # back `np.int64` rather than `int` -- which
+                # `json.dumps` refuses, breaking `save_json()` (and
+                # the GUI's JSON download) for exactly the runs that
+                # were saved to disk.
+                nwalkers=int(self.sampler.nwalkers),
+                nsteps=int(self.sampler.iteration),
                 burnin=self.burnin,
                 ndim=self.ndim,
                 acceptance_fraction=float(

@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.19.0
+> **Current Version:** v0.22.0
 
 ---
 
@@ -75,6 +75,11 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   diagram, BAO distance plot, Planck pull plot, w(z) evolution, deceleration parameter, and the
   w0-wa dark-energy plane (2D credible contours over the phantom/quintessence/quintom regions,
   with ΛCDM marked) -- the headline figure of the DESI evolving-dark-energy results
+* Publication-ready figure text: every axis, title, legend and tick renders as LaTeX
+  (`$\Omega_b$`, `$r_d$`, `$\Lambda$CDM`, `$f(R)$ Hu-Sawicki`) rather than as Python
+  identifiers, corner-plot titles quote each parameter to its own precision, and each label
+  states the quantity actually plotted (`$m_B$` with `$M_B$` marginalized, `$D_V/r_d$` with the
+  `r_d` the code really divides by)
 * Model comparison plots (`fitter.plots.compare_*`): any of the figures above, overlaying this
   fit's curve with one or more other models' curves on the same data/axes -- defaults to this
   model vs. a quick LCDM reference, or an arbitrary N-model comparison via `other_fits=[...]`
@@ -363,11 +368,11 @@ To overlay several dataset combinations -- the "what does adding this data do to
 figure -- every fit needs its own chain, and then:
 
 ```python
-fit_desi.plots.compare_w0_wa_plane(
-    other_fits=[fit_desi_sn, fit_desi_sn_cmb],
-    labels=["DESI", "DESI+SN", "DESI+SN+CMB"],
-)
+fit_desi.plots.compare_w0_wa_plane(other_fits=[fit_desi_sn, fit_desi_sn_cmb])
 ```
+
+Each contour set labels itself with its own dataset combination (`CC + DESI + Pantheon+`);
+pass `labels=[...]` to override.
 
 Both methods need `w0` and `wa` to be free parameters of a completed MCMC, and a model whose
 w(z) really does tend to `w0 + wa` at high z (CPL, BA). For JBP -- whose w(z) returns to `w0`
@@ -947,6 +952,56 @@ with a σ suffix. In 2D, D is not a number of sigma (D² follows χ² with
 reads as "2.2σ" but is really 1.70σ. The library was corrected in
 v0.19.0; the GUI now reports `sigma` (with the confidence level, and D
 labelled as what it is) too.
+
+Version **v0.22.0** is a figure-typography pass: everything a plot
+says is now written the way a paper would write it, and a few labels
+that were quietly *wrong* are fixed.
+
+Parameter names reach every axis and corner-plot title as LaTeX
+(`$\Omega_b$`, `$r_d$`, `$\sigma_8$`) instead of as Python
+identifiers -- the labels were always declared on the parameter
+container, the plots just weren't reading them. Model names do the
+same: legends show `ΛCDM`, `wCDM`, `f(R)` Hu-Sawicki via a new
+`Cosmology.MODEL_LABEL` / `plot_label()` (with `plain_name()` for
+tables, dropdowns and JSON, where raw LaTeX would be shown
+literally), and `define_model(..., label=...)` lets a custom model
+supply its own. Corner-plot titles now size their precision per
+parameter, so `Omega_b` reads `0.0491 +0.0011 -0.0011` instead of
+corner's default `0.05 +0.00 -0.00`.
+
+Three labels were misleading rather than merely plain:
+
+- **The Pantheon+ Hubble diagram's y axis claimed to be
+  `mu = m_B - M_B`.** It is neither: the plotted data is the
+  corrected *apparent* magnitude `m_b_corr` (~11-27 mag, not a
+  distance modulus's ~33-46), and `M_B` is analytically
+  marginalized out by default, so it cannot appear in an axis
+  label. Now `$m_B$ [mag]`, with the model curve's legend entry
+  saying where its normalization came from
+  (`Model ($M_B$ marginalized)`).
+- **The BAO panels were titled `D_V/r_s` while their y axis said
+  `r_d`.** Both denote the sound horizon at the drag epoch; the
+  `rs` spelling comes from DESI's own data file, which
+  `MODEL_MAP`'s keys keep, but the code divides by `rd` and now so
+  do the titles.
+- **The Planck pull plot's ticks were the raw dataset identifiers**
+  (`lA`, `omega_b_h2`); they now render as `$\ell_A$`,
+  `$\omega_b h^2$`.
+
+Dataset combinations in legends also spell themselves out
+(`CC + DESI + Pantheon+`, via `stats.dataset_label`) rather than
+joining registry keys. No numerical result changes from any of this --
+it is labels, titles and legends only.
+
+One functional bug surfaced while testing the above and is fixed here
+too: **`FitResult.save_json()` (and the GUI's JSON download) failed
+for any fit that used `run_mcmc(save=...)`**, with
+`TypeError: Object of type int64 is not JSON serializable`. Reading a
+chain's step count back through an HDF5 attribute yields `np.int64`
+rather than `int`, and `json` rejects it (`np.float64` slips through
+only because it subclasses `float`). The counters are now cast at the
+source, and both JSON writers coerce numpy scalars rather than
+failing on a save.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 

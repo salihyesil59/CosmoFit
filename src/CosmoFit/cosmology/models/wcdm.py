@@ -23,6 +23,7 @@ class WCDM(Cosmology):
     """
 
     MODEL_NAME = "wCDM"
+    MODEL_LABEL = r"$w$CDM"
 
     # ---------------------------------------------------------
 

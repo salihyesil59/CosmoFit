@@ -54,6 +54,19 @@ from CosmoFit.data.loader import load_planck
 from .base import BaseLikelihood
 
 
+#: LaTeX label for each entry of the distance-prior vector, keyed
+#: by the identifiers in ``PlanckDataset.labels`` -- for figure
+#: axes and tick labels
+#: (:meth:`~plots.FitPlotter.planck_residuals`). The dataset keeps
+#: the plain identifiers the data file uses; only the display side
+#: spells them as symbols.
+OBSERVABLE_LABELS = {
+    "R": r"$R$",
+    "lA": r"$\ell_A$",
+    "omega_b_h2": r"$\omega_b h^2$",
+}
+
+
 class PlanckLikelihood(BaseLikelihood):
 
     def __init__(
