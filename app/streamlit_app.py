@@ -343,7 +343,8 @@ DATASET_LABELS = {
 #: that impossible to see.
 DATASET_GROUPS = [
     ("📏 Expansion rate", ["cc"]),
-    ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz"]),
+    ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz",
+                                "eboss_elg", "eboss_lya"]),
     ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
     ("🔥 CMB", ["planck", "planck_lite", "planck_lowe",
                 "planck_lensing", "act_lensing"]),
@@ -407,6 +408,36 @@ DATASET_INFO = {
             "this **can** be added to either."
         ),
         constrains="extends the BAO lever arm to low z",
+    ),
+
+    "eboss_elg": dict(
+        observable="D_V/r_d, as a tabulated likelihood",
+        n="1 quantity", z="0.845",
+        what=(
+            "eBOSS DR16 emission-line galaxies. Released as a "
+            "**likelihood curve**, not a mean and an error bar, "
+            "because the BAO feature is only a 1.4σ detection: the "
+            "curve is asymmetric and still rising at the low edge of "
+            "the released table. About a tenth of its probability "
+            "sits below D_V/r_d = 16.5, where a Gaussian summary "
+            "would put a thousandth."
+        ),
+        constrains="D_V at z ≈ 0.85, weakly but non-Gaussianly",
+    ),
+
+    "eboss_lya": dict(
+        observable="(D_M/r_d, D_H/r_d), as a 2-D tabulated likelihood",
+        n="2 quantities", z="2.334",
+        what=(
+            "The Lyman-α forest: the **highest-redshift BAO here "
+            "outside the CMB**, and the only lever arm on expansion "
+            "between the supernovae and recombination. Released as a "
+            "50×50 likelihood surface. Its main value over two error "
+            "bars is the −0.46 correlation between the two ratios. "
+            "Sits about 2σ from a Planck-like ΛCDM, which is a real "
+            "and much-discussed feature of the measurement."
+        ),
+        constrains="H(z) at z ≈ 2.3 -- where late-time DE models differ",
     ),
 
     "pantheon": dict(
@@ -794,6 +825,8 @@ DATASET_PARAMS = {
     "desi": {"rd"},
     "sdss_bao": {"rd"},
     "bao_lowz": {"rd"},
+    "eboss_elg": {"rd"},
+    "eboss_lya": {"rd"},
     "planck": {"Omega_b"},
     "planck_lite": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
                     "N_eff", "m_nu", "A_planck"},

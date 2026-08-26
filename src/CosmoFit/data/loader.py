@@ -23,6 +23,7 @@ from .dataset import S8Dataset
 from .dataset import Union3Dataset
 from .dataset import GaussianPriorDataset
 from .dataset import CMBSpectrumDataset
+from .dataset import TabulatedBAODataset
 from .dataset import CMBLensingDataset
 from .dataset import LowEllEEDataset
 
@@ -518,6 +519,141 @@ ACT_LENSING_FILES = {
 
 #: Planck 2018 low-multipole EE (SimAll), as a tabulated
 #: probability rather than a mean and a covariance.
+# ------------------------------------------------------------
+# eBOSS DR16 tabulated BAO likelihoods
+# ------------------------------------------------------------
+#
+# The two DR16 tracers that are *not* Gaussian. Everything else in
+# `SDSS_BAO_FILES` is a mean and a covariance; these are likelihood
+# surfaces, released as a grid because a mean and a covariance would
+# misrepresent them (see `TabulatedBAODataset`).
+#
+# `observable` names what the coordinate columns hold, in order,
+# followed in the file by the probability. Both grids are written
+# with the last coordinate varying fastest.
+EBOSS_ELG_FILES = {
+
+    "dr16": {
+
+        "parent": "bao",
+
+        "folder": "sdss",
+
+        "components": (
+
+            {"data": "sdss_DR16_ELG_BAO_DVtable.txt"},
+
+        ),
+
+        "z_eff": 0.845,
+
+        "observable": ("DV_over_rs",),
+
+        "reference": (
+            "eBOSS DR16 ELG BAO -- de Mattia et al. (2020), "
+            "MNRAS 501, 5616, arXiv:2007.09008. "
+            "D_V/r_d = 18.33 (+0.57/-0.62) at z_eff = 0.845, from a "
+            "1.4-sigma BAO detection."
+        ),
+
+    },
+
+}
+
+
+# The auto-correlation and the quasar cross-correlation, multiplied.
+#
+# eBOSS release them separately and quote a *combined* constraint
+# obtained by fitting them together; there is no combined grid.
+# Multiplying the two treats them as independent, which is what
+# Cobaya does and which `tests/test_eboss_tables.py` justifies rather
+# than assumes: the product reproduces the published
+# D_M/r_d = 37.5 +- 1.1 and D_H/r_d = 8.99 +- 0.19 to better than 1%.
+# Had the neglected correlation mattered, the recovered errors would
+# have come out too tight.
+#
+# The halves are kept as their own versions so that claim stays
+# checkable, and because the auto-correlation alone is occasionally
+# what a comparison wants.
+EBOSS_LYA_FILES = {
+
+    "dr16": {
+
+        "parent": "bao",
+
+        "folder": "sdss",
+
+        "components": (
+
+            {"data": "sdss_DR16_LYAUTO_BAO_DMDHgrid.txt"},
+
+            {"data": "sdss_DR16_LYxQSO_BAO_DMDHgrid.txt"},
+
+        ),
+
+        "z_eff": 2.334,
+
+        "observable": ("DM_over_rs", "DH_over_rs"),
+
+        "reference": (
+            "eBOSS DR16 Lyman-alpha BAO -- du Mas des Bourboux et "
+            "al. (2020), ApJ 901, 153, arXiv:2007.08995. "
+            "D_M/r_d = 37.5 +- 1.1, D_H/r_d = 8.99 +- 0.19 at "
+            "z_eff = 2.334, from the forest auto-correlation "
+            "combined with its cross-correlation with quasars."
+        ),
+
+    },
+
+    "dr16_auto": {
+
+        "parent": "bao",
+
+        "folder": "sdss",
+
+        "components": (
+
+            {"data": "sdss_DR16_LYAUTO_BAO_DMDHgrid.txt"},
+
+        ),
+
+        "z_eff": 2.334,
+
+        "observable": ("DM_over_rs", "DH_over_rs"),
+
+        "reference": (
+            "eBOSS DR16 Lyman-alpha forest auto-correlation only -- "
+            "du Mas des Bourboux et al. (2020), arXiv:2007.08995."
+        ),
+
+    },
+
+    "dr16_cross": {
+
+        "parent": "bao",
+
+        "folder": "sdss",
+
+        "components": (
+
+            {"data": "sdss_DR16_LYxQSO_BAO_DMDHgrid.txt"},
+
+        ),
+
+        "z_eff": 2.334,
+
+        "observable": ("DM_over_rs", "DH_over_rs"),
+
+        "reference": (
+            "eBOSS DR16 Lyman-alpha x quasar cross-correlation only "
+            "-- du Mas des Bourboux et al. (2020), arXiv:2007.08995."
+        ),
+
+    },
+
+}
+
+
 LOWE_FILES = {
 
     "planck2018": {
@@ -683,6 +819,10 @@ _REGISTRIES = {
     "planck_lowe": LOWE_FILES,
 
     "act_lensing": ACT_LENSING_FILES,
+
+    "eboss_elg": EBOSS_ELG_FILES,
+
+    "eboss_lya": EBOSS_LYA_FILES,
 
     **_PRIOR_REGISTRIES,
 
@@ -2300,6 +2440,141 @@ def load_planck_lowe(
         lmax=int(entry["lmax"]),
 
         step=float(entry["step"]),
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
+# Tabulated BAO likelihood surfaces
+# ============================================================
+
+def load_eboss_table(
+    family: str,
+    version: str = "dr16",
+) -> TabulatedBAODataset:
+    """
+    Load an eBOSS DR16 BAO likelihood released as a grid.
+
+    Parameters
+    ----------
+    family : str
+        ``"eboss_elg"`` or ``"eboss_lya"``.
+    version : str, optional
+        ``"dr16"`` (the default). For ``"eboss_lya"`` this is the
+        auto-correlation times the cross-correlation; the halves are
+        available as ``"dr16_auto"`` and ``"dr16_cross"``.
+
+    Returns
+    -------
+    TabulatedBAODataset
+
+    Notes
+    -----
+    Two things are done here rather than in the likelihood, because
+    both are properties of the *files* and getting either wrong is
+    silent.
+
+    The released column is a probability, and it is converted to a
+    log once, at load. Interpolating the probability directly spans
+    thirty orders of magnitude, does not reproduce the published
+    error bars, and can return negative values between nodes that
+    then become NaN under a later log.
+
+    Multi-component versions are combined by **adding** the logs,
+    which multiplies the likelihoods. That is only legitimate if the
+    components are independent; see ``EBOSS_LYA_FILES["dr16"]`` for
+    why it holds here and ``tests/test_eboss_tables.py`` for the
+    check that it does.
+    """
+
+    entry = _validate_version(family, version)
+    dataset_path = _get_dataset_path(family, version)
+
+    observable = tuple(entry["observable"])
+    n_axes = len(observable)
+
+    axes: tuple[np.ndarray, ...] | None = None
+    total: np.ndarray | None = None
+
+    for component in entry["components"]:
+
+        raw = _load_txt(dataset_path / component["data"])
+
+        raw = np.atleast_2d(np.asarray(raw, dtype=float))
+
+        if raw.shape[1] != n_axes + 1:
+
+            raise ValueError(
+
+                f"{component['data']} has {raw.shape[1]} columns; "
+                f"expected {n_axes + 1} for observables "
+                f"{observable} plus a probability.",
+
+            )
+
+        grids = tuple(np.unique(raw[:, i]) for i in range(n_axes))
+
+        shape = tuple(len(g) for g in grids)
+
+        if np.prod(shape) != raw.shape[0]:
+
+            raise ValueError(
+
+                f"{component['data']} holds {raw.shape[0]} rows, "
+                f"which is not the {shape} rectangular grid its "
+                f"coordinate columns describe.",
+
+            )
+
+        probability = raw[:, n_axes]
+
+        if np.any(probability <= 0.0):
+
+            raise ValueError(
+
+                f"{component['data']} contains a non-positive "
+                f"probability, which has no logarithm. The released "
+                f"tables are strictly positive throughout.",
+
+            )
+
+        # `np.unique` sorts, so the reshape has to be checked
+        # against the file's own ordering rather than assumed.
+        order = np.lexsort(tuple(raw[:, i] for i in range(n_axes - 1, -1, -1)))
+
+        log_prob = np.log(probability[order]).reshape(shape)
+
+        if axes is None:
+
+            axes, total = grids, log_prob
+
+        else:
+
+            for existing, incoming in zip(axes, grids):
+
+                if not np.array_equal(existing, incoming):
+
+                    raise ValueError(
+
+                        f"{component['data']} is on a different grid "
+                        f"from the components before it -- they can "
+                        f"only be combined point by point.",
+
+                    )
+
+            total = total + log_prob
+
+    return TabulatedBAODataset(
+
+        z_eff=float(entry["z_eff"]),
+
+        observable=observable,
+
+        axes=axes,
+
+        log_prob=total,
 
         reference=entry["reference"],
 
