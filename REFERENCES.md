@@ -169,14 +169,74 @@ repository.
   optional dependency.
 - **Do not combine with the distance priors** -- they are a
   compression of exactly these bandpowers.
+- The two **Commander low-multipole temperature bins** (l = 2-29)
+  can be prepended with
+  `dataset_kwargs={"planck_lite": {"use_low_ell": True}}`, taking
+  the data vector to 615 bandpowers. They come from a different
+  Planck likelihood with its own windows and an uncorrelated
+  covariance, so the TT block gains a diagonal 2x2 corner and its
+  own binning while TE and EE are untouched.
 - Data source: [heatherprince/planck-lite-py](https://github.com/heatherprince/planck-lite-py),
   redistributing the [Planck Legacy Archive](https://pla.esac.esa.int/)
   PR3 release. This library's implementation reproduces
-  `planck-lite-py`'s published log-likelihood values exactly for TT
-  and TTTEEE ([`tests/test_planck_lite.py`](tests/test_planck_lite.py)).
+  `planck-lite-py`'s published log-likelihood values exactly for all
+  four selections -- TT and TTTEEE, each with and without the low-l
+  bins ([`tests/test_planck_lite.py`](tests/test_planck_lite.py)).
 - Used by: [`data/cmb/plik_lite/`](src/CosmoFit/data/cmb/plik_lite/),
   [`likelihoods/planck_lite.py`](src/CosmoFit/likelihoods/planck_lite.py),
   [`cosmology/boltzmann.py`](src/CosmoFit/cosmology/boltzmann.py)
+
+### Planck 2018 low-multipole EE (SimAll)
+
+- **Planck Collaboration (2020)**, *Planck 2018 results. V. CMB power
+  spectra and likelihoods*, A&A 641, A5.
+  [arXiv:1907.12875](https://arxiv.org/abs/1907.12875)
+- A *tabulated, non-Gaussian* likelihood: for each multipole
+  `l = 2..29` and each value of `D_l^EE` on a `1e-4 muK^2` grid, the
+  log-probability. Below `l = 30` there are only `2l+1` modes on the
+  sky, so the C_l distribution is strongly skewed — and that regime
+  carries essentially all of the CMB's information about the
+  reionization optical depth `tau`. A mean and an error bar cannot
+  represent it.
+- CosmoFit's Gaussian `"tau"` dataset (`0.0544 +- 0.0073`) is a
+  compression of this; the two must not be combined.
+- **Validated by reconstruction:** profiling `tau` against this table
+  plus the high-l bandpowers, with the primordial amplitude
+  re-optimized, returns `tau = 0.0541 +- 0.0072` against Planck's
+  published `0.0544 +- 0.0073` — with that number used nowhere as an
+  input. See
+  [`tests/test_planck_lowe.py`](tests/test_planck_lowe.py).
+- Data source: [CobayaSampler/planck_native_data](https://github.com/CobayaSampler/planck_native_data)
+  (release v1, `planck_2018_lowE.zip`), a Python translation of the
+  public Planck `clik` likelihood
+  `simall_100x143_offlike5_EE_Aplanck_B.clik`.
+- Used by: [`data/cmb/lowE2018/`](src/CosmoFit/data/cmb/lowE2018/),
+  [`likelihoods/planck_lowe.py`](src/CosmoFit/likelihoods/planck_lowe.py)
+
+### Planck 2018 CMB lensing
+
+- **Planck Collaboration (2020)**, *Planck 2018 results. VIII.
+  Gravitational lensing*, A&A 641, A8.
+  [arXiv:1807.06210](https://arxiv.org/abs/1807.06210)
+- Nine bandpowers of `[L(L+1)]^2 C_L^phiphi / 2pi` over the
+  conservative range `8 <= L <= 400`, from the SMICA
+  minimum-variance TEB reconstruction. The CMB's *own* growth
+  measurement: every other CMB dataset here constrains
+  recombination and reaches the present only through a distance,
+  while this constrains `sigma8 * Omega_m^0.25` directly.
+- The likelihood includes the linear correction for the
+  reconstruction's dependence on the fiducial CMB spectra used to
+  normalize it. That correction vanishes at the fiducial cosmology
+  by construction, which is why the tests deliberately check it away
+  from there.
+- Requires CAMB (`pip install "cosmofit[cmb]"`). Reproduces
+  `chi2 = 8.8` for 9 bandpowers at Planck's own best-fit LCDM,
+  against the ~9 Planck reports.
+- Data source: [CobayaSampler/planck_supp_data_and_covmats](https://github.com/CobayaSampler/planck_supp_data_and_covmats)
+  (`lensing/2018/`), redistributing the Planck Legacy Archive PR3
+  release.
+- Used by: [`data/cmb/lensing2018/`](src/CosmoFit/data/cmb/lensing2018/),
+  [`likelihoods/planck_lensing.py`](src/CosmoFit/likelihoods/planck_lensing.py)
 
 ### External single-number priors (H0, BBN, tau)
 

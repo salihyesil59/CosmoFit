@@ -79,9 +79,14 @@ The project is designed to make cosmological analyses simple, reproducible, and 
     **low-z 6dFGS + SDSS DR7 MGS**) -- the low-z pair is independent of the other two and
     can join either; DESI and SDSS cannot be combined with each other, see the note below
   * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
-  * CMB, two ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
-    works for every model) or the **full Planck 2018 TT/TE/EE spectra** (613 `plik_lite`
-    bandpowers computed from scratch with CAMB -- slow, LCDM and w(z) models only)
+  * CMB, four ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
+    works for every model); the **full Planck 2018 TT/TE/EE spectra** (615 `plik_lite`
+    bandpowers including the two Commander low-l temperature bins, computed from scratch with
+    CAMB -- slow, LCDM and w(z) models only); **Planck 2018 CMB lensing** (9 bandpowers of the
+    reconstructed lensing potential, `8 <= L <= 400`), the CMB's own measurement of how much
+    structure grew; and **Planck 2018 low-l EE** as the tabulated, *non-Gaussian* likelihood it
+    actually is rather than the usual `tau = 0.0544 +- 0.0073` shorthand (which is still
+    available as the `"tau"` dataset)
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
   * S8 weak-lensing prior (KiDS-1000 or DES Y3, Gaussian) -- don't combine the two versions,
     see the note below

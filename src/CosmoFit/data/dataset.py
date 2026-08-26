@@ -788,6 +788,27 @@ class CMBSpectrumDataset:
 
     reference: str = ""
 
+    #: TT-specific binning, used only when the low-multipole
+    #: temperature bins are included. ``None`` means TT shares the
+    #: windows above with TE and EE, which is the case for
+    #: ``plik_lite`` on its own.
+    #:
+    #: They have to be separable because the two low-l bins come
+    #: from a *different* likelihood (Commander, l = 2-29) with its
+    #: own windows, and prepending them shifts every high-l TT
+    #: window index -- while TE and EE, which have no low-l
+    #: counterpart here, must keep the original indexing. One
+    #: shared window set cannot describe both.
+    blmin_tt: "np.ndarray | None" = None
+
+    blmax_tt: "np.ndarray | None" = None
+
+    weights_tt: "np.ndarray | None" = None
+
+    #: First multipole the TT windows are indexed from. 2 with the
+    #: low-l bins, 30 without.
+    lmin_tt: int = 30
+
     def __post_init__(self):
 
         n = len(self.value)
@@ -821,6 +842,20 @@ class CMBSpectrumDataset:
         return len(self.value)
 
     @property
+    def tt_windows(self) -> tuple:
+        """
+        ``(blmin, blmax, weights, lmin)`` for the TT spectrum --
+        the TT-specific set where one exists, otherwise the shared
+        one.
+        """
+
+        if self.blmin_tt is None:
+
+            return self.blmin, self.blmax, self.weights, self.lmin
+
+        return self.blmin_tt, self.blmax_tt, self.weights_tt, self.lmin_tt
+
+    @property
     def slices(self) -> dict[str, slice]:
         """
         Where each spectrum sits in the concatenated data vector.
@@ -837,6 +872,214 @@ class CMBSpectrumDataset:
             "EE": slice(n_tt + n_te, n_tt + n_te + n_ee),
 
         }
+
+
+# ============================================================
+# CMB lensing
+# ============================================================
+
+@dataclass(slots=True)
+class CMBLensingDataset:
+    """
+    Planck's CMB lensing bandpowers and everything needed to predict
+    them -- see
+    :class:`~likelihoods.planck_lensing.PlanckLensingLikelihood`.
+
+    The lensing likelihood is a binned Gaussian like the bandpower
+    one, with one addition that is easy to overlook and wrong to
+    drop. The lensing reconstruction is *normalized* using an
+    assumed set of CMB spectra; change the cosmology and that
+    normalization changes too. The ``delta_windows`` propagate that
+    dependence to first order, and ``fiducial_correction`` is the
+    same quantity evaluated at the fiducial cosmology, subtracted so
+    the correction vanishes there.
+
+    Attributes
+    ----------
+    ell : np.ndarray
+        Effective multipole of each bandpower.
+    value : np.ndarray
+        Bandpowers of ``[L(L+1)]^2 C_L^{phiphi} / 2 pi``.
+    sigma : np.ndarray
+        Per-bandpower error (the covariance's diagonal; for plots).
+    covariance : CovarianceBase
+        The bandpower covariance.
+    windows : np.ndarray
+        ``(n_bin, lmax + 1)``: ``W_bL``, mapping the theory lensing
+        spectrum to bandpower ``b``.
+    delta_windows : np.ndarray
+        ``(n_bin, 4, lmax + 1)``: the linear-correction windows, in
+        the column order ``TT, EE, TE, PP`` the released files use.
+    fiducial_correction : np.ndarray
+        The linear correction at the fiducial cosmology.
+    lmax : int
+        Highest multipole the windows span.
+    ell_range : tuple[int, int]
+        The reconstruction's multipole range, for labelling.
+    """
+
+    ell: np.ndarray
+
+    value: np.ndarray
+
+    sigma: np.ndarray
+
+    covariance: "CovarianceBase"
+
+    windows: np.ndarray
+
+    delta_windows: np.ndarray
+
+    fiducial_correction: np.ndarray
+
+    lmax: int = 2500
+
+    ell_range: tuple = (8, 400)
+
+    reference: str = ""
+
+    #: Column order of ``delta_windows``' second axis, matching the
+    #: released ``linear_correction_bin_window_in_order``.
+    CORRECTION_SPECTRA = ("TT", "EE", "TE", "PP")
+
+    def __post_init__(self):
+
+        n = len(self.value)
+
+        if not (len(self.ell) == n == len(self.sigma)
+                == len(self.fiducial_correction)):
+
+            raise ValueError(
+
+                "CMB lensing dataset arrays have inconsistent "
+
+                "lengths.",
+
+            )
+
+        if self.covariance.shape != (n, n):
+
+            raise ValueError(
+
+                "CMB lensing covariance has wrong shape.",
+
+            )
+
+        if self.windows.shape != (n, self.lmax + 1):
+
+            raise ValueError(
+
+                f"Expected windows of shape "
+
+                f"({n}, {self.lmax + 1}), got {self.windows.shape}.",
+
+            )
+
+        if self.delta_windows.shape != (n, 4, self.lmax + 1):
+
+            raise ValueError(
+
+                f"Expected delta windows of shape "
+
+                f"({n}, 4, {self.lmax + 1}), got "
+
+                f"{self.delta_windows.shape}.",
+
+            )
+
+    @property
+    def size(self) -> int:
+        """
+        Number of bandpowers.
+        """
+
+        return len(self.value)
+
+
+# ============================================================
+# Low-multipole CMB polarization
+# ============================================================
+
+@dataclass(slots=True)
+class LowEllEEDataset:
+    """
+    Planck's low-multipole EE likelihood as a *tabulated*
+    probability, used by
+    :class:`~likelihoods.planck_lowe.PlanckLowEELikelihood`.
+
+    Not a data vector with a covariance -- a lookup table. ``table``
+    is ``(n_step, n_ell)`` of log-probabilities: column ``j`` is
+    multipole ``lmin + j``, row ``i`` is
+    ``D_l^EE = i * step`` in muK^2.
+
+    The shape of the thing is the point. Below ``l = 30`` there are
+    only ``2l + 1`` modes on the sky, so the C_l distribution is
+    strongly non-Gaussian -- and that regime carries essentially all
+    of the CMB's information about the reionization optical depth.
+    A mean and an error bar cannot represent it, which is why Planck
+    ships a table and why CosmoFit's Gaussian ``"tau"`` prior is a
+    documented approximation to this rather than an equivalent of
+    it.
+    """
+
+    table: np.ndarray
+
+    lmin: int = 2
+
+    lmax: int = 29
+
+    step: float = 1.0e-4
+
+    reference: str = ""
+
+    def __post_init__(self):
+
+        n_ell = self.lmax - self.lmin + 1
+
+        if self.table.ndim != 2 or self.table.shape[1] != n_ell:
+
+            raise ValueError(
+
+                f"Expected a probability table with {n_ell} columns "
+
+                f"(l = {self.lmin}..{self.lmax}), got "
+
+                f"{self.table.shape}.",
+
+            )
+
+        if np.any(self.table > 0.0):
+
+            raise ValueError(
+
+                "The table holds log-probabilities and must be "
+
+                "non-positive throughout; positive entries mean it "
+
+                "was read as something else.",
+
+            )
+
+    @property
+    def size(self) -> int:
+        """
+        Number of multipoles constrained -- the data points this
+        contributes to a fit's degrees-of-freedom count.
+        """
+
+        return self.lmax - self.lmin + 1
+
+    @property
+    def n_step(self) -> int:
+        return self.table.shape[0]
+
+    @property
+    def max_value(self) -> float:
+        """
+        Largest ``D_l^EE`` the table covers [muK^2].
+        """
+
+        return (self.n_step - 1) * self.step
 
 
 # ============================================================

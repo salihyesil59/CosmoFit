@@ -17,6 +17,8 @@ from .des_sn5yr import DESSN5YRLikelihood
 from .union3 import Union3Likelihood
 from .planck import PlanckLikelihood
 from .planck_lite import PlanckLiteLikelihood
+from .planck_lensing import PlanckLensingLikelihood
+from .planck_lowe import PlanckLowEELikelihood
 from .priors import (
     GaussianPriorLikelihood,
     H0Likelihood,
@@ -45,6 +47,8 @@ __all__ = [
     "Union3Likelihood",
     "PlanckLikelihood",
     "PlanckLiteLikelihood",
+    "PlanckLensingLikelihood",
+    "PlanckLowEELikelihood",
     "GaussianPriorLikelihood",
     "H0Likelihood",
     "OmegaBLikelihood",

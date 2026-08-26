@@ -52,6 +52,8 @@ from CosmoFit.likelihoods.des_sn5yr import DESSN5YRLikelihood
 from CosmoFit.likelihoods.union3 import Union3Likelihood
 from CosmoFit.likelihoods.planck import PlanckLikelihood
 from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
+from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+from CosmoFit.likelihoods.planck_lowe import PlanckLowEELikelihood
 from CosmoFit.likelihoods.priors import (
     H0Likelihood,
     OmegaBLikelihood,
@@ -92,6 +94,8 @@ DATASET_REGISTRY = {
     "union3": Union3Likelihood,
     "planck": PlanckLikelihood,
     "planck_lite": PlanckLiteLikelihood,
+    "planck_lensing": PlanckLensingLikelihood,
+    "planck_lowe": PlanckLowEELikelihood,
     "fsigma8": FSigma8Likelihood,
     "s8": S8Likelihood,
     "h0": H0Likelihood,
@@ -126,6 +130,10 @@ CONFLICTING_DATASETS = {
     ("des_sn5yr", "union3"):
         "Union3's high-redshift half overlaps the DES sample.",
 
+    ("planck_lowe", "tau"):
+        "The 'tau' Gaussian prior is a compression of exactly this "
+        "low-l EE likelihood -- the same measurement twice.",
+
     ("planck", "planck_lite"):
         "The distance priors are a compression of exactly these "
         "bandpowers -- this is the whole Planck dataset twice, "
@@ -150,12 +158,90 @@ DATASET_LABELS = {
     "union3": "Union3",
     "planck": "Planck",
     "planck_lite": "Planck TTTEEE",
+    "planck_lensing": "Planck lensing",
+    "planck_lowe": "Planck lowE",
     "fsigma8": r"$f\sigma_8$",
     "s8": r"$S_8$",
     "h0": r"$H_0$",
     "omega_b": "BBN",
     "tau": r"$\tau$",
 }
+
+
+#: Datasets that compute the CMB from scratch, and therefore carry
+#: their own *derived* amplitude via the Boltzmann code.
+_CAMB_CMB_DATASETS = {"planck_lite", "planck_lensing"}
+
+#: Datasets that use the *free* ``sigma8`` parameter through the
+#: growth machinery.
+_GROWTH_DATASETS = {"fsigma8", "s8"}
+
+
+def _warn_inconsistent_amplitude(names, free_params) -> None:
+    """
+    Warn when a fit carries two unrelated definitions of the same
+    amplitude.
+
+    ``sigma8`` is a free parameter that
+    :class:`~cosmology.calculators.growth.GrowthCalculator` uses to
+    normalize its growth factor, and it is what the ``"fsigma8"``
+    and ``"s8"`` likelihoods are compared against. It is *not* what
+    a Boltzmann-computed CMB likelihood uses: there the amplitude
+    comes from ``ln1e10As`` through the transfer function, and
+    ``sigma8`` is derived rather than sampled.
+
+    Put both in one fit and nothing makes the two agree. The
+    sampler will happily settle the free ``sigma8`` on the growth
+    data and ``ln1e10As`` on the CMB, and report a posterior for
+    each -- two numbers describing one physical quantity, differing
+    by however much the data pull them apart, with no error
+    anywhere.
+
+    This is a warning rather than a refusal because the combination
+    is still useful with ``sigma8`` *fixed*, and because the honest
+    fix (deriving ``sigma8`` from the Boltzmann code and feeding it
+    to the growth calculator) is a change to what the growth
+    machinery is, not a guard clause.
+    """
+
+    import warnings
+
+    seen = set(names)
+
+    cmb = sorted(seen & _CAMB_CMB_DATASETS)
+    growth = sorted(seen & _GROWTH_DATASETS)
+
+    if not (cmb and growth):
+        return
+
+    if "sigma8" not in free_params:
+        return
+
+    warnings.warn(
+
+        f"'{', '.join(cmb)}' computes the CMB from scratch, so its "
+
+        f"amplitude is set by `ln1e10As` and sigma8 is derived from "
+
+        f"it -- while '{', '.join(growth)}' is compared against the "
+
+        f"*free* `sigma8` parameter you are sampling. Nothing forces "
+
+        f"the two to agree, so this fit carries two independent "
+
+        f"amplitudes for one physical quantity. Either fix `sigma8`, "
+
+        f"or drop one side. "
+
+        f"`fitter.cosmology.recombination` is unaffected; compare the "
+
+        f"two with `likelihood.backend.sigma8()`.",
+
+        UserWarning,
+
+        stacklevel=3,
+
+    )
 
 
 def _warn_conflicting_datasets(names) -> None:
@@ -557,6 +643,8 @@ class Fitter:
         self.likelihoods = []
 
         _warn_conflicting_datasets(self.dataset_names)
+
+        _warn_inconsistent_amplitude(self.dataset_names, self.free_params)
 
         for name in self.dataset_names:
 

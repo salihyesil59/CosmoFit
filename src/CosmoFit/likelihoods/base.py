@@ -27,7 +27,13 @@ class BaseLikelihood(ABC):
 
         self.cosmology = cosmology
 
-        if dataset.covariance is None:
+        covariance = getattr(dataset, "covariance", None)
+
+        if covariance is not None:
+
+            self.covariance = covariance
+
+        elif getattr(dataset, "sigma", None) is not None:
 
             self.covariance = make_covariance(
 
@@ -37,7 +43,15 @@ class BaseLikelihood(ABC):
 
         else:
 
-            self.covariance = dataset.covariance
+            # Not every likelihood is Gaussian. Planck's low-l EE
+            # is a tabulated probability with no mean and no
+            # covariance to speak of (see
+            # :mod:`likelihoods.planck_lowe`), and forcing one on it
+            # would mean inventing a summary of exactly the
+            # distribution whose shape is the reason the table
+            # exists. Such a likelihood must override `chi2` and
+            # `log_likelihood` itself.
+            self.covariance = None
 
     # ========================================================
     # Properties
