@@ -203,7 +203,7 @@ is a convenience layer over them, not a replacement.
 
 ## Example Notebooks
 
-All seven notebooks below are Colab-ready: click a badge to open it directly in Google Colab and
+All eight notebooks below are Colab-ready: click a badge to open it directly in Google Colab and
 *Runtime → Run all* — no local setup needed.
 
 | Notebook | What it covers |
@@ -215,6 +215,7 @@ All seven notebooks below are Colab-ready: click a badge to open it directly in 
 | [`cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb) | The deep dive: CPL fit to CC+DESI+Pantheon+, convergence diagnostics, every `fit.plots` figure, model comparison, and an independent Planck cross-check. |
 | [`cpl_mcmc_tfd42.ipynb`](examples/cpl_mcmc_tfd42.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_tfd42.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
 | [`lscdm_mcmc.ipynb`](examples/lscdm_mcmc.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/lscdm_mcmc.ipynb) | A real research question, end to end: does Akarsu et al.'s **ΛsCDM** — a cosmological constant that switches sign at z† — still relieve the H0 tension against the 2024–2025 data (DESI DR2 BAO + DES-SN5YR + Planck priors + BBN, with `r_d` computed rather than fitted)? Includes a profile likelihood over z†, which locates the answer in a single measurement. |
+| [`s8_tension_cmb.ipynb`](examples/s8_tension_cmb.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/s8_tension_cmb.ipynb) | The **S₈ tension posed from the CMB side**: the complete Planck 2018 CMB computed from scratch (615 TT/TE/EE bandpowers, the tabulated low-ℓ EE likelihood, lensing — 652 points), σ₈ *derived* rather than fitted, confronted with KiDS-1000 and DES Y3, neither of which is in the fit. Includes an out-of-sample check against ACT DR6 lensing, and an explicit demonstration of what a free σ₈ does to the same question. |
 
 [`cpl_mcmc_tfd42.py`](examples/cpl_mcmc_tfd42.py) is a plain-script version of the same analysis --
 run it with `python examples/cpl_mcmc_tfd42.py` for the actual long run (`n_processes` gets its full
