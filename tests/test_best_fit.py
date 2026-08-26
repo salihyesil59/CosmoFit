@@ -235,3 +235,146 @@ def test_prior_width_matches_the_bounds():
     np.testing.assert_allclose(fit._prior_width(), expected)
 
     assert np.all(fit._prior_width() > 0)
+
+
+# ============================================================
+# Local minima, which the rescue cannot help with
+# ============================================================
+
+def double_well(fitter, tilt=1.5):
+    """
+    Replace the chi2 with a synthetic surface that has two minima.
+
+    Deliberately not a deformation of a real likelihood: CC+DESI's
+    chi2 rises by 750 between H0 = 68 and 78, so any bump big enough
+    to compete is bigger than the physics. What is under test here is
+    the optimizer machinery, so the surface is written down directly
+    and its two basins are exact.
+
+    In ``u = (H0 - 70) / 4`` and ``v = (Omega_m - 0.3) / 0.05``:
+
+        chi2 = 10 (u^2 - 1)^2 + tilt * u + v^2
+
+    Minima sit near ``u = -1`` (H0 = 66) and ``u = +1`` (H0 = 74),
+    and ``tilt`` makes the second one worse -- so a run started in it
+    converges cleanly, reports success, and is wrong.
+    """
+
+    i = fitter.free_params.index("H0")
+    j = fitter.free_params.index("Omega_m")
+
+    def surface(theta):
+
+        u = (theta[i] - 70.0) / 4.0
+        v = (theta[j] - 0.3) / 0.05
+
+        return 10.0 * (u ** 2 - 1.0) ** 2 + tilt * u + v ** 2
+
+    fitter.logpost.chi2 = surface
+
+    return surface
+
+
+def test_a_single_start_stays_in_the_basin_it_began_in():
+    """
+    The failure `restarts` exists for, shown before it is fixed: the
+    optimizer converges, reports success, and returns the worse of
+    the two minima.
+    """
+
+    fit = Fitter(**{**CHEAP, "initial": {**CHEAP["initial"], "H0": 74.0}})
+
+    surface = double_well(fit)
+
+    result = fit.best_fit()
+
+    assert result.success
+
+    # It went to the shallow basin near H0 = 74, not the deep one.
+    assert fit.best_fit_params["H0"] > 71.0
+
+    better = surface(np.array([66.0, 0.3]))
+
+    assert better < fit.best_fit_chi2 - 1.0
+
+
+def test_restarts_escape_a_local_minimum():
+    """
+    Same surface, same starting point, with restarts.
+    """
+
+    fit = Fitter(**{**CHEAP, "initial": {**CHEAP["initial"], "H0": 74.0}})
+
+    double_well(fit)
+
+    fit.best_fit(restarts=20, seed=0)
+
+    assert fit.best_fit_params["H0"] < 68.0
+
+    assert fit.best_fit_chi2 < 0.0
+
+
+def test_restarts_are_reproducible():
+    """
+    A multi-start fit that gave a different answer each run would
+    make every downstream number unreproducible.
+    """
+
+    results = []
+
+    for _ in range(2):
+
+        fit = Fitter(**CHEAP)
+
+        fit.best_fit(restarts=5, seed=99)
+
+        results.append(fit.best_fit_chi2)
+
+    assert results[0] == results[1]
+
+
+def test_restarts_never_make_the_result_worse():
+    """
+    A restart is kept only if it lands lower, so adding them cannot
+    degrade an answer that was already right.
+    """
+
+    single = Fitter(**CHEAP)
+    single.best_fit()
+
+    multi = Fitter(**CHEAP)
+    multi.best_fit(restarts=8, seed=3)
+
+    assert multi.best_fit_chi2 <= single.best_fit_chi2 + 1e-9
+
+
+def test_restarts_default_to_off():
+    """
+    Off by default: on a single-minimum posterior they only cost
+    time, and every existing call must keep its behaviour.
+    """
+
+    plain = Fitter(**CHEAP)
+    plain.best_fit()
+
+    explicit = Fitter(**CHEAP)
+    explicit.best_fit(restarts=0)
+
+    np.testing.assert_allclose(plain.best_fit_result.x, explicit.best_fit_result.x)
+
+
+def test_restarts_stay_inside_the_prior():
+    """
+    Starting points are drawn from the prior, so a restart can
+    never begin somewhere the prior forbids.
+    """
+
+    fit = Fitter(**CHEAP)
+
+    fit.best_fit(restarts=15, seed=11)
+
+    lower = np.asarray(fit.prior.lower)
+    upper = np.asarray(fit.prior.upper)
+
+    assert np.all(fit.best_fit_result.x >= lower)
+    assert np.all(fit.best_fit_result.x <= upper)

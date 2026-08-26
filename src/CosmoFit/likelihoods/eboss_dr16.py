@@ -325,7 +325,10 @@ class EBOSSELGLikelihood(TabulatedBAOLikelihood):
     Warning
     -------
     Overlaps ``"desi"`` -- DESI's ELG sample succeeds this one over
-    much of the same footprint.
+    much of the same footprint. It does *not* conflict with
+    ``"sdss_bao"``: eBOSS's own DR16 consensus combines the ELG
+    sample with the LRG and QSO ones as independent tracers, and so
+    does every reference implementation.
     """
 
     FAMILY = "eboss_elg"
