@@ -217,6 +217,21 @@ class CAMBBackend:
     _SHARED_ATTR = "_camb_backend"
 
     @classmethod
+    def attached(cls, cosmology) -> "CAMBBackend | None":
+        """
+        The backend already attached to ``cosmology``, or ``None``.
+
+        Unlike :meth:`shared` this never creates one. It exists for
+        callers that want the Boltzmann code's answer *if* it is
+        already being computed, and must not trigger a CAMB run of
+        their own if it is not -- deriving ``sigma8`` for the growth
+        machinery, in particular, which would otherwise make a
+        growth-only fit pay for a CMB calculation nothing asked for.
+        """
+
+        return getattr(cosmology, cls._SHARED_ATTR, None)
+
+    @classmethod
     def shared(
         cls,
         cosmology,

@@ -240,13 +240,17 @@ def _warn_inconsistent_amplitude(names, free_params) -> None:
 
         f"the two to agree, so this fit carries two independent "
 
-        f"amplitudes for one physical quantity. Either fix `sigma8`, "
+        f"amplitudes for one physical quantity.\n\n"
 
-        f"or drop one side. "
+        f"Pass `derive_sigma8=True` and drop 'sigma8' from "
 
-        f"`fitter.cosmology.recombination` is unaffected; compare the "
+        f"free_params: the growth machinery then normalizes with "
 
-        f"two with `likelihood.backend.sigma8()`.",
+        f"the Boltzmann code's own sigma8 and the fit carries one "
+
+        f"amplitude, sampled as `ln1e10As`. Fixing `sigma8` or "
+
+        f"dropping one dataset also works.",
 
         UserWarning,
 
@@ -562,12 +566,54 @@ class Fitter:
         bounds=None,
         dataset_kwargs=None,
         compute_rd=False,
+        derive_sigma8=False,
     ):
 
         self.model_cls = model
         self.free_params = list(free_params)
         self.dataset_names = list(datasets)
         self.compute_rd = bool(compute_rd)
+        self.derive_sigma8 = bool(derive_sigma8)
+
+        if self.derive_sigma8 and "sigma8" in self.free_params:
+
+            raise ValueError(
+
+                "`derive_sigma8=True` takes sigma8 from the "
+
+                "Boltzmann code, so it cannot also be a free "
+
+                "parameter -- sampling it would be sampling a value "
+
+                "nothing reads, producing a posterior for `sigma8` "
+
+                "that is just its prior. Drop 'sigma8' from "
+
+                "free_params; the amplitude is carried by "
+
+                "`ln1e10As` instead."
+
+            )
+
+        if self.derive_sigma8 and not (
+
+            set(self.dataset_names) & _CAMB_CMB_DATASETS
+
+        ):
+
+            raise ValueError(
+
+                f"`derive_sigma8=True` needs a CMB likelihood that "
+
+                f"computes the spectra from scratch -- there is "
+
+                f"nothing else to derive sigma8 from. Add one of "
+
+                f"{sorted(_CAMB_CMB_DATASETS)}, or leave sigma8 "
+
+                f"free."
+
+            )
 
         if self.compute_rd and "rd" in self.free_params:
 
@@ -672,6 +718,11 @@ class Fitter:
             self.likelihoods.append(cls(self.cosmology, **kwargs))
 
         self.joint = JointLikelihood(*self.likelihoods)
+
+        # Only now: `derive_sigma8` reads the Boltzmann backend, and
+        # the backend is created by whichever CMB likelihood was
+        # just constructed above.
+        self.cosmology.derive_sigma8 = self.derive_sigma8
 
         # ------------------------------------------------------
         # Prior + posterior
@@ -1079,6 +1130,7 @@ class Fitter:
             bounds=self.bounds,
             dataset_kwargs=self.dataset_kwargs,
             compute_rd=self.compute_rd,
+            derive_sigma8=self.derive_sigma8,
         )
 
     # ------------------------------------------------------------
@@ -1316,6 +1368,7 @@ class Fitter:
             },
             "dataset_kwargs": self.dataset_kwargs or {},
             "compute_rd": bool(self.compute_rd),
+            "derive_sigma8": bool(self.derive_sigma8),
         }
 
     # ------------------------------------------------------------
@@ -1666,6 +1719,7 @@ class Fitter:
             # Absent from chains written before rd could be
             # computed, where it was necessarily False.
             compute_rd=bool(meta.get("compute_rd", False)),
+            derive_sigma8=bool(meta.get("derive_sigma8", False)),
         )
         kwargs.update(overrides)
 

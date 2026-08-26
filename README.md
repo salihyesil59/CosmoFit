@@ -71,6 +71,13 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   their exact Fermi-Dirac energy density, validated against CAMB's `rdrag` to 5e-5. This
   is what turns BAO from a *relative* distance measurement (which constrains only
   `H0 * r_d`) into an absolute one, and it is how "BAO + BBN gives H0" works
+* **σ₈ derived from the CMB rather than fitted** (`Fitter(..., derive_sigma8=True)`), when the fit
+  contains a from-scratch CMB likelihood. Without it, `sigma8` is a free parameter *and* the CMB
+  fixes an amplitude of its own through `ln1e10As` -- two unrelated numbers for one quantity, with
+  the sampler reporting a posterior for each. It also changes what a fit can ask: with `sigma8`
+  free, the S₈ measurement is absorbed (the parameter slides onto it and χ² goes to zero, which
+  looks like agreement); derived, the CMB's own prediction meets the measurement and the S₈
+  tension is visible
 * Flexible parameter management
 * Built-in observational datasets
 
