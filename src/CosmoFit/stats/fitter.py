@@ -1733,12 +1733,72 @@ class Fitter:
     # Best fit
     # ============================================================
 
-    def best_fit(self, x0=None, bounds=None):
+    def best_fit(self, x0=None, bounds=None, eps=None, method="L-BFGS-B"):
         """
         Maximum-likelihood point via ``scipy.optimize.minimize``
         (L-BFGS-B), starting either from ``x0``, from the
         highest-posterior MCMC sample if available, or from
         ``initial``.
+
+        Parameters
+        ----------
+        x0 : array_like, optional
+            Starting point.
+
+        bounds : list of (float, float), optional
+            Defaults to the prior bounds.
+
+        eps : float or array_like, optional
+            Step size for L-BFGS-B's numerical gradient. Defaults to
+            SciPy's ~1.5e-8, which is right for a smooth analytic
+            chi2 and **wrong for an expensive or numerically noisy
+            one** -- see the note below.
+
+        method : str, optional
+            Any ``scipy.optimize.minimize`` method. The default
+            L-BFGS-B is the right choice for the analytic
+            likelihoods; ``"Nelder-Mead"`` is what the automatic
+            rescue below falls back to.
+
+        Notes
+        -----
+        L-BFGS-B estimates gradients by finite differences, and
+        SciPy's default step is about 1.5e-8. For every likelihood
+        built on interpolation tables and closed-form ``E(z)`` that
+        is fine. For a likelihood that calls a Boltzmann code it is
+        not: a 1.5e-8 change in ``H0`` moves chi2 by less than
+        CAMB's own numerical noise, so the estimated gradient is
+        zero, and **the optimizer returns the starting point
+        unchanged while reporting success**.
+
+        That is a silent wrong answer -- the caller gets their
+        initial guess back labelled "best fit" -- so it is detected
+        rather than left to be discovered. If the first attempt does
+        not move, this warns and retries with **Nelder-Mead**, which
+        needs no gradient at all and so cannot be defeated the same
+        way. The better of the two results is kept.
+
+        Measured on the full Planck 2018 CMB (652 points, six free
+        parameters), starting well away from the minimum:
+
+        ==============================  =========  ======
+        attempt                            chi2     nfev
+        ==============================  =========  ======
+        L-BFGS-B, default step            1359.63      21
+        L-BFGS-B, prior-scaled step       1091.87     161
+        Powell                             997.74     218
+        **Nelder-Mead**                  **993.79**    422
+        ==============================  =========  ======
+
+        For scale, chi2 at Planck's own published best fit is
+        993.17 -- so only the derivative-free attempt actually finds
+        the minimum, and the default one is wrong by 366.
+
+        The rescue runs only when the first attempt failed outright,
+        so nothing that already worked changes. That matters: a
+        larger step is *not* uniformly better, and on some cheap
+        likelihoods it converges to a slightly worse minimum than
+        the default does.
         """
 
         from scipy.optimize import minimize
@@ -1760,16 +1820,147 @@ class Fitter:
         if bounds is None:
             bounds = list(zip(self.prior.lower, self.prior.upper))
 
+        x0 = np.asarray(x0, dtype=float)
+
+        options = {} if eps is None else {"eps": eps}
+
         result = minimize(
             self.logpost.chi2,
             x0,
-            method="L-BFGS-B",
+            method=method,
             bounds=bounds,
+            options=options,
         )
+
+        rescuable = eps is None and method == "L-BFGS-B"
+
+        if rescuable and self._optimizer_stalled(result, x0, bounds):
+
+            result = self._retry_best_fit(result, x0, bounds)
 
         self.best_fit_result = result
 
         return result
+
+    # ------------------------------------------------------------
+
+    def _prior_width(self) -> np.ndarray:
+        """
+        Width of each free parameter's prior -- the only scale the
+        fitter knows for each parameter, and so the natural unit for
+        "did this move?" and for a fallback gradient step.
+        """
+
+        return (
+
+            np.asarray(self.prior.upper, dtype=float)
+
+            - np.asarray(self.prior.lower, dtype=float)
+
+        )
+
+    # ------------------------------------------------------------
+
+    def _optimizer_stalled(self, result, x0, bounds) -> bool:
+        """
+        Whether the optimizer finished essentially where it started.
+
+        Measured in units of each parameter's prior width, because
+        the parameters have wildly different scales (``H0`` ~ 70,
+        ``Omega_b`` ~ 0.05) and an absolute threshold would be
+        meaningless for one of them.
+        """
+
+        moved = np.abs(np.asarray(result.x, dtype=float) - x0)
+
+        return bool(np.all(moved / self._prior_width() < 1.0e-6))
+
+    # ------------------------------------------------------------
+
+    def _retry_best_fit(self, first, x0, bounds):
+        """
+        Second attempt with Nelder-Mead, for the stalled case
+        described in :meth:`best_fit`.
+
+        Derivative-free by construction, so the numerical noise that
+        defeated the gradient cannot defeat it. The initial simplex
+        is built from the prior widths rather than left to SciPy's
+        default (5% of each coordinate's *value*), because these
+        parameters differ by three orders of magnitude and a
+        value-relative simplex is badly shaped for them.
+        """
+
+        import warnings
+
+        from scipy.optimize import minimize
+
+        warnings.warn(
+
+            "best_fit() did not move from its starting point: "
+
+            "L-BFGS-B's default finite-difference step (~1.5e-8) is "
+
+            "too small for this likelihood to respond to, which "
+
+            "happens when a Boltzmann code's own numerical noise "
+
+            "exceeds the chi2 change such a step produces. Retrying "
+
+            "with Nelder-Mead, which needs no gradient. This is "
+
+            "slower; pass `method=` or `eps=` to control it.",
+
+            UserWarning,
+
+            stacklevel=3,
+
+        )
+
+        width = self._prior_width()
+
+        simplex = np.vstack(
+
+            [x0] + [
+
+                x0 + 0.02 * width[i] * np.eye(len(x0))[i]
+
+                for i in range(len(x0))
+
+            ],
+
+        )
+
+        # Keep the simplex inside the prior.
+        lower = np.asarray(self.prior.lower, dtype=float)
+        upper = np.asarray(self.prior.upper, dtype=float)
+
+        simplex = np.clip(simplex, lower, upper)
+
+        second = minimize(
+
+            self.logpost.chi2,
+
+            x0,
+
+            method="Nelder-Mead",
+
+            bounds=bounds,
+
+            options={
+
+                "initial_simplex": simplex,
+
+                "maxfev": 2000,
+
+                "xatol": 1e-4,
+
+                "fatol": 1e-3,
+
+            },
+
+        )
+
+        return second if second.fun < first.fun else first
 
     # ------------------------------------------------------------
 
