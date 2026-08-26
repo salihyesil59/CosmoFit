@@ -35,11 +35,25 @@ def bic(chi2: float, k: int, n_data: int) -> float:
 # Likelihood-ratio test
 # ============================================================
 
+#: How negative a nested ``delta_chi2`` may be before it is treated
+#: as a real failure rather than convergence noise.
+#:
+#: Not zero, and the reason is measured. When the general model's
+#: best fit *is* the nested limit -- LsCDM running off to
+#: ``z_dagger ~ 98``, CPL sitting at ``w0 = -1, wa = 0`` -- the two
+#: optimizers stop at the same minimum by different routes and
+#: disagree at their own convergence tolerance. Observed across a
+#: 32-fit scan: -8e-06 to -5e-04, every one of them at the limit.
+#: Warning about those would train the reader to ignore the warning.
+NESTED_CHI2_TOLERANCE = 1.0e-3
+
+
 def likelihood_ratio_test(
     chi2_null: float,
     k_null: int,
     chi2_alt: float,
     k_alt: int,
+    tolerance: float = NESTED_CHI2_TOLERANCE,
 ) -> dict:
     """
     Likelihood-ratio test between two *nested* models.
@@ -70,6 +84,13 @@ def likelihood_ratio_test(
     model cannot be evidence *against* the general one -- while
     ``delta_chi2`` is returned as measured, so the caller can see
     how bad it was. Refit with ``best_fit(restarts=...)``.
+
+    Only a shortfall larger than ``tolerance`` is warned about.
+    A general model whose best fit *is* the nested limit reaches the
+    same minimum by a different route and disagrees at the
+    optimizer's own convergence level -- see
+    :data:`NESTED_CHI2_TOLERANCE`. ``sigma`` is clamped for any
+    negative value regardless, since none of them is evidence.
     """
 
     if k_alt <= k_null:
@@ -81,7 +102,7 @@ def likelihood_ratio_test(
     delta_chi2 = chi2_null - chi2_alt
     delta_k = k_alt - k_null
 
-    if delta_chi2 < 0.0:
+    if delta_chi2 < -abs(tolerance):
 
         warnings.warn(
 
