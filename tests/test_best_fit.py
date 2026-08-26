@@ -378,3 +378,102 @@ def test_restarts_stay_inside_the_prior():
 
     assert np.all(fit.best_fit_result.x >= lower)
     assert np.all(fit.best_fit_result.x <= upper)
+
+
+# ============================================================
+# Non-finite parameters must never reach the cosmology
+# ============================================================
+
+def test_a_nan_parameter_vector_is_rejected_not_evaluated():
+    """
+    The crash that `restarts` uncovered, at its root.
+
+    L-BFGS-B started where chi2 is already ``inf`` estimates a
+    gradient of ``inf - inf = nan``, takes a nan search direction,
+    and evaluates the objective at ``[nan, nan, nan]``. Writing that
+    into the parameters builds an interpolation table full of nan,
+    and SciPy's interpolator *raises* rather than returning
+    anything -- from inside ``refresh()``, which used to sit outside
+    the guard that was supposed to catch exactly this.
+    """
+
+    fit = Fitter(**CHEAP)
+
+    nan_theta = np.full(len(fit.free_params), np.nan)
+
+    assert fit.logpost.chi2(nan_theta) == np.inf
+
+    assert fit.logpost.log_likelihood(nan_theta) == -np.inf
+
+
+def test_an_optimizer_started_in_an_excluded_region_does_not_crash():
+    """
+    The whole point is that a *proposal* cannot break the library.
+    Returning ``inf`` is a fine answer; raising is not.
+    """
+
+    from scipy.optimize import minimize
+
+    fit = Fitter(
+        model=LCDM,
+        datasets=["cc", "desi"],
+        free_params=["H0", "Omega_m", "Omega_b"],
+        initial={"H0": 68.0, "Omega_m": 0.315, "Omega_b": 0.0493},
+        compute_rd=True,
+    )
+
+    lower = np.asarray(fit.prior.lower)
+    upper = np.asarray(fit.prior.upper)
+
+    # A corner of the prior, well away from anything physical.
+    corner = lower + 0.98 * (upper - lower)
+
+    result = minimize(
+        fit.logpost.chi2,
+        corner,
+        method="L-BFGS-B",
+        bounds=list(zip(lower, upper)),
+    )
+
+    assert np.isfinite(result.fun) or result.fun == np.inf
+
+
+def test_restarts_only_start_where_the_likelihood_is_finite():
+    """
+    Prior-bounded is not the same as allowed. Starting an optimizer
+    where chi2 is infinite buys nothing -- the objective is flat at
+    infinity, so there is no direction to move in.
+    """
+
+    fit = Fitter(
+        model=LCDM,
+        datasets=["cc", "desi"],
+        free_params=["H0", "Omega_m", "Omega_b"],
+        initial={"H0": 68.0, "Omega_m": 0.315, "Omega_b": 0.0493},
+        compute_rd=True,
+    )
+
+    rng = np.random.default_rng(0)
+
+    points = fit._restart_points(rng, wanted=6)
+
+    assert points
+
+    for start in points:
+
+        assert np.isfinite(fit.logpost.chi2(start))
+
+
+def test_restart_draws_give_up_rather_than_spin():
+    """
+    A prior that is almost entirely excluded must not loop forever.
+    Falling short is fine -- the first attempt's result stands.
+    """
+
+    fit = Fitter(**CHEAP)
+
+    fit.logpost.chi2 = lambda theta: np.inf
+
+    points = fit._restart_points(np.random.default_rng(0), wanted=4)
+
+    assert points == []

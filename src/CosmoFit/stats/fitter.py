@@ -1879,12 +1879,7 @@ class Fitter:
 
             rng = np.random.default_rng(seed)
 
-            lower = np.asarray(self.prior.lower, dtype=float)
-            upper = np.asarray(self.prior.upper, dtype=float)
-
-            for _ in range(int(restarts)):
-
-                start = rng.uniform(lower, upper)
+            for start in self._restart_points(rng, int(restarts)):
 
                 candidate = self._single_best_fit(
                     start, bounds, options, eps, method,
@@ -1897,6 +1892,44 @@ class Fitter:
         self.best_fit_result = result
 
         return result
+
+    # ------------------------------------------------------------
+
+    def _restart_points(self, rng, wanted, budget=40):
+        """
+        Draw starting points uniformly from the prior, keeping only
+        those where ``chi2`` is finite.
+
+        Prior-bounded is not the same as allowed. A wide prior on
+        several parameters at once contains plenty of corners where
+        the model has no sensible background, or where a tabulated
+        likelihood's prediction falls off its grid -- and those come
+        back as ``inf``. Starting an optimizer there buys nothing:
+        the objective is flat at infinity, so there is no direction
+        to move in and the run is wasted.
+
+        ``budget`` caps the draws so a prior that is mostly excluded
+        cannot spin forever. Falling short is not an error -- the
+        first attempt's result still stands.
+        """
+
+        lower = np.asarray(self.prior.lower, dtype=float)
+        upper = np.asarray(self.prior.upper, dtype=float)
+
+        points = []
+
+        for _ in range(wanted * budget):
+
+            if len(points) >= wanted:
+                break
+
+            start = rng.uniform(lower, upper)
+
+            if np.isfinite(self.logpost.chi2(start)):
+
+                points.append(start)
+
+        return points
 
     # ------------------------------------------------------------
 
