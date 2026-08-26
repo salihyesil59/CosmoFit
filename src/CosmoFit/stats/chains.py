@@ -92,6 +92,7 @@ SIGNATURE_KEYS = (
     "fixed",
     "dataset_kwargs",
     "compute_rd",
+    "derive_sigma8",
 )
 
 

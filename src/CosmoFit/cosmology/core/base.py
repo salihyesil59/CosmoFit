@@ -52,6 +52,21 @@ class Cosmology:
     #: or directly on a cosmology instance.
     compute_rd: bool = False
 
+    #: Whether ``sigma8`` is *derived* from the Boltzmann code
+    #: rather than read from the free ``sigma8`` parameter.
+    #:
+    #: Default ``False``, for the same reason ``compute_rd`` is:
+    #: turning it on changes every growth prediction, and a fit
+    #: should say so rather than have it happen.
+    #:
+    #: This matters whenever a fit contains both a CAMB-computed CMB
+    #: likelihood and a growth dataset. The CMB's amplitude comes
+    #: from ``ln1e10As`` through the transfer function; the growth
+    #: machinery normalizes with ``sigma8``. Sample both and the fit
+    #: carries two unrelated numbers for one physical quantity, and
+    #: reports a posterior for each.
+    derive_sigma8: bool = False
+
     #: Parameter container class used to build `self.params`.
     #: Overridden automatically for subclasses that set
     #: `EXTRA_PARAMS`.
@@ -194,7 +209,50 @@ class Cosmology:
 
     @property
     def sigma8(self):
-        return self.params.sigma8
+        r"""
+        Present-day ``sigma_8``, the normalization every growth
+        prediction is built on.
+
+        The free parameter by default. With :attr:`derive_sigma8`
+        set, the value the Boltzmann code computes from
+        ``ln1e10As``, ``n_s``, ``tau_reio`` and the densities --
+        which is the only self-consistent choice when the same fit
+        also contains a CMB likelihood that already fixes the
+        amplitude.
+
+        The *evolution* stays the model's own either way:
+        :class:`~cosmology.calculators.growth.GrowthCalculator`
+        multiplies this by ``D(z)`` from its own growth ODE, so a
+        modified-gravity ``mu(a, k)`` still shapes ``fsigma8(z)``.
+        Only the z = 0 normalization changes hands.
+        """
+
+        if not self.derive_sigma8:
+            return self.params.sigma8
+
+        from CosmoFit.cosmology.boltzmann import CAMBBackend
+
+        backend = CAMBBackend.attached(self)
+
+        if backend is None:
+
+            raise ValueError(
+
+                "`derive_sigma8` is set, but no Boltzmann backend "
+
+                "is attached to this cosmology -- there is nothing "
+
+                "to derive sigma8 from. It is computed by the "
+
+                "CAMB-based CMB likelihoods ('planck_lite', "
+
+                "'planck_lensing', 'planck_lowe', 'act_lensing'); "
+
+                "include one, or leave sigma8 as a free parameter.",
+
+            )
+
+        return backend.sigma8()
 
     @property
     def n_s(self):

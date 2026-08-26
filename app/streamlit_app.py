@@ -849,7 +849,8 @@ def _model_capabilities(model_cls) -> dict:
 
 # ------------------------------------------------------------
 
-def _relevant_parameters(model_choice, model_cls, datasets, compute_rd) -> set:
+def _relevant_parameters(model_choice, model_cls, datasets, compute_rd,
+                         derive_sigma8=False) -> set:
     """
     Which parameters actually do something in *this* fit.
 
@@ -878,6 +879,12 @@ def _relevant_parameters(model_choice, model_cls, datasets, compute_rd) -> set:
         # start being ones.
         relevant.discard("rd")
         relevant |= COMPUTE_RD_PARAMS
+
+    if derive_sigma8:
+        # Same trade: sigma8 stops being sampled, ln1e10As carries
+        # the amplitude instead.
+        relevant.discard("sigma8")
+        relevant |= {"ln1e10As"}
 
     return relevant
 
@@ -969,8 +976,8 @@ def _fit_warnings(model_choice, model_cls, datasets, free_params,
             "**σ₈ is defined twice here.** The CMB datasets compute "
             "it from `ln10¹⁰A_s` through the transfer function, "
             "while fσ₈/S₈ are compared against the *free* σ₈ you "
-            "are sampling — and nothing makes the two agree. Fix "
-            "σ₈, or drop one side.",
+            "are sampling — and nothing makes the two agree. Tick "
+            "**Derive σ₈ from the CMB** in the sidebar, or fix σ₈.",
         ))
 
     if "planck_lite" in selected:
@@ -1720,6 +1727,43 @@ with st.sidebar:
                 "the early universe."
             )
 
+    st.markdown("### 🌱 Amplitude $\\sigma_8$")
+
+    with st.container(border=True):
+
+        _camb_cmb = {"planck_lite", "planck_lensing", "planck_lowe",
+                     "act_lensing"}
+
+        derive_sigma8 = st.checkbox(
+            "Derive $\\sigma_8$ from the CMB instead of fitting it",
+            key="derive_sigma8",
+            disabled=not (selected_set & _camb_cmb),
+            help="Only available with a from-scratch CMB dataset, "
+                 "since there is nothing else to derive it from.",
+        )
+
+        if not (selected_set & _camb_cmb):
+            st.caption(
+                "σ₈ is a free parameter. Tick a from-scratch CMB "
+                "dataset above to make deriving it possible."
+            )
+        elif derive_sigma8:
+            st.caption(
+                "σ₈ comes from `ln10¹⁰A_s` through the transfer "
+                "function, and the growth machinery normalizes with "
+                "it. **This is what makes the S₈ tension askable**: "
+                "the CMB's prediction meets the lensing measurement "
+                "instead of a free parameter absorbing the gap. "
+                "`sigma8` is dropped from the free parameters "
+                "automatically."
+            )
+        else:
+            st.caption(
+                "σ₈ is free *and* the CMB fixes an amplitude of its "
+                "own — two unrelated numbers for one quantity. Fine "
+                "if σ₈ is left fixed; otherwise tick the box."
+            )
+
     st.markdown("### ⚙️ MCMC settings")
 
     with st.container(border=True):
@@ -2090,6 +2134,7 @@ for i in range(n_models):
 
         relevant = _relevant_parameters(
             model_choice, model_cls, selected_datasets, compute_rd,
+            derive_sigma8,
         )
 
         param_rows = []
@@ -2219,6 +2264,14 @@ if run_clicked:
 
                 free_params = model_free_params[i]
 
+                if derive_sigma8 and "sigma8" in free_params:
+                    free_params = [n for n in free_params if n != "sigma8"]
+                    st.info(
+                        f"Model {i + 1}: dropped `sigma8` from the free "
+                        f"parameters -- it is being derived, not fitted.",
+                        icon="ℹ️",
+                    )
+
                 if compute_rd and "rd" in free_params:
                     # The GUI's parameter table lists every parameter
                     # the model has, and `rd` is ticked by default for
@@ -2244,6 +2297,7 @@ if run_clicked:
                         if key in selected_datasets
                     } or None,
                     compute_rd=compute_rd,
+                    derive_sigma8=derive_sigma8,
                 )
 
                 model_label = f"Model {i + 1}"
