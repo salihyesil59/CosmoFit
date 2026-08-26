@@ -8,6 +8,8 @@ for nested models (e.g. CPL vs its LCDM limit w0=-1, wa=0).
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from scipy import stats
 from scipy.stats import norm
@@ -50,6 +52,24 @@ def likelihood_ratio_test(
     -------
     dict with keys:
         delta_chi2, delta_k, p_value, sigma
+
+    Notes
+    -----
+    A **negative** ``delta_chi2`` is reported and warned about
+    rather than passed through. Between nested models it cannot
+    happen: the general model contains the simple one, so its
+    minimum is at worst equal. Seeing one means an optimizer
+    stopped somewhere that is not the minimum -- typically in a
+    second basin, which is a failure `best_fit`'s stall detection
+    cannot see, since the run converged and reported success.
+
+    The formula would otherwise absorb it silently:
+    ``chi2.sf(negative) == 1.0`` and ``norm.isf(1.0) == -inf``, so
+    the result reads as "no evidence" instead of "this number is
+    impossible". ``sigma`` is therefore clamped to zero -- a nested
+    model cannot be evidence *against* the general one -- while
+    ``delta_chi2`` is returned as measured, so the caller can see
+    how bad it was. Refit with ``best_fit(restarts=...)``.
     """
 
     if k_alt <= k_null:
@@ -61,14 +81,33 @@ def likelihood_ratio_test(
     delta_chi2 = chi2_null - chi2_alt
     delta_k = k_alt - k_null
 
-    p_value = stats.chi2.sf(delta_chi2, df=delta_k)
+    if delta_chi2 < 0.0:
+
+        warnings.warn(
+
+            f"Nested model comparison gave delta_chi2 = "
+            f"{delta_chi2:.4g}, which is impossible: the more "
+            f"general model contains the simpler one, so it cannot "
+            f"fit worse. One of the two minima was not found -- "
+            f"most likely the general model's optimizer settled in "
+            f"a second basin, converging and reporting success from "
+            f"the wrong place. Refit with "
+            f"`best_fit(restarts=...)`. `sigma` is reported as 0.",
+
+            UserWarning,
+
+            stacklevel=2,
+
+        )
+
+    p_value = stats.chi2.sf(max(delta_chi2, 0.0), df=delta_k)
     sigma = norm.isf(p_value)
 
     return {
         "delta_chi2": float(delta_chi2),
         "delta_k": int(delta_k),
         "p_value": float(p_value),
-        "sigma": float(sigma),
+        "sigma": float(max(sigma, 0.0)),
     }
 
 
