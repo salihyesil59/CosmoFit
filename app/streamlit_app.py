@@ -55,6 +55,7 @@ from CosmoFit import (
     PlanckLikelihood,
     FSigma8Likelihood,
 )
+from CosmoFit import available_versions, dataset_reference
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 from CosmoFit.stats.chains import ChainFile, StoredSampler
 from CosmoFit.stats.results import _json_default
@@ -85,21 +86,500 @@ BUILTIN_MODELS = {
     "FRHuSawicki": FRHuSawicki,
 }
 
+#: Models grouped by *what they change*, which is also what decides
+#: what can be done with them: only models with a w(z) can be given
+#: to a Boltzmann code, and only models that modify gravity predict a
+#: growth history differing from GR's at fixed background.
+#:
+#: A seventeen-entry flat dropdown gives no hint that ΛCDM and f(Q)
+#: are different kinds of object; this does.
+MODEL_GROUPS = [
+    ("Dark energy on top of GR",
+     ["LCDM", "WCDM", "CPL", "JBP", "BA", "LogarithmicDE",
+      "PEDE", "GEDE", "LsCDM"]),
+    ("Unified or interacting dark sector",
+     ["GCG", "IDE", "RunningVacuum"]),
+    ("Modified Friedmann equation (no dark energy)",
+     ["Cardassian", "DGP"]),
+    ("Modified gravity",
+     ["FQExponential", "FRTLinear", "FRHuSawicki"]),
+]
+
+#: One paragraph per model: what it is, what its extra parameters
+#: mean, and which parameter values collapse it back to ΛCDM.
+#:
+#: ``reduces`` is the most useful line for someone deciding what to
+#: fit -- it says exactly which point in parameter space the null
+#: hypothesis sits at, which is what an AIC/BIC or likelihood-ratio
+#: comparison is measuring the distance from.
+MODEL_INFO = {
+
+    "LCDM": dict(
+        family="The concordance model",
+        what="A cosmological constant plus cold dark matter. Two free "
+             "parameters (H₀, Ω_m) and no dark-energy freedom at all. "
+             "Everything else here is measured against it.",
+        params="—",
+        reduces=None,
+        ref="Standard.",
+    ),
+
+    "WCDM": dict(
+        family="Constant equation of state",
+        what="Dark energy with a constant w₀ instead of exactly -1. "
+             "The simplest possible test of whether dark energy is a "
+             "cosmological constant.",
+        params="**w₀** — the equation of state. w₀ < -1 is 'phantom'.",
+        reduces="ΛCDM at w₀ = -1",
+        ref="Standard.",
+    ),
+
+    "CPL": dict(
+        family="Evolving equation of state",
+        what="The standard two-parameter dark-energy parametrization, "
+             "and the one the DESI evolving-dark-energy results are "
+             "stated in. w(z) is linear in the scale factor, so it "
+             "stays finite at high z.",
+        params="**w₀** today's equation of state · **w_a** its rate of "
+               "change",
+        reduces="ΛCDM at (w₀, w_a) = (-1, 0)",
+        ref="Chevallier & Polarski (2001); Linder (2003).",
+    ),
+
+    "JBP": dict(
+        family="Evolving equation of state",
+        what="Like CPL, but w(z) peaks at intermediate redshift and "
+             "returns to w₀ at both ends. Fitting it alongside CPL "
+             "tests how much of a detected w_a is the data and how "
+             "much is the assumed shape.",
+        params="**w₀**, **w_a** (shared with CPL)",
+        reduces="ΛCDM at (w₀, w_a) = (-1, 0)",
+        ref="Jassal, Bagla & Padmanabhan (2005).",
+    ),
+
+    "BA": dict(
+        family="Evolving equation of state",
+        what="A w₀–w_a form that stays well-behaved at high redshift "
+             "and into the future, where CPL diverges.",
+        params="**w₀**, **w_a** (shared with CPL)",
+        reduces="ΛCDM at (w₀, w_a) = (-1, 0)",
+        ref="Barboza & Alcaniz (2008).",
+    ),
+
+    "LogarithmicDE": dict(
+        family="Evolving equation of state",
+        what="w(z) = w₀ + w_a ln(1+z). The one w₀–w_a form here that "
+             "does **not** saturate at high z -- CPL, JBP and BA all "
+             "approach a finite limit, so this is the control case for "
+             "asking whether a measured w_a reflects the data or the "
+             "shape you assumed.",
+        params="**w₀**, **w_a** (shared with CPL)",
+        reduces="ΛCDM at (w₀, w_a) = (-1, 0)",
+        ref="Efstathiou (1999).",
+    ),
+
+    "PEDE": dict(
+        family="Emergent dark energy",
+        what="Dark energy that is absent at high redshift and "
+             "'emerges' toward the present. **It has no free "
+             "dark-energy parameter at all** -- the same parameter "
+             "count as ΛCDM and a completely different expansion "
+             "history, so an AIC/BIC comparison against ΛCDM is a pure "
+             "comparison of fit with identical penalties.",
+        params="— (none beyond H₀, Ω_m)",
+        reduces=None,
+        ref="Li & Shafieloo (2019).",
+    ),
+
+    "GEDE": dict(
+        family="Emergent dark energy",
+        what="The family containing both ΛCDM and PEDE, so Δ measures "
+             "the distance from a cosmological constant on a "
+             "continuous scale rather than at a model boundary.",
+        params="**Δ** how sharply dark energy emerges · **z_t** when",
+        reduces="ΛCDM at Δ → 0; PEDE at Δ = 1, z_t = 0",
+        ref="Li & Shafieloo (2020).",
+    ),
+
+    "LsCDM": dict(
+        family="Sign-switching Λ",
+        what="ΛCDM, except Λ **changes sign** at z_† ≈ 2 (anti-de "
+             "Sitter before, de Sitter after). A lower expansion rate "
+             "before the transition shrinks r_d, which raises the "
+             "BAO-inferred H₀ -- a route to the Hubble tension that "
+             "late-time-only dark-energy models cannot take. E(z) is "
+             "genuinely discontinuous there; that is the model, not a "
+             "bug.",
+        params="**z_†** the transition redshift",
+        reduces="ΛCDM for z_† above every data point",
+        ref="Akarsu, Kumar, Özülker & Vázquez (2021).",
+    ),
+
+    "GCG": dict(
+        family="Unified dark sector",
+        what="A single fluid that behaves as dark matter early and "
+             "dark energy late, with p = -A/ρ^α. One component doing "
+             "both jobs rather than two.",
+        params="**A_s** the density parameter (= -w today) · "
+               "**α** the exponent",
+        reduces="ΛCDM at A_s = 1",
+        ref="Bento, Bertolami & Sen (2002).",
+    ),
+
+    "IDE": dict(
+        family="Interacting dark sector",
+        what="Dark matter and dark energy exchange energy, Q = 3ξHρ_DE. "
+             "This changes how **matter** dilutes, which no w(z) "
+             "parametrization does -- so it leaves its own signature "
+             "in growth-of-structure data.",
+        params="**ξ** the coupling (ξ > 0 feeds dark matter) · "
+               "**w₀**",
+        reduces="wCDM at ξ = 0; ΛCDM at ξ = 0, w₀ = -1",
+        ref="Amendola (2000); Wang et al. (2016).",
+    ),
+
+    "RunningVacuum": dict(
+        family="Unified dark sector",
+        what="A cosmological 'constant' that runs with the expansion "
+             "rate, Λ(H) = c₀ + 3νH². One of the few extensions whose "
+             "extra parameter has a **predicted magnitude** "
+             "(|ν| ~ 10⁻³, from a one-loop estimate) rather than an "
+             "arbitrary one -- so ν ~ 10⁻³ means something quite "
+             "different from ν ~ 0.1.",
+        params="**ν** the renormalization-group running coefficient",
+        reduces="ΛCDM at ν = 0",
+        ref="Solà (2013); Solà, Gómez-Valent & de Cruz Pérez (2017).",
+    ),
+
+    "Cardassian": dict(
+        family="Modified Friedmann equation",
+        what="An extra term in the Friedmann equation itself, "
+             "H² = Aρ + Bρⁿ, from the universe being a brane in higher "
+             "dimensions. Acceleration **from matter alone** -- there "
+             "is no dark energy in this model.",
+        params="**n**, **q** — the modified-polytropic exponents",
+        reduces="ΛCDM at n = 0, q = 1",
+        ref="Freese & Lewis (2002); Wang et al. (2003).",
+    ),
+
+    "DGP": dict(
+        family="Braneworld gravity",
+        what="Gravity leaks into a fifth dimension above a crossover "
+             "scale, and the universe accelerates with **no dark "
+             "energy at all**. Like PEDE it has exactly ΛCDM's "
+             "parameter count. Its real signature is growth: gravity "
+             "is *weaker* (μ ≈ 0.72 today), so structure grows more "
+             "slowly than in any dark-energy model with the same "
+             "E(z).",
+        params="— (Ω_rc is fixed by E(0) = 1)",
+        reduces=None,
+        ref="Dvali, Gabadadze & Porrati (2000); Deffayet (2001).",
+    ),
+
+    "FQExponential": dict(
+        family="Modified gravity",
+        what="f(Q) symmetric teleparallel gravity. The field equations "
+             "themselves differ from Einstein's, so both the expansion "
+             "history and the growth of structure change.",
+        params="**λ** the exponential coupling",
+        reduces="ΛCDM-like at λ → 0",
+        ref="Anagnostopoulos, Basilakos & Saridakis (2021).",
+    ),
+
+    "FRTLinear": dict(
+        family="Modified gravity",
+        what="f(R,T) gravity: gravity couples to the trace of the "
+             "matter stress-energy tensor as well as to curvature. "
+             "Note that Ω_m and Ω_L are **independent** here, not tied "
+             "by flatness -- so E(0) = 1 does not hold automatically, "
+             "which is how this model is actually fitted in the "
+             "literature.",
+        params="**β** the matter-geometry coupling · **Ω_L** the "
+               "Λ-like component, independent of Ω_m",
+        reduces="GR at β = 0 (with Ω_L = 1 - Ω_m)",
+        ref="Harko, Lobo, Nojiri & Odintsov (2011).",
+    ),
+
+    "FRHuSawicki": dict(
+        family="Modified gravity",
+        what="The benchmark f(R) model, built to pass Solar-System "
+             "tests through chameleon screening. Its **background is "
+             "ΛCDM's by construction** -- f_R0 and n do nothing to "
+             "E(z) -- so it can only be constrained by growth data.",
+        params="**f_R0** today's scalaron value · **n** the shape "
+               "exponent",
+        reduces="ΛCDM at f_R0 → 0 (and always, at background level)",
+        ref="Hu & Sawicki (2007); Pogosian & Silvestri (2008).",
+    ),
+
+}
+
 DATASET_LABELS = {
     "cc": "Cosmic Chronometers (CC)",
-    "desi": "DESI BAO (DR1 2024; DR2 2025 via version)",
+    "desi": "DESI BAO",
     "sdss_bao": "SDSS BAO (BOSS DR12 + eBOSS DR16)",
     "bao_lowz": "Low-z BAO (6dFGS + SDSS MGS)",
     "pantheon": "Pantheon+ (SNe Ia)",
     "des_sn5yr": "DES-SN5YR (SNe Ia)",
-    "union3": "Union3 (SNe Ia, 22 binned)",
-    "planck": "Planck 2018 (CMB distance priors)",
-    "planck_lite": "Planck 2018 TT/TE/EE (full spectra, needs CAMB)",
-    "fsigma8": "Growth rate (fsigma8, Gold-2018 RSD)",
-    "s8": "S8 weak-lensing prior (KiDS-1000)",
-    "h0": "Local H0 (SH0ES 2022)",
-    "omega_b": "BBN prior on omega_b h^2",
-    "tau": "Reionization tau prior (Planck lowE)",
+    "union3": "Union3 (SNe Ia, binned)",
+    "planck": "Planck 2018 CMB (distance priors)",
+    "planck_lite": "Planck 2018 CMB (full TT/TE/EE spectra)",
+    "fsigma8": "Growth rate fσ₈(z) (RSD)",
+    "s8": "S₈ weak-lensing prior",
+    "h0": "Local H₀ (distance ladder)",
+    "omega_b": "BBN prior on ω_b",
+    "tau": "Reionization τ prior",
+}
+
+#: Which probe family each dataset belongs to, for grouping the
+#: sidebar. A fit is usually built by picking *one* from each family
+#: rather than by ticking everything, and the flat checkbox list made
+#: that impossible to see.
+DATASET_GROUPS = [
+    ("📏 Expansion rate", ["cc"]),
+    ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz"]),
+    ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
+    ("🔥 CMB", ["planck", "planck_lite"]),
+    ("🕸️ Growth of structure", ["fsigma8", "s8"]),
+    ("📌 External measurements", ["h0", "omega_b", "tau"]),
+]
+
+#: A short, honest note per dataset: what it measures, over what
+#: redshift range, how many points, and -- the part a bare label
+#: cannot carry -- *what it is for*, i.e. which parameter it is the
+#: thing that actually constrains.
+#:
+#: ``n`` and ``z`` are stated rather than loaded: reading Pantheon+'s
+#: 1600x1600 covariance off disk to print "1590 points" in a tooltip
+#: would make the sidebar slow for no reason.
+DATASET_INFO = {
+
+    "cc": dict(
+        observable="H(z), directly",
+        n="32 points", z="0.07 – 1.97",
+        what=(
+            "Differential ages of passively-evolving galaxies give "
+            "dz/dt and hence H(z) **without assuming a cosmology** -- "
+            "the only truly model-independent expansion-rate probe "
+            "here."
+        ),
+        constrains="H₀ directly (no r_d or M_B degeneracy)",
+    ),
+
+    "desi": dict(
+        observable="D_M/r_d, D_H/r_d, D_V/r_d",
+        n="13 points (DR2) / 12 (DR1)", z="0.30 – 2.33",
+        what=(
+            "The BAO standard ruler across seven tracers. DR2 is three "
+            "years of data and >14 million galaxies and quasars -- the "
+            "measurement the evolving-dark-energy claim rests on. "
+            "Choose DR1 or DR2 in **Versions** below; they must not be "
+            "combined (DR2 contains every DR1 galaxy)."
+        ),
+        constrains="Ω_m tightly; H₀ only via r_d",
+    ),
+
+    "sdss_bao": dict(
+        observable="D_M/r_d, D_H/r_d",
+        n="6 points", z="0.38 – 1.48",
+        what=(
+            "BOSS DR12 plus eBOSS DR16 LRG/QSO -- the pre-DESI BAO "
+            "standard. Useful as an independent cross-check of DESI, "
+            "not as an addition to it."
+        ),
+        constrains="Ω_m, H₀·r_d",
+    ),
+
+    "bao_lowz": dict(
+        observable="r_d/D_V, D_V/r_d",
+        n="2 points", z="0.106, 0.15",
+        what=(
+            "6dFGS and the SDSS DR7 Main Galaxy Sample: the only BAO "
+            "leverage below z = 0.2, where DESI starts at 0.295 and "
+            "BOSS at 0.38. Independent of both, so unlike DESI-vs-SDSS "
+            "this **can** be added to either."
+        ),
+        constrains="extends the BAO lever arm to low z",
+    ),
+
+    "pantheon": dict(
+        observable="corrected apparent magnitude m_B",
+        n="1590 SNe", z="0.001 – 2.26",
+        what=(
+            "The largest SN Ia compilation here. The absolute "
+            "magnitude M_B is analytically marginalized, so this "
+            "measures the *shape* of the distance-redshift relation, "
+            "not its normalization."
+        ),
+        constrains="Ω_m, w₀/w_a; not H₀",
+    ),
+
+    "des_sn5yr": dict(
+        observable="distance modulus μ",
+        n="1829 SNe", z="0.025 – 1.13",
+        what=(
+            "Dark Energy Survey 5-year sample. Of the three SN "
+            "compilations this one pulls hardest away from a "
+            "cosmological constant -- which is exactly why it is worth "
+            "running all three separately."
+        ),
+        constrains="Ω_m, w₀/w_a; not H₀",
+    ),
+
+    "union3": dict(
+        observable="binned distance modulus μ",
+        n="22 bins (2087 SNe)", z="0.05 – 2.26",
+        what=(
+            "Fit with the UNITY1.5 hierarchical model, which "
+            "marginalizes light-curve standardization and selection "
+            "effects internally -- so it ships as 22 bins rather than "
+            "a catalogue, and sits between Pantheon+ and DES-SN5YR in "
+            "how far it moves from ΛCDM."
+        ),
+        constrains="Ω_m, w₀/w_a; not H₀",
+    ),
+
+    "planck": dict(
+        observable="(R, ℓ_A, ω_b h²)",
+        n="3 numbers", z="z* ≈ 1090",
+        what=(
+            "The CMB compressed to three numbers. Fast, needs no extra "
+            "dependency, and works for **every** model -- but it "
+            "inherits the conventions the compression was built with, "
+            "and throws away nearly all the information in the "
+            "spectra."
+        ),
+        constrains="Ω_m·h², the distance to last scattering",
+    ),
+
+    "planck_lite": dict(
+        observable="C_ℓ^TT, C_ℓ^TE, C_ℓ^EE",
+        n="613 bandpowers", z="ℓ = 30 – 2508",
+        what=(
+            "The measured CMB spectra themselves, against C_ℓ computed "
+            "from scratch by CAMB. No compression and no borrowed "
+            "convention -- at the cost of ~0.7 s per likelihood "
+            "evaluation and only working for ΛCDM and models with a "
+            "w(z)."
+        ),
+        constrains="everything, tightly -- needs n_s, ln10¹⁰A_s, τ free",
+    ),
+
+    "fsigma8": dict(
+        observable="fσ₈(z)",
+        n="22 points", z="0.02 – 1.94",
+        what=(
+            "Redshift-space distortions: how fast structure grows, not "
+            "how fast the universe expands. This is the **only** kind "
+            "of data that can tell a modified-gravity model from a "
+            "dark-energy one with the same E(z)."
+        ),
+        constrains="σ₈, and μ(a,k) for modified gravity",
+    ),
+
+    "s8": dict(
+        observable="S₈ = σ₈√(Ω_m/0.3)",
+        n="1 number", z="lensing kernel, z ≲ 1",
+        what=(
+            "A single Gaussian weak-lensing constraint (KiDS-1000 by "
+            "default, DES Y3 available). It sits ~2-3σ below what "
+            "Planck ΛCDM predicts -- the S₈ tension -- so expect a "
+            "χ² of a few here even for a good fit."
+        ),
+        constrains="σ₈ and Ω_m jointly",
+    ),
+
+    "h0": dict(
+        observable="H₀",
+        n="1 number", z="z ≈ 0",
+        what=(
+            "The local distance ladder (SH0ES) or time-delay lensing "
+            "(TDCOSMO). Enters as a **dataset**, not a prior, so it "
+            "shows up in the χ² breakdown and the degrees-of-freedom "
+            "count -- a fit that assumed the local ladder should not "
+            "look like one that did not."
+        ),
+        constrains="H₀ directly (and disagrees with CMB at ~5σ)",
+    ),
+
+    "omega_b": dict(
+        observable="ω_b = Ω_b h²",
+        n="1 number", z="z ≈ 10⁸ (BBN)",
+        what=(
+            "Big Bang Nucleosynthesis, completely independent of the "
+            "CMB. On its own it does little; paired with **Compute "
+            "r_d** below it is what turns BAO into an absolute "
+            "distance measurement and lets BAO measure H₀."
+        ),
+        constrains="Ω_b -- and through r_d, H₀",
+    ),
+
+    "tau": dict(
+        observable="τ (reionization optical depth)",
+        n="1 number", z="z ≈ 8",
+        what=(
+            "Planck's large-scale polarization constraint. Only "
+            "meaningful alongside the full CMB spectra, which cover "
+            "ℓ ≥ 30 where τ is degenerate with the primordial "
+            "amplitude. Without it, ln10¹⁰A_s is unconstrained."
+        ),
+        constrains="τ, breaking the τ–A_s degeneracy",
+    ),
+
+}
+
+#: Ready-made dataset combinations, each one an analysis someone
+#: actually runs. Picking from a flat list of fourteen checkboxes
+#: without knowing which ones conflict is the single hardest part of
+#: using this app cold.
+DATASET_PRESETS = {
+
+    "Late-time background (default)": dict(
+        datasets=["cc", "desi"],
+        note="Expansion rate plus the BAO ruler. Fast, and enough to "
+             "constrain Ω_m and H₀·r_d.",
+    ),
+
+    "DESI DR2 + BBN → H₀ without the CMB": dict(
+        datasets=["desi", "omega_b"],
+        compute_rd=True,
+        versions={"desi": "desi2025"},
+        note="The 'BAO + BBN' measurement: with r_d computed rather "
+             "than fitted, BAO becomes an absolute distance and H₀ is "
+             "measurable with no CMB and no distance ladder. Free "
+             "Ω_b as well as H₀ and Ω_m.",
+    ),
+
+    "Dark-energy workhorse (BAO + SNe + CMB priors)": dict(
+        datasets=["desi", "pantheon", "planck"],
+        versions={"desi": "desi2025"},
+        note="The combination the w₀–w_a results are argued with. Try "
+             "it with CPL and two free parameters w₀, w_a.",
+    ),
+
+    "The Hubble tension, both sides": dict(
+        datasets=["desi", "planck", "h0"],
+        versions={"desi": "desi2025"},
+        note="CMB-anchored data plus the local H₀ measurement. The χ² "
+             "breakdown in the results shows how much each side is "
+             "being stretched.",
+    ),
+
+    "Growth of structure (tests modified gravity)": dict(
+        datasets=["cc", "desi", "fsigma8", "s8"],
+        note="The only combination that can distinguish modified "
+             "gravity from dark energy. Pair it with f(R) Hu-Sawicki, "
+             "f(Q), f(R,T) or DGP and free σ₈.",
+    ),
+
+    "Full CMB from scratch (slow)": dict(
+        datasets=["planck_lite", "tau", "desi"],
+        versions={"desi": "desi2025"},
+        note="The measured CMB spectra rather than a compression. "
+             "Hours, not minutes -- free n_s, ln10¹⁰A_s and τ too, and "
+             "leave the chain saving on.",
+    ),
+
 }
 
 #: Dataset pairs that double-count data if combined -- see README.
@@ -209,9 +689,231 @@ PLOT_EXPORT_FORMATS = {
 }
 
 
+#: Which *standard* parameters each model's E(z) actually uses.
+#: Extra parameters are read off ``EXTRA_PARAMS`` automatically and
+#: need no entry here.
+#:
+#: This exists because the parameter table lists every field of the
+#: shared container -- twenty-odd of them now -- and for LCDM all but
+#: three are inert. Showing w_a, A_s, ξ, ν, n_s and τ in an LCDM fit
+#: does not offer flexibility, it just hides which three numbers
+#: matter.
+MODEL_STANDARD_PARAMS = {
+    "LCDM": set(),
+    "WCDM": {"w0"},
+    "CPL": {"w0", "wa"},
+    "JBP": {"w0", "wa"},
+    "BA": {"w0", "wa"},
+    "LogarithmicDE": {"w0", "wa"},
+    "PEDE": set(),
+    "GEDE": set(),
+    "LsCDM": set(),
+    "GCG": {"A_s", "alpha"},
+    "IDE": {"w0"},
+    "RunningVacuum": set(),
+    "Cardassian": set(),
+    "DGP": set(),
+    "FQExponential": set(),
+    "FRTLinear": set(),
+    "FRHuSawicki": set(),
+}
+
+#: Parameters that only matter because a *dataset* needs them, keyed
+#: by dataset. Relevance is a property of the fit, not of the model
+#: alone: ``rd`` means nothing without BAO, ``sigma8`` nothing
+#: without growth data, ``tau_reio`` nothing without the CMB spectra.
+DATASET_PARAMS = {
+    "desi": {"rd"},
+    "sdss_bao": {"rd"},
+    "bao_lowz": {"rd"},
+    "planck": {"Omega_b"},
+    "planck_lite": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
+                    "N_eff", "m_nu", "A_planck"},
+    "fsigma8": {"sigma8"},
+    "s8": {"sigma8"},
+    "omega_b": {"Omega_b"},
+    "tau": {"tau_reio"},
+}
+
+#: Parameters the sound-horizon calculation needs when ``r_d`` is
+#: computed rather than fitted.
+COMPUTE_RD_PARAMS = {"Omega_b", "N_eff", "m_nu"}
+
+#: Always shown: the two every model has, plus curvature.
+ALWAYS_RELEVANT = {"H0", "Omega_m", "Omega_k"}
+
+
 # ============================================================
 # Helpers
 # ============================================================
+
+def _model_capabilities(model_cls) -> dict:
+    """
+    What a model can be asked to do, read off the class itself
+    rather than hardcoded -- so a custom model gets honest badges
+    too.
+
+    ``mu`` is checked for an *override*: every model inherits
+    ``Cosmology.mu`` returning 1 (standard GR growth), and only a
+    model that replaces it predicts a growth history differing from
+    GR's at the same background.
+    """
+
+    from CosmoFit.cosmology.core.base import Cosmology
+    from CosmoFit.cosmology.boltzmann import supports_cmb_spectra
+
+    cmb_ok, cmb_reason = supports_cmb_spectra(model_cls)
+
+    return {
+        "w": hasattr(model_cls, "w"),
+        "mu": getattr(model_cls, "mu", None) is not Cosmology.mu,
+        "cmb": cmb_ok,
+        "cmb_reason": cmb_reason,
+        "extra": list(getattr(model_cls, "EXTRA_PARAMS", {}) or {}),
+    }
+
+
+# ------------------------------------------------------------
+
+def _relevant_parameters(model_choice, model_cls, datasets, compute_rd) -> set:
+    """
+    Which parameters actually do something in *this* fit.
+
+    The union of what the model's E(z) uses, what its own
+    ``EXTRA_PARAMS`` add, and what the ticked datasets require. A
+    ``Custom`` model is opaque -- its expression could reference
+    anything -- so everything is reported relevant rather than
+    guessing and hiding something it needs.
+    """
+
+    if model_choice == "Custom":
+        params_cls = getattr(model_cls, "PARAMS_CLASS", None)
+        return set(params_cls.names()) if params_cls else set()
+
+    relevant = set(ALWAYS_RELEVANT)
+
+    relevant |= MODEL_STANDARD_PARAMS.get(model_choice, set())
+
+    relevant |= set(getattr(model_cls, "EXTRA_PARAMS", {}) or {})
+
+    for name in datasets:
+        relevant |= DATASET_PARAMS.get(name, set())
+
+    if compute_rd:
+        # rd stops being a parameter and the densities behind it
+        # start being ones.
+        relevant.discard("rd")
+        relevant |= COMPUTE_RD_PARAMS
+
+    return relevant
+
+
+# ------------------------------------------------------------
+
+def _fit_warnings(model_choice, model_cls, datasets, free_params,
+                  compute_rd) -> list[tuple[str, str]]:
+    """
+    Model-and-dataset combinations worth flagging *before* the run,
+    as ``(icon, message)`` pairs.
+
+    Two kinds. Some are outright errors that would only surface as a
+    stack trace minutes in (the CMB spectra with a modified-gravity
+    model). The rest are quieter: fits that will run, finish, and
+    produce a posterior for a parameter the data cannot constrain --
+    which looks exactly like a real result.
+    """
+
+    warnings = []
+
+    caps = _model_capabilities(model_cls)
+
+    selected = set(datasets)
+
+    if "planck_lite" in selected and not caps["cmb"]:
+        warnings.append((
+            "🚫",
+            f"**{model_choice}** cannot be used with the full CMB "
+            f"spectra: {caps['cmb_reason']} Use the compressed "
+            f"distance priors instead, or change the model.",
+        ))
+
+    # Extra parameters left fixed: the model reduces to something
+    # simpler and the fit is not testing what it looks like it is.
+    idle_extra = [
+        name for name in caps["extra"] if name not in free_params
+    ]
+    if idle_extra:
+        warnings.append((
+            "ℹ️",
+            f"**{', '.join(idle_extra)}** left fixed. "
+            f"{model_choice}'s own parameter(s) are not being fit, so "
+            f"this is a fit of whatever it reduces to at those "
+            f"values -- tick them under **Parameters** to actually "
+            f"test the model.",
+        ))
+
+    # Growth-only models against background-only data.
+    background_only = not (selected & {"fsigma8", "s8"})
+    if caps["mu"] and background_only:
+        warnings.append((
+            "⚠️",
+            f"**{model_choice}** modifies gravity, and its signature "
+            f"is in how structure *grows*. With no growth dataset "
+            f"ticked, only its expansion history is being tested -- "
+            f"add **fσ₈** and/or **S₈**.",
+        ))
+
+    # sigma8 free but nothing measures it.
+    if "sigma8" in free_params and background_only:
+        warnings.append((
+            "⚠️",
+            "**σ₈** is free but no dataset constrains it -- its "
+            "posterior will be its prior. Tick fσ₈ or S₈, or untick "
+            "σ₈.",
+        ))
+
+    # BAO with rd free and nothing else to anchor H0.
+    if compute_rd and not (selected & {"desi", "sdss_bao", "bao_lowz"}):
+        warnings.append((
+            "ℹ️",
+            "**Compute r_d** is on but no BAO dataset is ticked. "
+            "r_d only enters through BAO, so this changes nothing.",
+        ))
+
+    if compute_rd and "Omega_b" not in free_params:
+        warnings.append((
+            "ℹ️",
+            "With r_d computed, **Ω_b** is what carries H₀ -- leaving "
+            "it fixed pins r_d to one value and throws away the "
+            "reason to compute it. Free Ω_b and tick the BBN prior.",
+        ))
+
+    if "planck_lite" in selected:
+        missing = [
+            name for name in ("ln1e10As", "n_s", "tau_reio")
+            if name not in free_params
+        ]
+        if missing:
+            warnings.append((
+                "⚠️",
+                f"The full CMB spectra depend on "
+                f"**{', '.join(missing)}**, which are fixed. The fit "
+                f"will run but is conditioning on those values rather "
+                f"than measuring them.",
+            ))
+        if "tau" not in selected and "tau_reio" in free_params:
+            warnings.append((
+                "⚠️",
+                "**τ** is free but the τ prior dataset is not ticked. "
+                "plik_lite covers ℓ ≥ 30 only, where τ is degenerate "
+                "with the primordial amplitude -- both posteriors will "
+                "be unconstrained.",
+            ))
+
+    return warnings
+
+
+# ------------------------------------------------------------
 
 def _parse_extra_params(text: str) -> dict:
     """
@@ -440,10 +1142,29 @@ def _render_best_fit(fit: Fitter) -> None:
         st.caption("No best-fit result.")
         return
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("χ²", f"{result.best_fit.chi2:.3f}")
-    m2.metric("AIC", f"{result.best_fit.aic():.2f}")
-    m3.metric("BIC", f"{result.best_fit.bic():.2f}")
+    chi2 = result.best_fit.chi2
+    dof = fit.n_data - result.best_fit.ndim
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("χ²", f"{chi2:.2f}")
+    m2.metric(
+        "χ²/dof", f"{chi2 / dof:.3f}" if dof > 0 else "—",
+        help=f"{fit.n_data} data points − {result.best_fit.ndim} free "
+             f"parameters = {dof} degrees of freedom. Around 1 is a "
+             f"good fit; well above 1 means the model cannot describe "
+             f"the data, well below usually means the error bars are "
+             f"conservative.",
+    )
+    m3.metric(
+        "AIC", f"{result.best_fit.aic():.2f}",
+        help="χ² + 2k. Lower is better; a difference below ~2 is "
+             "not evidence either way.",
+    )
+    m4.metric(
+        "BIC", f"{result.best_fit.bic():.2f}",
+        help="χ² + k·ln(n). Penalizes extra parameters harder than "
+             "AIC does, so it favours simpler models more strongly.",
+    )
 
     st.dataframe(
         pd.DataFrame(
@@ -451,7 +1172,49 @@ def _render_best_fit(fit: Fitter) -> None:
              "value": list(result.best_fit.params.values())}
         ),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
+    )
+
+    # --------------------------------------------------------
+    # Which dataset is the fit actually struggling with?
+    # --------------------------------------------------------
+    #
+    # A single total chi2 says a fit is bad without saying where.
+    # The per-dataset breakdown is what turns "chi2 = 640" into
+    # "the local H0 measurement is contributing 23 of it, on one
+    # data point" -- which is the whole content of a tension.
+
+    st.markdown("**χ² by dataset**")
+
+    rows = []
+    for likelihood in fit.likelihoods:
+        summary = likelihood.summary()
+        n = summary["n_data"]
+        rows.append({
+            "dataset": summary["name"],
+            "N": n,
+            "χ²": summary["chi2"],
+            "χ²/N": summary["chi2"] / n if n else None,
+        })
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "χ²": st.column_config.NumberColumn(format="%.2f"),
+            "χ²/N": st.column_config.ProgressColumn(
+                "χ²/N", format="%.2f", min_value=0.0, max_value=4.0,
+                help="Per-point χ². A dataset sitting far above the "
+                     "others is the one in tension with the rest.",
+            ),
+        },
+    )
+
+    st.caption(
+        "Evaluated at the best-fit point. These sum to the total χ² "
+        "above; a single dataset carrying a disproportionate share is "
+        "where a tension lives."
     )
 
 
@@ -472,7 +1235,7 @@ def _render_posterior(fit: Fitter) -> None:
             for name, s in result.mcmc.summary.items()
         ]),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     if result.mcmc.convergence["converged"]:
@@ -498,6 +1261,96 @@ def _render_posterior(fit: Fitter) -> None:
             f"Chain saved in `{fit.chain.path}` "
             f"({result.mcmc.nsteps} steps x {result.mcmc.nwalkers} walkers)."
         )
+
+    # --------------------------------------------------------
+    # Derived quantities
+    # --------------------------------------------------------
+    #
+    # `stats.derived` pushes every posterior sample back through the
+    # model's own E(z), so these carry real error bars rather than
+    # being evaluated once at the best fit. Nothing in the GUI
+    # surfaced them before, which meant the acceleration transition
+    # redshift -- a headline number in most dark-energy papers --
+    # was reachable only from Python.
+
+    with st.expander("Derived quantities (z_t, q₀, r_d)", expanded=False):
+
+        st.caption(
+            "Each posterior sample is pushed back through this "
+            "model's own E(z) and dE/dz, so these are proper "
+            "posteriors, not the best-fit value with no uncertainty."
+        )
+
+        try:
+            from CosmoFit.stats import derived
+
+            rows = []
+
+            q0 = derived.summarize(derived.deceleration_today(fit))
+            rows.append({
+                "quantity": "q₀ (deceleration today)",
+                "median": q0["median"],
+                "+": q0["plus"], "−": q0["minus"],
+            })
+
+            z_t = derived.summarize(derived.transition_redshift(fit))
+            rows.append({
+                "quantity": "z_t (acceleration begins)",
+                "median": z_t["median"],
+                "+": z_t["plus"], "−": z_t["minus"],
+            })
+
+            r_d = derived.summarize(derived.sound_horizon(fit))
+            rows.append({
+                "quantity": "r_d [Mpc], from the densities",
+                "median": r_d["median"],
+                "+": r_d["plus"], "−": r_d["minus"],
+            })
+
+            st.dataframe(
+                pd.DataFrame(rows), hide_index=True,
+                width="stretch",
+                column_config={
+                    "median": st.column_config.NumberColumn(format="%.4g"),
+                    "+": st.column_config.NumberColumn(format="%.3g"),
+                    "−": st.column_config.NumberColumn(format="%.3g"),
+                },
+            )
+
+            if q0["median"] < 0:
+                st.caption(
+                    f"q₀ < 0: the expansion is accelerating today, and "
+                    f"began doing so at z ≈ {z_t['median']:.2f}."
+                )
+            else:
+                st.caption(
+                    "q₀ > 0: this fit does **not** have an "
+                    "accelerating universe today."
+                )
+
+            if z_t.get("n_undefined"):
+                st.caption(
+                    f"{z_t['n_undefined']} sample(s) never cross "
+                    f"q = 0 in the search range and are excluded."
+                )
+
+            if not fit.compute_rd:
+                st.caption(
+                    f"r_d here is what the early-universe physics "
+                    f"*predicts* for these densities; the fit used "
+                    f"the free parameter "
+                    f"({fit.result.mcmc.summary['rd']['median']:.2f} Mpc) "
+                    f"instead. A disagreement between the two is the "
+                    f"standard signature of new physics before "
+                    f"recombination."
+                    if "rd" in fit.free_params else
+                    "r_d here is what the early-universe physics "
+                    "predicts for these densities; the fit used the "
+                    "fixed `rd` value instead."
+                )
+
+        except Exception as exc:
+            st.caption(f"Could not compute derived quantities: {exc}")
 
     # CPL-family diagnostics (w(z)=-1 crossing redshift, direction,
     # distance from the LCDM point) -- only meaningful when both w0
@@ -570,7 +1423,7 @@ def _render_figure(fig, base_name: str, fmt_label: str, key: str) -> None:
     is only responsible for *what format* it goes there as.
     """
 
-    st.pyplot(fig, use_container_width=True)
+    st.pyplot(fig, width="stretch")
 
     ext, mime = PLOT_EXPORT_FORMATS[fmt_label]
 
@@ -583,7 +1436,7 @@ def _render_figure(fig, base_name: str, fmt_label: str, key: str) -> None:
         file_name=f"{base_name}.{ext}",
         mime=mime,
         key=key,
-        use_container_width=True,
+        width="stretch",
     )
 
     plt.close(fig)
@@ -625,50 +1478,158 @@ with st.sidebar:
     st.markdown("### 📊 Datasets")
     st.caption("Shared by every model below -- comparisons need the same data.")
 
-    with st.container(border=True):
-        selected_datasets = []
-        for key in DATASET_REGISTRY:
-            default = key in ("cc", "desi")
-            if st.checkbox(DATASET_LABELS.get(key, key), value=default, key=f"ds_{key}"):
-                selected_datasets.append(key)
+    # ------------------------------------------------------
+    # Presets
+    # ------------------------------------------------------
+    #
+    # Fourteen checkboxes with five conflict rules between them is a
+    # lot to face cold. A preset writes the whole configuration --
+    # datasets, versions, compute_rd -- into session state and lets
+    # the widgets below pick it up, so it is a starting point that
+    # can then be edited, not a mode.
+
+    preset_choice = st.selectbox(
+        "Start from a preset",
+        options=["— custom —", *DATASET_PRESETS],
+        key="dataset_preset",
+        help="A ready-made combination for a specific question. "
+             "Applying one overwrites the ticks below; you can change "
+             "them afterwards.",
+    )
+
+    if preset_choice != "— custom —":
+
+        preset = DATASET_PRESETS[preset_choice]
+
+        st.caption(preset["note"])
+
+        # No `st.rerun()`: this block runs *above* the checkboxes it
+        # writes to, so the values land before those widgets are
+        # created and are picked up on this same pass. A rerun here
+        # would be a second render for no gain -- and a button whose
+        # click state outlives the rerun (as it does under
+        # `streamlit.testing`) turns it into an infinite loop.
+        if st.button("Apply preset", width="stretch"):
+            for key in DATASET_REGISTRY:
+                st.session_state[f"ds_{key}"] = key in preset["datasets"]
+            for key, version in (preset.get("versions") or {}).items():
+                st.session_state[f"dsver_{key}"] = version
+            st.session_state["compute_rd"] = bool(preset.get("compute_rd"))
+
+    # ------------------------------------------------------
+    # The checkboxes, grouped by probe
+    # ------------------------------------------------------
+
+    selected_datasets = []
+    dataset_versions = {}
+
+    # Seed each checkbox's default exactly once. Passing `value=`
+    # *and* writing the same key from a preset is the one thing
+    # Streamlit explicitly warns about -- the two disagree on which
+    # is authoritative, and the widget silently keeps the wrong one.
+    # `setdefault` leaves session state alone once it exists, so the
+    # widget below owns its value from then on and a preset can
+    # overwrite it freely.
+    for _key in DATASET_REGISTRY:
+        st.session_state.setdefault(f"ds_{_key}", _key in ("cc", "desi"))
+
+    for group_label, keys in DATASET_GROUPS:
+
+        with st.expander(group_label, expanded=group_label.startswith(("📏", "🌀"))):
+
+            for key in keys:
+
+                if key not in DATASET_REGISTRY:
+                    continue
+
+                info = DATASET_INFO.get(key, {})
+
+                ticked = st.checkbox(
+                    DATASET_LABELS.get(key, key),
+                    key=f"ds_{key}",
+                    help=(
+                        f"Measures {info.get('observable', '?')} · "
+                        f"{info.get('n', '?')} · z = {info.get('z', '?')}"
+                    ),
+                )
+
+                if info:
+                    st.caption(
+                        f"**{info['observable']}** · {info['n']} · "
+                        f"z = {info['z']}"
+                    )
+                    st.caption(info["what"])
+                    st.caption(f"🎯 Constrains: {info['constrains']}")
+
+                    versions = available_versions(key)
+                    if len(versions) > 1:
+                        dataset_versions[key] = st.selectbox(
+                            "Version", options=versions,
+                            key=f"dsver_{key}",
+                            label_visibility="collapsed",
+                            disabled=not ticked,
+                        )
+
+                    st.caption(
+                        f"📄 {dataset_reference(key, dataset_versions.get(key))}"
+                    )
+
+                if ticked:
+                    selected_datasets.append(key)
+
+                st.divider()
 
     selected_set = set(selected_datasets)
+
+    if selected_set:
+        st.caption(
+            f"**{len(selected_set)} dataset(s) selected:** "
+            + ", ".join(DATASET_LABELS.get(k, k) for k in selected_datasets)
+        )
+    else:
+        st.caption("_No datasets selected._")
+
     for pair, reason in INCOMPATIBLE_PAIRS:
         if pair <= selected_set:
-            st.warning(f"{' + '.join(sorted(pair))}: {reason}", icon="⚠️")
+            st.warning(
+                f"**{' + '.join(DATASET_LABELS.get(k, k) for k in sorted(pair))}**: "
+                f"{reason}",
+                icon="⚠️",
+            )
 
     for key, note in SLOW_DATASETS.items():
         if key in selected_set:
-            st.warning(f"{DATASET_LABELS.get(key, key)}: {note}", icon="🐢")
+            st.warning(f"**{DATASET_LABELS.get(key, key)}** -- {note}", icon="🐢")
 
-    compute_rd = st.checkbox(
-        "Compute $r_d$ from the physical densities",
-        value=False,
-        help="By default the BAO sound horizon r_d is a free nuisance "
-             "parameter, which means BAO constrains only the product "
-             "H0*r_d and cannot measure H0 at all. Tick this to derive "
-             "r_d from omega_b, omega_cb, N_eff and m_nu instead "
-             "(validated against CAMB to 5e-5). H0 then becomes "
-             "measurable -- through Omega_b, so free Omega_b and tick "
-             "the BBN dataset above. 'rd' must not be left ticked as a "
-             "free parameter below.",
-    )
+    # ------------------------------------------------------
+    # Sound horizon
+    # ------------------------------------------------------
 
-    if compute_rd:
-        if not any(k in selected_set for k in ("desi", "sdss_bao", "bao_lowz")):
-            st.info(
-                "r_d only enters through BAO -- with no BAO dataset "
-                "ticked, computing it changes nothing.",
-                icon="ℹ️",
+    st.markdown("### 🌀 Sound horizon $r_d$")
+
+    with st.container(border=True):
+
+        compute_rd = st.checkbox(
+            "Compute $r_d$ instead of fitting it",
+            key="compute_rd",
+            help="Validated against CAMB's rdrag to 5e-5.",
+        )
+
+        if compute_rd:
+            st.caption(
+                "r_d is derived from ω_b, ω_cb, N_eff and Σm_ν by "
+                "integrating the sound speed through the drag epoch. "
+                "**H₀ becomes measurable** -- but through Ω_b, which "
+                "BAO cannot pin down alone, so free Ω_b and tick the "
+                "BBN prior. `rd` is dropped from the free parameters "
+                "automatically."
             )
-        elif "omega_b" not in selected_set:
-            st.info(
-                "With r_d computed, H0 is measurable through Omega_b, "
-                "which BAO alone cannot pin down. Tick the BBN prior "
-                "on omega_b h^2 to close the loop -- that pairing is "
-                "how every published 'BAO + BBN gives H0' constraint "
-                "is produced.",
-                icon="ℹ️",
+        else:
+            st.caption(
+                "r_d is a free nuisance parameter, so BAO constrains "
+                "only the product H₀·r_d and **cannot measure H₀**. "
+                "That is the safe default -- it assumes nothing about "
+                "the early universe."
             )
 
     st.markdown("### ⚙️ MCMC settings")
@@ -733,6 +1694,139 @@ with st.sidebar:
         )
 
 # ------------------------------------------------------------
+# Reference: everything the sidebar and model panels say, in one
+# browsable place
+# ------------------------------------------------------------
+#
+# The per-widget notes answer "what is this one?" while you are
+# looking at it. This answers "what is there, and which should I
+# pick?" -- a different question, and one you want to answer before
+# ticking anything.
+
+with st.expander("📖 Guide — what every dataset and model is"):
+
+    guide_datasets, guide_models, guide_workflow = st.tabs(
+        ["Datasets", "Models", "How to use this"]
+    )
+
+    with guide_datasets:
+
+        st.caption(
+            "A fit is usually built by taking **one** entry from each "
+            "family, not by ticking everything -- several pairs "
+            "measure the same sky or the same supernovae and must not "
+            "be combined."
+        )
+
+        rows = []
+        for group_label, keys in DATASET_GROUPS:
+            for key in keys:
+                if key not in DATASET_REGISTRY:
+                    continue
+                info = DATASET_INFO.get(key, {})
+                rows.append({
+                    "Family": group_label,
+                    "Dataset": DATASET_LABELS.get(key, key),
+                    "Measures": info.get("observable", ""),
+                    "Size": info.get("n", ""),
+                    "Redshift": info.get("z", ""),
+                    "Constrains": info.get("constrains", ""),
+                    "Reference": dataset_reference(key),
+                })
+
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
+        st.markdown("**Do not combine**")
+        for pair, reason in INCOMPATIBLE_PAIRS:
+            st.caption(
+                f"❌ **{' + '.join(DATASET_LABELS.get(k, k) for k in sorted(pair))}** "
+                f"— {reason}"
+            )
+
+    with guide_models:
+
+        st.caption(
+            "What a model *changes* decides what can be done with it. "
+            "Only models with a w(z) can be handed to a Boltzmann code "
+            "for the full CMB spectra; only models that modify gravity "
+            "predict a growth history differing from GR's at the same "
+            "expansion history."
+        )
+
+        rows = []
+        for group_label, names in MODEL_GROUPS:
+            for name in names:
+                info = MODEL_INFO.get(name, {})
+                caps = _model_capabilities(BUILTIN_MODELS[name])
+                rows.append({
+                    "Family": group_label,
+                    "Model": name,
+                    "Extra parameters": info.get("params", ""),
+                    "Reduces to": info.get("reduces") or "—",
+                    "Own w(z)": "✅" if caps["w"] else "—",
+                    "Modifies growth": "✅" if caps["mu"] else "—",
+                    "CMB spectra": "✅" if caps["cmb"] else "🚫",
+                    "Reference": info.get("ref", ""),
+                })
+
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
+        st.caption(
+            "**Own w(z)** means the model exposes an equation of "
+            "state of its own, which is what the w(z) figure plots "
+            "and what a Boltzmann code needs. ΛCDM is marked '—' "
+            "because w = -1 is a constant it never has to compute, "
+            "not because it lacks one. **Modifies growth** means the "
+            "model overrides μ(a,k); everything else grows structure "
+            "exactly as GR does at the same expansion history."
+        )
+
+        st.caption(
+            "**PEDE** and **DGP** are worth noting: both have exactly "
+            "ΛCDM's parameter count and a completely different "
+            "expansion history, so an AIC/BIC comparison against ΛCDM "
+            "carries identical penalties and a χ² difference is purely "
+            "a difference in fit."
+        )
+
+    with guide_workflow:
+
+        st.markdown(
+            """
+**1. Pick the data.** Start from a preset in the sidebar, then
+adjust. The warnings under each family are not decoration -- combining
+two datasets that share supernovae or sky understates every error bar
+in the result, with no other symptom.
+
+**2. Pick the model, and free the right parameters.** Every model
+shows what its extra parameters mean and which values reduce it to
+ΛCDM. A model whose own parameters are left fixed is not being
+tested -- the app says so under the parameter table.
+
+**3. Check the parameter table.** By default it shows only the
+parameters this particular fit uses. `rd` appears only with BAO,
+`sigma8` only with growth data, `n_s`/`tau` only with the full CMB
+spectra. A parameter that is free but unconstrained returns a
+posterior identical to its prior, which looks exactly like a
+measurement.
+
+**4. Run, then read the χ² breakdown first.** A total χ² says a fit
+is bad without saying where. The per-dataset table on the **Best fit**
+tab is what turns that into "the local H₀ measurement contributes 24
+of it, on one data point" -- which is the entire content of the Hubble
+tension.
+
+**5. Check convergence before believing the posterior.** The MCMC tab
+says outright whether the chain is long enough. With chain saving on,
+raising **Steps** and re-running only costs the extra steps.
+
+**6. Compare.** Add a second model to get AIC/BIC, a likelihood-ratio
+test where the two are nested, and every figure with both curves
+overlaid.
+            """
+        )
+
+# ------------------------------------------------------------
 # Main panel: models to compare
 # ------------------------------------------------------------
 
@@ -748,11 +1842,11 @@ st.session_state.setdefault("n_models", 1)
 add_col, remove_col, _ = st.columns([1, 1, 4])
 with add_col:
     if st.session_state["n_models"] < MAX_MODELS:
-        if st.button("➕ Add model to compare", use_container_width=True):
+        if st.button("➕ Add model to compare", width="stretch"):
             st.session_state["n_models"] += 1
 with remove_col:
     if st.session_state["n_models"] > 1:
-        if st.button("➖ Remove last model", use_container_width=True):
+        if st.button("➖ Remove last model", width="stretch"):
             st.session_state["n_models"] -= 1
 
 n_models = st.session_state["n_models"]
@@ -771,13 +1865,38 @@ for i in range(n_models):
 
         st.markdown(f"**{label}**")
 
-        model_choice = st.selectbox(
-            "Cosmology", options=[*BUILTIN_MODELS.keys(), "Custom"],
+        # Options carry their family as a prefix, so the dropdown
+        # says what kind of object each entry is instead of listing
+        # seventeen names with nothing to separate ΛCDM from f(Q).
+        model_options = []
+        option_to_model = {}
+        for group_label, names in MODEL_GROUPS:
+            for name in names:
+                display = f"{name}  ·  {group_label}"
+                model_options.append(display)
+                option_to_model[display] = name
+        model_options.append("Custom")
+        option_to_model["Custom"] = "Custom"
+
+        model_display = st.selectbox(
+            "Cosmology", options=model_options,
             key=f"model_choice_{i}", label_visibility="collapsed",
         )
+        model_choice = option_to_model[model_display]
 
         if model_choice in MODEL_EQUATIONS:
             st.latex(MODEL_EQUATIONS[model_choice])
+
+        info = MODEL_INFO.get(model_choice)
+        if info:
+            st.markdown(info["what"])
+            cols = st.columns(2)
+            cols[0].caption(f"**Extra parameters:** {info['params']}")
+            cols[1].caption(
+                f"**Reduces to:** {info['reduces']}" if info["reduces"]
+                else "**Reduces to:** — (not a ΛCDM extension)"
+            )
+            st.caption(f"📄 {info['ref']}")
 
         if model_choice in BACKGROUND_DEGENERATE_MODELS:
             st.warning(BACKGROUND_DEGENERATE_MODELS[model_choice], icon="⚠️")
@@ -856,9 +1975,34 @@ for i in range(n_models):
 
         model_classes.append(model_cls)
 
+        # ------------------------------------------------------
+        # What this model can be asked to do
+        # ------------------------------------------------------
+
+        caps = _model_capabilities(model_cls)
+
+        badge_cols = st.columns(3)
+        badge_cols[0].caption(
+            ("✅ has **w(z)**" if caps["w"] else "➖ no w(z)")
+            + " — needed for the w(z) plot"
+        )
+        badge_cols[1].caption(
+            ("✅ modifies **growth**" if caps["mu"]
+             else "➖ standard GR growth")
+            + " — μ(a,k)"
+        )
+        badge_cols[2].caption(
+            "✅ **CMB spectra** computable" if caps["cmb"]
+            else "🚫 no full CMB spectra"
+        )
+
         params_cls = getattr(model_cls, "PARAMS_CLASS", None)
         parameter_set = params_cls.parameter_set()
         defaults = params_cls.defaults()
+
+        relevant = _relevant_parameters(
+            model_choice, model_cls, selected_datasets, compute_rd,
+        )
 
         param_rows = []
         for p in parameter_set:
@@ -882,13 +2026,37 @@ for i in range(n_models):
                 "Initial": initial_value,
                 "Lower": lo,
                 "Upper": hi,
+                "_relevant": p.name in relevant,
             })
 
+        all_rows = pd.DataFrame(param_rows)
+
         with st.expander("Parameters", expanded=True):
+
+            hide_irrelevant = st.checkbox(
+                "Show only the parameters this fit uses",
+                value=True, key=f"relevant_only_{i}",
+                help="The parameter container is shared by every "
+                     "model, so it carries every parameter any of "
+                     "them needs. Which ones actually do something "
+                     "depends on the model *and* the datasets -- rd "
+                     "means nothing without BAO, sigma8 nothing "
+                     "without growth data. Untick to see them all.",
+            )
+
+            shown = all_rows[all_rows["_relevant"]] if hide_irrelevant else all_rows
+
+            if hide_irrelevant and len(shown) < len(all_rows):
+                st.caption(
+                    f"Showing {len(shown)} of {len(all_rows)} — "
+                    f"{len(all_rows) - len(shown)} hidden because "
+                    f"nothing in this fit depends on them."
+                )
+
             edited_df = st.data_editor(
-                pd.DataFrame(param_rows),
+                shown.drop(columns=["_relevant"]),
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 disabled=["Parameter", "Label"],
                 column_config={
                     "Free": st.column_config.CheckboxColumn("Fit this parameter?"),
@@ -901,22 +2069,50 @@ for i in range(n_models):
 
         free = edited_df.loc[edited_df["Free"], "Parameter"].tolist()
         model_free_params.append(free)
-        model_initial.append(dict(zip(edited_df["Parameter"], edited_df["Initial"])))
-        model_bounds.append({
+
+        # Hidden parameters still have to reach the Fitter -- they
+        # are inert, not absent, and `Fitter` requires a value for
+        # every field of the container. Start from every default and
+        # let the edited rows override.
+        initial = {
+            row["Parameter"]: row["Initial"]
+            for _, row in all_rows.iterrows()
+        }
+        initial.update(dict(zip(edited_df["Parameter"], edited_df["Initial"])))
+        model_initial.append(initial)
+
+        bounds = {
+            row["Parameter"]: (row["Lower"], row["Upper"])
+            for _, row in all_rows.iterrows()
+            if pd.notna(row["Lower"]) and pd.notna(row["Upper"])
+        }
+        bounds.update({
             row["Parameter"]: (row["Lower"], row["Upper"])
             for _, row in edited_df.iterrows()
             if pd.notna(row["Lower"]) and pd.notna(row["Upper"])
         })
+        model_bounds.append(bounds)
 
         st.caption(
-            f"{len(free)} free parameter(s)" + (f" -- {', '.join(free)}" if free else "")
+            f"**{len(free)} free parameter(s)**"
+            + (f" — {', '.join(free)}" if free else "")
         )
+
+        for icon, message in _fit_warnings(
+            model_choice, model_cls, selected_datasets, free, compute_rd,
+        ):
+            if icon == "🚫":
+                st.error(message, icon=icon)
+            elif icon == "⚠️":
+                st.warning(message, icon=icon)
+            else:
+                st.caption(f"{icon} {message}")
 
 # ------------------------------------------------------------
 # Run
 # ------------------------------------------------------------
 
-run_clicked = st.button("🚀 Run Fit", type="primary", use_container_width=True)
+run_clicked = st.button("🚀 Run Fit", type="primary", width="stretch")
 
 if run_clicked:
 
@@ -954,6 +2150,11 @@ if run_clicked:
                     free_params=free_params,
                     initial=model_initial[i],
                     bounds=model_bounds[i],
+                    dataset_kwargs={
+                        key: {"version": version}
+                        for key, version in dataset_versions.items()
+                        if key in selected_datasets
+                    } or None,
                     compute_rd=compute_rd,
                 )
 
@@ -1082,7 +2283,7 @@ if fits:
                         if f.result.mcmc else None
                     ),
                 })
-            st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
             # Likelihood-ratio test: only well-defined for exactly two
             # models where one's free parameters are a strict subset
