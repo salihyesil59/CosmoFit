@@ -88,3 +88,51 @@ def test_a_positive_comparison_is_untouched():
 
     assert result["delta_chi2"] == pytest.approx(5.39)
     assert result["sigma"] == pytest.approx(2.0486, abs=1e-3)
+
+
+def test_convergence_noise_at_the_nested_limit_is_not_warned_about():
+    """
+    When the general model's best fit *is* the nested limit -- LsCDM
+    running off to z_dagger ~ 98, CPL sitting at w0 = -1, wa = 0 --
+    the two optimizers reach the same minimum by different routes
+    and disagree at their own convergence tolerance.
+
+    Measured across a 32-fit scan: -8e-06 to -5e-04, every one of
+    them at the limit and none of them a failure. Warning about
+    those would train the reader to ignore the warning, which is
+    worse than not having it.
+    """
+
+    import warnings as _warnings
+
+    for shortfall in (8.0e-6, 4.7e-4):
+
+        with _warnings.catch_warnings(record=True) as caught:
+
+            _warnings.simplefilter("always")
+
+            result = likelihood_ratio_test(
+                chi2_null=100.0, k_null=3,
+                chi2_alt=100.0 + shortfall, k_alt=4,
+            )
+
+        assert not caught, f"warned about {shortfall:.1e}"
+
+        # Still not reported as evidence.
+        assert result["sigma"] == 0.0
+
+
+def test_the_tolerance_is_adjustable():
+
+    import warnings as _warnings
+
+    with _warnings.catch_warnings(record=True) as caught:
+
+        _warnings.simplefilter("always")
+
+        likelihood_ratio_test(
+            chi2_null=100.0, k_null=3, chi2_alt=100.01, k_alt=4,
+            tolerance=1e-9,
+        )
+
+    assert any("impossible" in str(w.message) for w in caught)
