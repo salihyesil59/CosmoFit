@@ -55,6 +55,7 @@ from CosmoFit import (
     PlanckLikelihood,
     PlanckLiteLikelihood,
     PlanckLensingLikelihood,
+    ACTDR6LensingLikelihood,
     FSigma8Likelihood,
 )
 from CosmoFit import available_versions, dataset_reference
@@ -328,6 +329,7 @@ DATASET_LABELS = {
     "planck_lite": "Planck 2018 CMB (full TT/TE/EE spectra)",
     "planck_lensing": "Planck 2018 CMB lensing",
     "planck_lowe": "Planck 2018 low-ℓ EE (τ, tabulated)",
+    "act_lensing": "ACT DR6 CMB lensing",
     "fsigma8": "Growth rate fσ₈(z) (RSD)",
     "s8": "S₈ weak-lensing prior",
     "h0": "Local H₀ (distance ladder)",
@@ -343,7 +345,8 @@ DATASET_GROUPS = [
     ("📏 Expansion rate", ["cc"]),
     ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz"]),
     ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
-    ("🔥 CMB", ["planck", "planck_lite", "planck_lensing", "planck_lowe"]),
+    ("🔥 CMB", ["planck", "planck_lite", "planck_lowe",
+                "planck_lensing", "act_lensing"]),
     ("🕸️ Growth of structure", ["fsigma8", "s8"]),
     ("📌 External measurements", ["h0", "omega_b", "tau"]),
 ]
@@ -496,6 +499,20 @@ DATASET_INFO = {
         constrains="τ — the real thing, not the Gaussian shorthand",
     ),
 
+    "act_lensing": dict(
+        observable="C_L^κκ (lensing convergence)",
+        n="10 bandpowers", z="L = 40 – 763",
+        what=(
+            "A **second, independent** lensing reconstruction — "
+            "different telescope, different sky, different pipeline "
+            "— and tighter than Planck's: 2.3% on the lensing "
+            "amplitude. CMB lensing is the cleanest handle anyone "
+            "has on σ₈Ω_m^0.25, which is what the S₈ tension is "
+            "about."
+        ),
+        constrains="σ₈·Ω_m^0.25, more tightly than Planck lensing",
+    ),
+
     "fsigma8": dict(
         observable="fσ₈(z)",
         n="22 points", z="0.02 – 1.94",
@@ -620,12 +637,18 @@ INCOMPATIBLE_PAIRS = [
     ({"pantheon", "union3"}, "Union3 and Pantheon+ compile substantially the same supernovae."),
     ({"des_sn5yr", "union3"}, "Union3's high-z half overlaps the DES sample."),
     ({"planck", "planck_lite"}, "The distance priors are a compression of exactly these bandpowers -- this is the whole Planck dataset twice."),
+    ({"planck_lensing", "act_lensing"}, "ACT's lensing map overlaps Planck's on the sky, so the two reconstructions are correlated; combining the separate likelihoods overstates the joint constraint."),
     ({"planck_lowe", "tau"}, "The τ prior is a Gaussian compression of exactly this low-ℓ EE likelihood -- the same measurement twice."),
 ]
 
 #: Datasets that are slow enough to be worth warning about before
 #: someone ticks them and waits.
 SLOW_DATASETS = {
+    "act_lensing": (
+        "ACT DR6 lensing runs CAMB on every likelihood evaluation, "
+        "like the other from-scratch CMB datasets. Cheap next to "
+        "them (one CAMB call serves all), expensive alone."
+    ),
     "planck_lowe": (
         "Planck low-ℓ EE runs CAMB on every likelihood evaluation, "
         "like the other from-scratch CMB datasets. Cheap to add "
@@ -776,6 +799,8 @@ DATASET_PARAMS = {
                     "N_eff", "m_nu", "A_planck"},
     "planck_lensing": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
                        "N_eff", "m_nu"},
+    "act_lensing": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
+                    "N_eff", "m_nu"},
     "planck_lowe": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
                     "N_eff", "m_nu", "A_planck"},
     "fsigma8": {"sigma8"},
@@ -937,7 +962,8 @@ def _fit_warnings(model_choice, model_cls, datasets, free_params,
             "reason to compute it. Free Ω_b and tick the BBN prior.",
         ))
 
-    if selected & {"planck_lite", "planck_lensing"} and "sigma8" in free_params:
+    if (selected & {"planck_lite", "planck_lensing", "act_lensing",
+                    "planck_lowe"}) and "sigma8" in free_params:
         warnings.append((
             "⚠️",
             "**σ₈ is defined twice here.** The CMB datasets compute "
@@ -1127,6 +1153,7 @@ def _available_plots(fit: Fitter) -> list[str]:
         (PlanckLikelihood, "planck_residuals"),
         (PlanckLiteLikelihood, "cmb_spectra"),
         (PlanckLensingLikelihood, "cmb_lensing"),
+        (ACTDR6LensingLikelihood, "cmb_lensing"),
         (FSigma8Likelihood, "growth"),
     ]
 

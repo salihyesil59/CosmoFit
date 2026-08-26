@@ -170,6 +170,9 @@ class PlanckLensingLikelihood(BaseLikelihood):
         # The plain binning of the lensing spectrum.
         binned = data.windows @ spectra["PP"]
 
+        if not data.has_linear_correction:
+            return binned
+
         # The normalization correction: one window per contributing
         # spectrum, summed, minus its value at the fiducial
         # cosmology.

@@ -238,6 +238,41 @@ repository.
 - Used by: [`data/cmb/lensing2018/`](src/CosmoFit/data/cmb/lensing2018/),
   [`likelihoods/planck_lensing.py`](src/CosmoFit/likelihoods/planck_lensing.py)
 
+### ACT DR6 CMB lensing
+
+- **Madhavacheril et al. (ACT Collaboration, 2024)**, *The Atacama
+  Cosmology Telescope: DR6 Gravitational Lensing Map and Cosmological
+  Parameters*, ApJ 962, 113.
+  [arXiv:2304.05203](https://arxiv.org/abs/2304.05203)
+- **Qu et al. (ACT Collaboration, 2024)**, *The Atacama Cosmology
+  Telescope: A Measurement of the DR6 CMB Lensing Power Spectrum and
+  its Implications for Structure Growth*, ApJ 962, 112.
+  [arXiv:2304.05202](https://arxiv.org/abs/2304.05202)
+- A second, **independent** lensing reconstruction — different
+  telescope, different sky, different pipeline — and tighter than
+  Planck's: 2.3% on the lensing amplitude, over `40 <= L <= 763`
+  (baseline, 10 bandpowers) or `L < 1250` (extended, 13).
+- Built on the lensing **convergence** `C_L^kappakappa`, where
+  Planck's products use the **potential**
+  `[L(L+1)]^2 C_L^phiphi / 2pi`. The two differ by `2pi/4`; the
+  dataset carries which one its windows act on rather than leaving
+  it to be remembered.
+- Uses ACT's **CMB-marginalized** covariance, which already accounts
+  for the reconstruction's dependence on the primary CMB. Combining
+  with primary CMB data anyway is conservative, not wrong — see the
+  module docstring. A Hartlap correction for the 796 simulations
+  behind the covariance is applied.
+- **Validated against the published amplitude:** fitting a single
+  scaling of the theory returns `A_lens = 1.017 +- 0.026` against
+  ACT's `1.013 +- 0.023`, with that number used nowhere as an input.
+  A wrong convergence/potential conversion would put it at 0.65 or
+  1.6. See [`tests/test_act_lensing.py`](tests/test_act_lensing.py).
+- Data source: [NASA LAMBDA](https://lambda.gsfc.nasa.gov/product/act/actadv_prod_table.html),
+  `ACT_dr6_likelihood_v1.2.tgz`. The reference implementation is
+  [ACTCollaboration/act_dr6_lenslike](https://github.com/ACTCollaboration/act_dr6_lenslike).
+- Used by: [`data/cmb/act_dr6_lensing/`](src/CosmoFit/data/cmb/act_dr6_lensing/),
+  [`likelihoods/act_lensing.py`](src/CosmoFit/likelihoods/act_lensing.py)
+
 ### External single-number priors (H0, BBN, tau)
 
 - **Riess et al. (2022)**, *A Comprehensive Measurement of the Local

@@ -54,6 +54,7 @@ from CosmoFit.likelihoods.planck import PlanckLikelihood
 from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
 from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
 from CosmoFit.likelihoods.planck_lowe import PlanckLowEELikelihood
+from CosmoFit.likelihoods.act_lensing import ACTDR6LensingLikelihood
 from CosmoFit.likelihoods.priors import (
     H0Likelihood,
     OmegaBLikelihood,
@@ -96,6 +97,7 @@ DATASET_REGISTRY = {
     "planck_lite": PlanckLiteLikelihood,
     "planck_lensing": PlanckLensingLikelihood,
     "planck_lowe": PlanckLowEELikelihood,
+    "act_lensing": ACTDR6LensingLikelihood,
     "fsigma8": FSigma8Likelihood,
     "s8": S8Likelihood,
     "h0": H0Likelihood,
@@ -130,6 +132,12 @@ CONFLICTING_DATASETS = {
     ("des_sn5yr", "union3"):
         "Union3's high-redshift half overlaps the DES sample.",
 
+    ("planck_lensing", "act_lensing"):
+        "ACT's lensing map overlaps Planck's on the sky, so the two "
+        "reconstructions are correlated. ACT publish a proper joint "
+        "variant for this; combining the separate likelihoods "
+        "overstates the joint constraint.",
+
     ("planck_lowe", "tau"):
         "The 'tau' Gaussian prior is a compression of exactly this "
         "low-l EE likelihood -- the same measurement twice.",
@@ -160,6 +168,7 @@ DATASET_LABELS = {
     "planck_lite": "Planck TTTEEE",
     "planck_lensing": "Planck lensing",
     "planck_lowe": "Planck lowE",
+    "act_lensing": "ACT DR6 lensing",
     "fsigma8": r"$f\sigma_8$",
     "s8": r"$S_8$",
     "h0": r"$H_0$",
@@ -170,7 +179,9 @@ DATASET_LABELS = {
 
 #: Datasets that compute the CMB from scratch, and therefore carry
 #: their own *derived* amplitude via the Boltzmann code.
-_CAMB_CMB_DATASETS = {"planck_lite", "planck_lensing"}
+_CAMB_CMB_DATASETS = {
+    "planck_lite", "planck_lensing", "planck_lowe", "act_lensing",
+}
 
 #: Datasets that use the *free* ``sigma8`` parameter through the
 #: growth machinery.

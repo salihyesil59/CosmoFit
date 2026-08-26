@@ -87,6 +87,8 @@ The project is designed to make cosmological analyses simple, reproducible, and 
     structure grew; and **Planck 2018 low-l EE** as the tabulated, *non-Gaussian* likelihood it
     actually is rather than the usual `tau = 0.0544 +- 0.0073` shorthand (which is still
     available as the `"tau"` dataset)
+  * **ACT DR6 CMB lensing** -- a second, independent lensing reconstruction, tighter than
+    Planck's (2.3% on the amplitude), built on the lensing convergence rather than the potential
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
   * S8 weak-lensing prior (KiDS-1000 or DES Y3, Gaussian) -- don't combine the two versions,
     see the note below

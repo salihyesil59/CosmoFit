@@ -928,15 +928,30 @@ class CMBLensingDataset:
 
     windows: np.ndarray
 
-    delta_windows: np.ndarray
-
-    fiducial_correction: np.ndarray
-
     lmax: int = 2500
 
     ell_range: tuple = (8, 400)
 
     reference: str = ""
+
+    #: Which lensing spectrum ``windows`` multiplies. Planck's
+    #: released products are built on the *potential*,
+    #: ``[L(L+1)]^2 C_L^{phiphi} / 2 pi``; ACT's are built on the
+    #: *convergence*, ``C_L^{kappakappa}`` as a raw C_L. The two
+    #: differ by a factor of ``2 pi / 4`` and describe the same
+    #: physics, so the distinction is easy to lose and impossible
+    #: to notice afterwards -- a wrong choice is a smooth rescaling
+    #: of the prediction, which a fit absorbs into the amplitude.
+    spectrum: str = "PP"
+
+    #: The linear-correction machinery, present only where the
+    #: release provides it (Planck). ``None`` means the covariance
+    #: already accounts for the reconstruction's dependence on the
+    #: fiducial CMB -- which is what ACT's CMB-marginalized
+    #: covariance does instead.
+    delta_windows: "np.ndarray | None" = None
+
+    fiducial_correction: "np.ndarray | None" = None
 
     #: Column order of ``delta_windows``' second axis, matching the
     #: released ``linear_correction_bin_window_in_order``.
@@ -946,8 +961,7 @@ class CMBLensingDataset:
 
         n = len(self.value)
 
-        if not (len(self.ell) == n == len(self.sigma)
-                == len(self.fiducial_correction)):
+        if not (len(self.ell) == n == len(self.sigma)):
 
             raise ValueError(
 
@@ -956,6 +970,46 @@ class CMBLensingDataset:
                 "lengths.",
 
             )
+
+        if self.spectrum not in ("PP", "KK"):
+
+            raise ValueError(
+
+                f"Unknown lensing spectrum '{self.spectrum}'; "
+
+                f"expected 'PP' (potential) or 'KK' (convergence).",
+
+            )
+
+        has_correction = (
+
+            self.delta_windows is not None
+
+            or self.fiducial_correction is not None
+
+        )
+
+        if has_correction:
+
+            if self.delta_windows is None or self.fiducial_correction is None:
+
+                raise ValueError(
+
+                    "The linear correction needs both its windows "
+
+                    "and its fiducial values; one was given without "
+
+                    "the other.",
+
+                )
+
+            if len(self.fiducial_correction) != n:
+
+                raise ValueError(
+
+                    "The fiducial correction has the wrong length.",
+
+                )
 
         if self.covariance.shape != (n, n):
 
@@ -975,7 +1029,13 @@ class CMBLensingDataset:
 
             )
 
-        if self.delta_windows.shape != (n, 4, self.lmax + 1):
+        if (
+
+            self.delta_windows is not None
+
+            and self.delta_windows.shape != (n, 4, self.lmax + 1)
+
+        ):
 
             raise ValueError(
 
@@ -986,6 +1046,14 @@ class CMBLensingDataset:
                 f"{self.delta_windows.shape}.",
 
             )
+
+    @property
+    def has_linear_correction(self) -> bool:
+        """
+        Whether this release provides the normalization correction.
+        """
+
+        return self.delta_windows is not None
 
     @property
     def size(self) -> int:
