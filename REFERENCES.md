@@ -97,6 +97,34 @@ repository.
   omitted from this combination -- see the module docstring in
   `data/loader.py` for why.
 
+### eBOSS DR16 tabulated BAO (ELG, Lyman-alpha)
+
+The two DR16 tracers released as likelihood *surfaces* rather than a
+mean and a covariance, because a Gaussian would misrepresent them.
+
+- **de Mattia et al. (2020)**, *The Completed SDSS-IV extended Baryon
+  Oscillation Spectroscopic Survey: measurement of the BAO and growth
+  rate of structure of the emission line galaxy sample from the
+  anisotropic power spectrum between redshift 0.6 and 1.1*, MNRAS 501,
+  5616. D_V/r_d = 18.33 (+0.57/-0.62) at z_eff = 0.845, from a
+  1.4-sigma BAO detection.
+  [arXiv:2007.09008](https://arxiv.org/abs/2007.09008)
+- **du Mas des Bourboux et al. (2020)**, *The Completed SDSS-IV
+  Extended Baryon Oscillation Spectroscopic Survey: Baryon Acoustic
+  Oscillations with Lyman-alpha Forests*, ApJ 901, 153.
+  D_M/r_d = 37.5 +- 1.1 and D_H/r_d = 8.99 +- 0.19 at z_eff = 2.334,
+  combining the forest auto-correlation with its cross-correlation
+  with quasars.
+  [arXiv:2007.08995](https://arxiv.org/abs/2007.08995)
+- Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
+- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
+  [`likelihoods/eboss_dr16.py`](src/CosmoFit/likelihoods/eboss_dr16.py)
+- **Note:** eBOSS quote the Lyman-alpha constraint above from a joint
+  fit but ship only the auto and cross surfaces separately, so this
+  library multiplies them. That treats them as independent;
+  `tests/test_eboss_tables.py` checks the assumption rather than
+  making it, by recovering the published errors from the product.
+
 ### Pantheon+SH0ES (Type Ia Supernovae)
 
 - **Brout et al. (2022)**, *The Pantheon+ Analysis: Cosmological

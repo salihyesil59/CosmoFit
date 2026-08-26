@@ -128,6 +128,14 @@ CHI2_BOUNDS = {
     "cc": 2.0,
     "desi": 2.0,
     "sdss_bao": 2.0,
+    "eboss_elg": 2.0,
+    # eBOSS DR16's Lyman-alpha BAO sits ~2 sigma from a Planck-like
+    # LCDM -- a real and much-discussed feature of that measurement,
+    # not a defect here, and chi2/N ~ 2.4 is what it looks like.
+    # Bounded just above it so a genuine error is still caught. Note
+    # this is -2 log L from a table, so it does not reach zero at a
+    # perfect fit either (see "planck_lowe" below).
+    "eboss_lya": 4.0,
     "bao_lowz": 3.0,
     "pantheon": 2.0,
     "des_sn5yr": 2.0,

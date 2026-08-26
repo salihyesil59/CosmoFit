@@ -46,6 +46,8 @@ from CosmoFit.cosmology.core.parameters import CosmologyParameters
 from CosmoFit.likelihoods.cc import CCLikelihood
 from CosmoFit.likelihoods.desi import DESILikelihood
 from CosmoFit.likelihoods.sdss_bao import SDSSBAOLikelihood
+from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGLikelihood
+from CosmoFit.likelihoods.eboss_dr16 import EBOSSLyaLikelihood
 from CosmoFit.likelihoods.bao_lowz import BAOLowZLikelihood
 from CosmoFit.likelihoods.pantheon import PantheonLikelihood
 from CosmoFit.likelihoods.des_sn5yr import DESSN5YRLikelihood
@@ -89,6 +91,8 @@ DATASET_REGISTRY = {
     "cc": CCLikelihood,
     "desi": DESILikelihood,
     "sdss_bao": SDSSBAOLikelihood,
+    "eboss_elg": EBOSSELGLikelihood,
+    "eboss_lya": EBOSSLyaLikelihood,
     "bao_lowz": BAOLowZLikelihood,
     "pantheon": PantheonLikelihood,
     "des_sn5yr": DESSN5YRLikelihood,
@@ -120,6 +124,22 @@ CONFLICTING_DATASETS = {
     ("desi", "sdss_bao"):
         "DESI covers much of the same sky and the same structure "
         "BOSS/eBOSS did; they are not independent.",
+
+    ("desi", "eboss_lya"):
+        "DESI's Lyman-alpha forest sample is drawn from much of the "
+        "same sky as eBOSS's and is its successor; the two BAO "
+        "measurements at z ~ 2.33 are not independent.",
+
+    ("desi", "eboss_elg"):
+        "DESI's emission-line galaxy sample succeeds eBOSS's over "
+        "much of the same footprint.",
+
+    ("sdss_bao", "eboss_elg"):
+        "Both are eBOSS DR16. The ELG sample is a separate tracer "
+        "from the LRG and QSO samples in `sdss_bao`, so this is a "
+        "weaker overlap than the others here -- but the DR16 "
+        "covariances treat the tracers jointly and this pairing "
+        "does not.",
 
     ("pantheon", "des_sn5yr"):
         "DES-SN5YR's low-z anchor sample (~11% of it) is also "
@@ -160,6 +180,8 @@ DATASET_LABELS = {
     "cc": "CC",
     "desi": "DESI",
     "sdss_bao": "SDSS",
+    "eboss_elg": "eBOSS ELG",
+    "eboss_lya": r"eBOSS Ly$\alpha$",
     "bao_lowz": "6dFGS + MGS",
     "pantheon": "Pantheon+",
     "des_sn5yr": "DES-SN5YR",

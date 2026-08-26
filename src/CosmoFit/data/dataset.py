@@ -1163,3 +1163,170 @@ class GenericDataset:
     name: str
 
     data: dict
+
+# ============================================================
+# Tabulated BAO likelihoods
+# ============================================================
+
+@dataclass(slots=True)
+class TabulatedBAODataset:
+    """
+    A BAO measurement distributed as a likelihood *surface* rather
+    than a mean and a covariance, used by
+    :class:`~likelihoods.eboss_dr16.TabulatedBAOLikelihood`.
+
+    eBOSS DR16 releases two of its tracers this way, and in both
+    cases the reason is that a Gaussian would misrepresent them:
+
+    * **ELG** (``observable = ("DV_over_rs",)``) has only a 1.4-sigma
+      BAO detection, so the likelihood is asymmetric and does not
+      decay before the low edge of the released table.
+    * **Lyman-alpha** (``observable = ("DM_over_rs", "DH_over_rs")``)
+      is a genuinely two-dimensional surface whose degeneracy is not
+      an ellipse.
+
+    ``axes`` holds one grid vector per observable, and ``log_prob``
+    is the log-likelihood on the outer product of them -- shape
+    ``(len(axes[0]),)`` in 1D and ``(len(axes[0]), len(axes[1]))`` in
+    2D. It is stored as a log because the released probabilities
+    span thirty orders of magnitude, and because interpolating the
+    log is what reproduces the published error bars (interpolating
+    the probability itself does not, and can go negative between
+    nodes).
+
+    The grid edges are a hard bound: outside them the likelihood is
+    zero, not extrapolated. For the Lyman-alpha grids that is
+    harmless -- the surface has long decayed. For ELG it is a real
+    prior, and :attr:`edge_delta_chi2` records how real.
+    """
+
+    z_eff: float
+
+    observable: tuple[str, ...]
+
+    axes: tuple[np.ndarray, ...]
+
+    log_prob: np.ndarray
+
+    reference: str = ""
+
+    def __post_init__(self):
+
+        if len(self.axes) != len(self.observable):
+
+            raise ValueError(
+
+                f"{len(self.observable)} observables but "
+                f"{len(self.axes)} grid axes -- they index the same "
+                f"dimensions and must match.",
+
+            )
+
+        expected = tuple(len(a) for a in self.axes)
+
+        if self.log_prob.shape != expected:
+
+            raise ValueError(
+
+                f"Grid shape {self.log_prob.shape} does not match "
+                f"the axes {expected}.",
+
+            )
+
+        for name, axis in zip(self.observable, self.axes):
+
+            if np.any(np.diff(axis) <= 0.0):
+
+                raise ValueError(
+
+                    f"The {name} axis must be strictly increasing.",
+
+                )
+
+        if not np.all(np.isfinite(self.log_prob)):
+
+            raise ValueError(
+
+                "The grid holds log-probabilities and must be finite "
+                "throughout -- an exact zero in the released "
+                "probability would become -inf here and make the "
+                "spline meaningless over its whole support.",
+
+            )
+
+    # ---------------------------------------------------------
+
+    @property
+    def size(self) -> int:
+        """
+        Number of observables constrained -- 1 for ELG, 2 for
+        Lyman-alpha. *Not* the number of grid points, which is a
+        property of how finely the surface was sampled and not of
+        how much was measured.
+        """
+
+        return len(self.observable)
+
+    @property
+    def bounds(self) -> tuple[tuple[float, float], ...]:
+        """
+        ``(low, high)`` per observable: the support of the table,
+        outside which the likelihood is zero.
+        """
+
+        return tuple((float(a[0]), float(a[-1])) for a in self.axes)
+
+    @property
+    def peak(self) -> tuple[float, ...]:
+        """
+        Grid point of maximum likelihood, one value per observable.
+        """
+
+        index = np.unravel_index(
+
+            np.argmax(self.log_prob),
+
+            self.log_prob.shape,
+
+        )
+
+        return tuple(
+
+            float(axis[i]) for axis, i in zip(self.axes, index)
+
+        )
+
+    @property
+    def edge_delta_chi2(self) -> tuple[tuple[float, float], ...]:
+        """
+        ``chi2 - chi2_min`` at each end of each axis.
+
+        A large number means the surface has decayed and truncating
+        it costs nothing. A small one means the table's edge is
+        acting as a prior -- eBOSS's ELG table reaches its low edge
+        at ``delta chi2 = 3.3``, still well inside 2 sigma.
+        """
+
+        peak = np.max(self.log_prob)
+
+        out = []
+
+        for axis_index in range(len(self.axes)):
+
+            moved = np.moveaxis(self.log_prob, axis_index, 0)
+
+            flat = moved.reshape(moved.shape[0], -1)
+
+            # Profile, not marginalize: the best the surface can do
+            # at each end, which is what "is the edge reachable?"
+            # asks.
+            best = flat.max(axis=1)
+
+            out.append(
+                (
+                    float(-2.0 * (best[0] - peak)),
+                    float(-2.0 * (best[-1] - peak)),
+                ),
+            )
+
+        return tuple(out)

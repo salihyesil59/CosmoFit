@@ -1532,6 +1532,182 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
+    def eboss_surface(self, dataset="eboss_lya", save_path=None):
+        r"""
+        An eBOSS DR16 tabulated BAO likelihood, drawn as the surface
+        it actually is, with the current model's prediction on it.
+
+        This is the figure that justifies carrying the tables. For
+        ``"eboss_elg"`` the released curve is overlaid with the
+        Gaussian its published summary
+        (:math:`18.33 \pm 0.6`) would imply, and the two part company
+        in the low tail -- which is the half of the curve that
+        decides whether a low expansion rate at :math:`z \sim 0.85`
+        is excluded. For ``"eboss_lya"`` the 2-D surface is drawn as
+        :math:`\Delta\chi^2` contours at 1, 2 and 3 sigma, whose
+        shape is visibly not an ellipse.
+
+        Parameters
+        ----------
+        dataset : str, optional
+            ``"eboss_lya"`` (the default) or ``"eboss_elg"``.
+        save_path : str or Path, optional
+            Where to write the figure.
+        """
+
+        import matplotlib.pyplot as plt
+
+        from CosmoFit.likelihoods.eboss_dr16 import (
+            EBOSSELGLikelihood,
+            EBOSSLyaLikelihood,
+        )
+
+        cls = {
+            "eboss_elg": EBOSSELGLikelihood,
+            "eboss_lya": EBOSSLyaLikelihood,
+        }.get(dataset)
+
+        if cls is None:
+            raise ValueError(
+                f"Unknown tabulated BAO dataset {dataset!r}; expected "
+                f"'eboss_elg' or 'eboss_lya'."
+            )
+
+        lk = self._require_likelihood(cls, dataset)
+
+        data = lk.data
+        prediction = lk.model()
+
+        if data.size == 1:
+            return self._eboss_curve(
+                plt, lk, data, prediction, save_path,
+            )
+
+        return self._eboss_contours(
+            plt, lk, data, prediction, save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def _eboss_curve(self, plt, lk, data, prediction, save_path):
+        """One-dimensional table: ELG."""
+
+        low, high = data.bounds[0]
+
+        x = np.linspace(low, high, 2000)
+
+        chi2 = -2.0 * (
+            lk.log_likelihood_at(x[:, None]) - data.log_prob.max()
+        )
+
+        fig, ax = plt.subplots(figsize=(7.2, 4.2))
+
+        ax.plot(
+            x, chi2, color=COLOR_DATA, lw=1.8,
+            label="eBOSS DR16 ELG (released table)",
+        )
+
+        # What a Gaussian summary would have claimed instead.
+        peak = data.peak[0]
+        ax.plot(
+            x, ((x - 18.33) / 0.6) ** 2,
+            color=COLOR_REFERENCE, lw=1.4, ls="--",
+            label=r"Gaussian $18.33 \pm 0.6$",
+        )
+
+        ax.axvline(
+            prediction[0], color=COLOR_MODEL, lw=1.6,
+            label=rf"this model: ${prediction[0]:.2f}$",
+        )
+
+        for level, style in ((1.0, ":"), (4.0, ":")):
+            ax.axhline(level, color=COLOR_REFERENCE, lw=0.8, ls=style)
+
+        ax.set_xlabel(r"$D_V(z=0.845) / r_d$")
+        ax.set_ylabel(r"$\Delta\chi^2$")
+        ax.set_ylim(0.0, 12.0)
+        ax.set_title(
+            r"A 1.4$\sigma$ BAO detection is not a Gaussian",
+            fontsize=11,
+        )
+        ax.legend(frameon=False, fontsize=9)
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def _eboss_contours(self, plt, lk, data, prediction, save_path):
+        """Two-dimensional table: Lyman-alpha."""
+
+        (xlo, xhi), (ylo, yhi) = data.bounds
+
+        x = np.linspace(xlo, xhi, 400)
+        y = np.linspace(ylo, yhi, 400)
+
+        points = np.stack(np.meshgrid(x, y, indexing="ij"), axis=-1)
+
+        chi2 = -2.0 * (
+            lk.log_likelihood_at(points) - data.log_prob.max()
+        )
+
+        # Quoted on the same zero point as the contours: `chi2()`
+        # is raw -2 log L, which for the combined version carries a
+        # small constant offset (the two halves peak in different
+        # places, so their product cannot reach 1 anywhere).
+        delta_chi2 = lk.chi2() + 2.0 * data.log_prob.max()
+
+        fig, ax = plt.subplots(figsize=(6.4, 5.4))
+
+        # 1, 2, 3 sigma for two parameters.
+        levels = [2.30, 6.18, 11.83]
+
+        ax.contourf(
+            x, y, chi2.T, levels=[0.0] + levels,
+            colors=["#2b2b2b", "#5a5a5a", "#8f8f8f"], alpha=0.35,
+        )
+        ax.contour(
+            x, y, chi2.T, levels=levels,
+            colors=COLOR_DATA, linewidths=1.2,
+        )
+
+        ax.plot(
+            *data.peak, marker="*", ms=14, ls="none",
+            color=COLOR_DATA, label="table maximum",
+        )
+
+        ax.plot(
+            prediction[0], prediction[1], marker="o", ms=9, ls="none",
+            color=COLOR_MODEL,
+            label=(
+                rf"this model  $\Delta\chi^2 = {delta_chi2:.2f}$"
+                if np.isfinite(delta_chi2) else "this model (off table)"
+            ),
+        )
+
+        ax.set_xlabel(r"$D_M(z=2.334) / r_d$")
+        ax.set_ylabel(r"$D_H(z=2.334) / r_d$")
+        ax.set_title(
+            r"eBOSS DR16 Ly$\alpha$ BAO, 1/2/3$\sigma$",
+            fontsize=11,
+        )
+        ax.legend(frameon=False, fontsize=9, loc="upper right")
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
     def planck_residuals(self, save_path=None):
         """
         Standardized-residual ("pull") plot for the Planck
