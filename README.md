@@ -111,7 +111,11 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   one or more models (built-in or your own), edit free parameters, and run the MCMC fit(s) + plots
   with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
   test) and on the same figures, all from the browser, with every figure downloadable as SVG, PNG,
-  or PDF
+  or PDF. It is also **self-explaining**: every dataset and model carries a note saying what it
+  measures, over what redshift range, what it constrains and where it comes from; six presets
+  configure a whole analysis in one click; the parameter table shows only the parameters *this*
+  fit actually uses; and the app warns about combinations that will not work (or, worse, will
+  quietly produce a posterior for something the data cannot constrain) before you run them
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
@@ -533,14 +537,56 @@ Each distinct configuration gets its own file (see
 shouldn't be.
 
 It lets you: tick which built-in datasets to fit; pick one of the
-six built-in models, or write a custom one directly as an `E(z)`
-expression (e.g. `sqrt(Omega_m*(1+z)**3 + ...)`, using the same
-mechanism as `model_from_expression()` below) with your own extra
-parameters; tick which parameters are free and edit their initial
-values/bounds in a table; and, with one click, run the MCMC fit and
-render whichever result plots apply to your model/dataset choice.
-Results (best fit, posterior summary, convergence) can be downloaded
-as JSON via `FitResult.save_json()`.
+seventeen built-in models, or write a custom one directly as an
+`E(z)` expression (e.g. `sqrt(Omega_m*(1+z)**3 + ...)`, using the
+same mechanism as `model_from_expression()` below) with your own
+extra parameters; tick which parameters are free and edit their
+initial values/bounds in a table; and, with one click, run the MCMC
+fit and render whichever result plots apply to your model/dataset
+choice. Results (best fit, posterior summary, convergence) can be
+downloaded as JSON via `FitResult.save_json()`.
+
+**It also explains itself.** Fourteen datasets and seventeen models
+is a lot to face cold, and a wrong combination does not announce
+itself -- it produces a perfectly ordinary-looking posterior. So:
+
+* **Every dataset carries a note** -- what it measures, over what
+  redshift range, how many points, what it actually constrains, and
+  the paper it comes from. They are grouped by probe (expansion rate,
+  BAO, supernovae, CMB, growth, external measurements), because a fit
+  is normally built by taking one from each family rather than by
+  ticking everything.
+* **Every model carries a note** -- what it is, what its extra
+  parameters mean, and *which parameter values reduce it to ΛCDM*,
+  which is the number an AIC/BIC comparison is measuring the distance
+  from. Capability badges say whether it has its own `w(z)`, whether
+  it modifies growth, and whether the full CMB spectra can be
+  computed for it.
+* **Six presets** configure a whole analysis in one click --
+  including "DESI DR2 + BBN → H₀ without the CMB", which sets the
+  datasets, picks DR2, and turns on the computed sound horizon
+  together, since none of those three is useful without the others.
+* **The parameter table shows only what this fit uses.** The shared
+  container carries every parameter any model needs; for an LCDM fit
+  against CC and BAO all but four are inert. Relevance depends on the
+  datasets too -- `rd` appears only with BAO, `sigma8` only with
+  growth data, `n_s`/`tau` only with the CMB spectra.
+* **It warns before you run, not after.** A model the CMB spectra
+  cannot be computed for is an error you would otherwise meet as a
+  stack trace minutes in. The quieter ones matter more: a
+  modified-gravity model with no growth data ticked, a model whose
+  own parameters are left fixed, a free `sigma8` that nothing in the
+  fit constrains. Each of those runs, converges, and returns a
+  posterior that looks like a measurement.
+* **A χ² breakdown per dataset** on the results tab, which is what
+  turns a total χ² into "the local H₀ measurement is contributing 24
+  of it, on one data point" -- the entire content of a tension.
+* **Derived quantities** (`q₀`, `z_t`, and `r_d` computed from the
+  densities) with real error bars, pushed sample by sample back
+  through the model's own `E(z)`.
+* A **📖 Guide** panel listing every dataset and model in one
+  browsable table, with the conflict rules and a short "how to use
+  this" walkthrough.
 
 The custom-model expression box evaluates with `eval()` but with
 Python's builtins removed and only whitelisted `numpy` math plus the
@@ -1415,6 +1461,95 @@ its prior with no indication anything was wrong.
 Seventeen new tests (**147 total**) cover the neutrino
 thermodynamics, the CAMB comparison, the independence claims above,
 quadrature convergence, and the wiring.
+
+Version **v0.25.0** is a pass over the graphical interface, on the
+principle that a tool which cannot be used wrongly is worth more than
+one with more knobs.
+
+The app had grown to fourteen datasets and seventeen models presented
+as a flat checkbox list and a flat dropdown, with no indication of
+what any of them was. That is a problem specific to this domain: a
+wrong combination does not error, it returns a perfectly
+ordinary-looking posterior with error bars that are too small, or a
+"measurement" of a parameter nothing in the fit constrains.
+
+**Everything now explains itself.** Each dataset says what it
+measures, over what redshift range, how many points, what it actually
+constrains, and where it comes from -- grouped by probe, since a fit
+is built by taking one from each family rather than by ticking
+everything. Each model says what it is, what its extra parameters
+mean, and which parameter values reduce it to ΛCDM, plus capability
+badges for `w(z)`, growth, and whether the full CMB spectra can be
+computed for it.
+
+**Six presets** configure a whole analysis at once. "DESI DR2 + BBN →
+H₀ without the CMB" sets the datasets, selects DR2, *and* turns on the
+computed sound horizon -- none of the three is useful without the
+other two, and expecting someone to discover that from three separate
+widgets was optimistic.
+
+**The parameter table now shows only the parameters this fit uses.**
+The shared container carries every parameter any model needs; for an
+LCDM fit against CC and BAO, all but four are inert. Relevance is a
+property of the fit rather than the model, so it follows the datasets
+too: `rd` appears only with BAO, `sigma8` only with growth data,
+`n_s`/`τ` only with the CMB spectra. The hidden ones still reach the
+`Fitter` -- they are inert, not absent.
+
+**Warnings fire before the run, not after.** One is a hard error the
+app can see coming (a modified-gravity model with the full CMB
+spectra). The rest are quieter and matter more, because the fit will
+run, converge, and produce something that looks like a result: a
+modified-gravity model with no growth data ticked, a model whose own
+parameters are left fixed, a free `sigma8` nothing constrains, a
+computed `r_d` with `Ω_b` held fixed.
+
+**Three things the GUI simply could not show before:**
+
+* **χ² per dataset**, which turns a total χ² into a statement about
+  *which* dataset is in tension. On the Hubble-tension preset it reads
+  DESI 19.6/13, Planck 7.2/3, local H₀ **24.5/1** -- the whole
+  argument, in one table.
+* **Derived quantities** (`q₀`, `z_t`, `r_d` from the densities) with
+  real error bars. These have existed in `CosmoFit.stats.derived`
+  since v0.13.0 and were reachable only from Python.
+* **Dataset versions.** DESI DR2, the SH0ES 2024 and TDCOSMO H₀
+  measurements, DES Y3's `S₈` and the Cooke BBN prior all shipped in
+  v0.23.0 and were **unreachable from the GUI**, which never passed
+  `dataset_kwargs`. Each dataset with more than one version now has a
+  picker.
+
+A **📖 Guide** panel lists every dataset and model in one browsable
+table with the conflict rules and a short walkthrough. Both tables are
+generated from the same dictionaries the widgets use, so a dataset
+added to the library without a note shows up as a blank row rather
+than silently.
+
+### Two bugs, and the first GUI tests
+
+`st.checkbox` was being given both a `value=` and a session-state
+entry under the same key -- the one thing Streamlit explicitly warns
+about, since the two disagree about which is authoritative. And the
+preset button called `st.rerun()`, which is the obvious idiom and was
+never needed here (the button sits above the widgets it writes to, so
+the values land on the same pass); it was also an infinite loop
+anywhere a button's click state outlives the rerun.
+
+That second one was found by the new `tests/test_gui.py`, which is the
+point of it. Streamlit's `AppTest` runs the app in-process and exposes
+the rendered element tree, so **12 tests** now drive the flows a user
+actually takes: a preset writes the configuration it claims to, a fit
+runs end to end and renders its tables, the parameter table follows
+the datasets, and each warning appears when it should. **159 tests
+total**, ~18 s.
+
+Two small public additions came out of this, both because the GUI
+needed them and reaching into private state to get them would have
+been worse: `dataset_reference(dataset, version)` returns a dataset's
+citation without loading its files, and
+`cosmology.boltzmann.supports_cmb_spectra(model)` answers "can CAMB do
+this model?" as a value rather than by raising -- the backend now
+routes its own check through it, so the two cannot drift apart.
 
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 

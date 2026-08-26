@@ -911,6 +911,60 @@ def available_versions(
 
 # ------------------------------------------------------------
 
+def dataset_reference(
+    dataset: str,
+    version: str | None = None,
+) -> str:
+    """
+    The citation string for a dataset version, without loading any
+    of its files.
+
+    Every registry entry already carries the paper its numbers come
+    from; this exposes it, so a caller that wants to *show* the
+    provenance -- a GUI panel, a figure caption, a log line -- does
+    not have to read a 1600x1600 covariance matrix off disk first,
+    and does not have to reach into the private registry to avoid
+    that.
+
+    Parameters
+    ----------
+    dataset : str
+        Dataset name, as in :func:`available_datasets`.
+
+    version : str, optional
+        Which version. Defaults to that dataset's first registered
+        one -- the same default the corresponding ``load_*``
+        function uses.
+
+    Returns
+    -------
+    str
+
+    Examples
+    --------
+    >>> dataset_reference("desi", "desi2025")
+    'DESI Collaboration (2025), arXiv:2503.14738 (DESI DR2 Results II)'
+    """
+
+    if dataset not in _REGISTRIES:
+
+        raise ValueError(
+
+            f"Unknown dataset '{dataset}'. "
+
+            f"Available: {list(_REGISTRIES)}",
+
+        )
+
+    if version is None:
+
+        version = next(iter(_REGISTRIES[dataset]))
+
+    return _validate_version(dataset, version).get("reference", "")
+
+
+# ------------------------------------------------------------
+
 def available_datasets():
 
     return {

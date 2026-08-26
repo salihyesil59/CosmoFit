@@ -84,6 +84,52 @@ _UNSUPPORTED = {
 }
 
 
+def supports_cmb_spectra(model) -> tuple[bool, str]:
+    """
+    Whether CMB power spectra can be computed for a model, and why
+    not when they cannot -- **without importing CAMB**.
+
+    Answers the question :class:`CAMBBackend`'s constructor answers
+    by raising, but as a value, for callers that need to decide
+    *before* offering the choice: a GUI greying out a dataset, a
+    script picking between the compressed priors and the full
+    spectra, a table of what each model supports.
+
+    Parameters
+    ----------
+    model : type or Cosmology
+        A model class or an instance of one.
+
+    Returns
+    -------
+    (bool, str)
+        ``(True, "")`` if supported, else ``(False, reason)``.
+    """
+
+    cls = model if isinstance(model, type) else type(model)
+
+    name = cls.__name__
+
+    if name in _UNSUPPORTED:
+        return False, _UNSUPPORTED[name]
+
+    if name == "LCDM" or issubclass(cls, tuple()) if False else name == "LCDM":
+        return True, ""
+
+    if not hasattr(cls, "w"):
+
+        return False, (
+
+            f"{name} defines an expansion history E(z) but no "
+            f"dark-energy equation of state w(z), and the two are "
+            f"not interchangeable -- many different perturbation "
+            f"histories share one E(z)."
+
+        )
+
+    return True, ""
+
+
 class BoltzmannError(RuntimeError):
     """
     Raised when CMB spectra cannot be computed for this cosmology --
@@ -194,52 +240,31 @@ class CAMBBackend:
     def _check_supported(self) -> None:
         """
         Refuse models whose perturbations CAMB cannot represent.
+
+        The decision itself lives in :func:`supports_cmb_spectra`,
+        so a caller that asks "can this model do it?" and a caller
+        that simply tries cannot get different answers.
         """
 
-        name = type(self.cosmo).__name__
+        supported, reason = supports_cmb_spectra(self.cosmo)
 
-        if name in _UNSUPPORTED:
-
-            raise BoltzmannError(
-
-                f"Cannot compute CMB spectra for {name}: "
-
-                f"{_UNSUPPORTED[name]}\n\n"
-
-                f"Use the compressed distance priors "
-
-                f"(datasets=['planck', ...]) for this model "
-
-                f"instead -- they need only E(z).",
-
-            )
-
-        if name == "LCDM":
+        if supported:
             return
 
-        if not hasattr(self.cosmo, "w"):
+        raise BoltzmannError(
 
-            raise BoltzmannError(
+            f"Cannot compute CMB spectra for "
 
-                f"Cannot compute CMB spectra for {name}: it "
+            f"{type(self.cosmo).__name__}: {reason}\n\n"
 
-                f"defines an expansion history E(z) but no "
+            f"Use the compressed distance priors "
 
-                f"dark-energy equation of state w(z), and the two "
+            f"(datasets=['planck', ...]) for this model instead -- "
 
-                f"are not interchangeable -- many different "
+            f"they need only E(z).",
 
-                f"perturbation histories share one E(z). Give the "
+        )
 
-                f"model a `w(z)` method to make it CMB-computable, "
-
-                f"or use the compressed distance priors "
-
-                f"(datasets=['planck', ...]), which need only "
-
-                f"E(z).",
-
-            )
 
     # ---------------------------------------------------------
 

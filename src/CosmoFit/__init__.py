@@ -101,7 +101,11 @@ from CosmoFit.plots import FitPlotter
 # Dataset discovery
 # ============================================================
 
-from CosmoFit.data.loader import available_datasets, available_versions
+from CosmoFit.data.loader import (
+    available_datasets,
+    available_versions,
+    dataset_reference,
+)
 
 # ============================================================
 # Version
@@ -172,4 +176,5 @@ __all__ = [
     # Datasets
     "available_datasets",
     "available_versions",
+    "dataset_reference",
 ]
