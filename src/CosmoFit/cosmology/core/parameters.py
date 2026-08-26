@@ -526,6 +526,17 @@ DEFAULT_BOUNDS: dict[str, tuple[float, float]] = {
     "A_s": (0.01, 0.99),
     "alpha": (-0.9, 2.0),
     "sigma8": (0.6, 1.0),
+    # Primordial and thermal-history parameters. Only a fit that
+    # predicts CMB anisotropies from scratch
+    # (`likelihoods.planck_lite`, via a Boltzmann code) varies
+    # these; every background-only fit leaves them at their
+    # defaults, where they are inert.
+    "n_s": (0.87, 1.07),
+    "ln1e10As": (2.5, 3.7),
+    "tau_reio": (0.01, 0.20),
+    "N_eff": (0.5, 8.0),
+    "m_nu": (0.0, 2.0),
+    "A_planck": (0.9, 1.1),
 }
 
 
@@ -593,6 +604,54 @@ class CosmologyParameters(BaseParameters):
         ``E(z)``/``dEdz``/``mu(a,k)``; ``sigma8`` only sets its
         overall normalization. Default is the Planck 2018 best-fit
         value.
+    n_s : float, optional
+        Scalar spectral index of the primordial power spectrum.
+        Inert for every background-only fit; used only when a
+        Boltzmann code computes CMB anisotropies from scratch
+        (:class:`~likelihoods.planck_lite.PlanckLiteLikelihood`).
+        Default is the Planck 2018 best-fit value.
+    ln1e10As : float, optional
+        ``ln(10^10 A_s)``, the log primordial scalar amplitude at
+        k = 0.05 /Mpc -- the parameter CMB analyses sample, since
+        ``A_s`` itself spans orders of magnitude.
+
+        Deliberately *not* named ``A_s``: that name is already
+        taken in this container by the Generalized Chaplygin Gas
+        density parameter, a completely unrelated quantity that
+        happens to share the symbol in its own literature. Two
+        different physical quantities cannot share one field, and
+        renaming the GCG parameter would invalidate every saved
+        chain and script that names it, so the primordial
+        amplitude carries the longer name. Inert outside a
+        from-scratch CMB fit.
+    tau_reio : float, optional
+        Reionization optical depth. Inert outside a from-scratch
+        CMB fit, where it damps the high-l spectra by
+        ``exp(-2 tau)`` and is degenerate with ``ln1e10As`` unless
+        the ``"tau"`` dataset is included. Default is the Planck
+        2018 best-fit value.
+    N_eff : float, optional
+        Effective number of relativistic neutrino species. The
+        Standard Model value (3.044) is the default; varying it
+        tests for extra relativistic energy density ("dark
+        radiation"), which shifts the sound horizon and so moves
+        H0. Used by the sound-horizon and Boltzmann calculators,
+        not by any model's low-redshift ``E(z)``.
+    m_nu : float, optional
+        Sum of the neutrino masses in eV. Default 0.06, the
+        minimal normal-hierarchy value assumed by the Planck 2018
+        baseline. Like ``N_eff``, it enters the thermal history and
+        the CMB, not the low-z background, where massive neutrinos
+        are already counted inside ``Omega_m``.
+    A_planck : float, optional
+        Planck absolute calibration, the one nuisance parameter
+        ``plik_lite`` leaves for a downstream fit (the ~20
+        foreground parameters of the full high-l likelihood have
+        already been marginalized out of it). Every bandpower
+        prediction is divided by ``A_planck^2``. Planck's own
+        constraint on it is 1.000 +- 0.0025; leaving it fixed at
+        1 is what the reference ``plik_lite`` implementations do
+        and costs almost nothing, so that is the default.
     """
 
     H0: float
@@ -606,6 +665,12 @@ class CosmologyParameters(BaseParameters):
     A_s: float = 0.7
     alpha: float = 0.0
     sigma8: float = 0.811
+    n_s: float = 0.9649
+    ln1e10As: float = 3.044
+    tau_reio: float = 0.0544
+    N_eff: float = 3.044
+    m_nu: float = 0.06
+    A_planck: float = 1.0
 
     #: Extra bounds/labels contributed by :func:`build_params_class`
     #: for dynamically-created custom-model parameter classes. Empty
@@ -659,6 +724,12 @@ class CosmologyParameters(BaseParameters):
             "A_s": r"$A_s$",
             "alpha": r"$\alpha$",
             "sigma8": r"$\sigma_8$",
+            "n_s": r"$n_s$",
+            "ln1e10As": r"$\ln(10^{10} A_s)$",
+            "tau_reio": r"$\tau$",
+            "N_eff": r"$N_{\rm eff}$",
+            "m_nu": r"$\sum m_\nu$ [eV]",
+            "A_planck": r"$A_{\rm planck}$",
         }
         labels.update(cls._EXTRA_LABELS)
 

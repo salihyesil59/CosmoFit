@@ -19,8 +19,36 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * **CPL** (Chevallier-Polarski-Linder) -- w(z) = w0 + wa z/(1+z)
   * **JBP** (Jassal-Bagla-Padmanabhan) -- w(z) = w0 + wa z/(1+z)^2
   * **BA** (Barboza-Alcaniz) -- w(z) = w0 + wa z(1+z)/(1+z^2)
+  * **LogarithmicDE** (Efstathiou) -- w(z) = w0 + wa ln(1+z); the one w0-wa form here
+    that does *not* saturate at high z, so it is the control case for asking whether a
+    measured `wa` is the data or the assumed shape
+  * **PEDE** (Phenomenologically Emergent Dark Energy) -- Omega_de(z) = Omega_de0
+    [1 - tanh(log10(1+z))], with **no free dark-energy parameter at all**: the same
+    parameter count as LCDM and a completely different expansion history, so an AIC/BIC
+    comparison against LCDM is a pure comparison of fit
+  * **GEDE** (Generalized EDE) -- contains both LCDM (Delta -> 0) and PEDE
+    (Delta = 1, z_t = 0) as exact limits, so `Delta` measures the distance from a
+    cosmological constant on a continuous scale
+  * **LsCDM** (sign-switching Lambda, Akarsu et al.) -- Lambda flips sign at
+    z_dagger ~ 2 (AdS below, dS above), shrinking r_d and so raising the BAO-inferred H0;
+    a route to the H0 tension that late-time-only dark-energy models cannot take
   * **GCG** (Generalized Chaplygin Gas) -- unified dark matter/dark energy fluid,
     p = -A/rho^alpha
+  * **IDE** (Interacting Dark Energy) -- Q = 3 xi H rho_de in closed form; changes how
+    *matter* dilutes, which no w(z) parametrization does, so it has its own
+    growth-of-structure signature
+  * **RunningVacuum** -- Lambda(H) = c0 + 3 nu H^2, from renormalization-group running of
+    the vacuum energy; one of the few extensions whose extra parameter has a *predicted*
+    magnitude (|nu| ~ 10^-3) rather than an arbitrary one
+
+* Models where acceleration comes from a modified Friedmann equation rather than any dark
+  energy at all
+
+  * **Cardassian** (modified polytropic) -- H^2 = A rho + B rho^n, a flat, matter-dominated,
+    accelerating universe
+  * **DGP** (Dvali-Gabadadze-Porrati braneworld, self-accelerating branch) -- gravity leaks
+    into a fifth dimension; LCDM's parameter count, and a *suppressed* growth history
+    (mu ~ 0.72 today) that is the real observational handle on it
 
 * Modified-gravity models, at both background *and* growth-of-structure level (see Project
   Status for exactly what's real vs. simplified in each)
@@ -37,16 +65,31 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   E(z)/dE(z)dz (`cosmology.calculators.growth.GrowthCalculator`) -- `mu = 1` (standard GR
   growth) for LCDM/wCDM/CPL/JBP/BA/GCG, a real derived `mu(a,k)` for the three
   modified-gravity models above
+* **The BAO sound horizon `r_d` computed from scratch** (`Fitter(..., compute_rd=True)`)
+  rather than fitted as a free nuisance parameter -- the integral
+  `r_d = int c_s/H dz` with photons, massless neutrinos and massive neutrinos carrying
+  their exact Fermi-Dirac energy density, validated against CAMB's `rdrag` to 5e-5. This
+  is what turns BAO from a *relative* distance measurement (which constrains only
+  `H0 * r_d`) into an absolute one, and it is how "BAO + BBN gives H0" works
 * Flexible parameter management
 * Built-in observational datasets
 
   * Cosmic Chronometers (CC)
-  * BAO (DESI 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO) -- don't combine the two, see the note below
-  * Supernova (Pantheon+, DES-SN5YR) -- don't combine the two, see the note below
-  * CMB distance priors (Planck 2018 R, l_A, omega_b_h2)
+  * BAO (**DESI DR2 2025** or DESI DR1 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO;
+    **low-z 6dFGS + SDSS DR7 MGS**) -- the low-z pair is independent of the other two and
+    can join either; DESI and SDSS cannot be combined with each other, see the note below
+  * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
+  * CMB, two ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
+    works for every model) or the **full Planck 2018 TT/TE/EE spectra** (613 `plik_lite`
+    bandpowers computed from scratch with CAMB -- slow, LCDM and w(z) models only)
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
   * S8 weak-lensing prior (KiDS-1000 or DES Y3, Gaussian) -- don't combine the two versions,
     see the note below
+  * **External single-number measurements**, entering as datasets rather than as priors so
+    they show up in the chi2 breakdown and the degrees-of-freedom count: local **H0**
+    (SH0ES 2022/2024, or TDCOSMO 2025 time-delay lensing -- independent of the Cepheid
+    ladder), a **BBN** constraint on omega_b h^2 (Schoeneberg 2024 or Cooke 2018), and the
+    Planck lowE **tau** prior
 
 * Modular likelihood architecture
 * Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
@@ -1017,16 +1060,404 @@ only because it subclasses `float`). The counters are now cast at the
 source, and both JSON writers coerce numpy scalars rather than
 failing on a save.
 
+Version **v0.23.0** is the largest single addition since the library
+began: six new datasets, eight new cosmological models, the first
+test suite, and -- the headline -- **the CMB computed from scratch
+rather than compressed**.
+
+### Planck, uncompressed
+
+Until now "Planck" meant three numbers: the distance priors
+(R, l_A, omega_b h^2). That is fast, dependency-free and works for
+every model, and v0.19.0 documents at length how badly it can go
+wrong, because a compression carries the conventions of whoever
+produced it and the theory prediction has to share them exactly.
+
+`"planck_lite"` is the other end of that trade. It uses the actual
+measured spectra: **613 binned TT/TE/EE bandpowers over
+l = 30-2508 with their full 613x613 covariance**, compared against a
+C_l spectrum computed by a Boltzmann code. No compression, no
+summary statistic, no borrowed convention -- the theory prediction
+is the same object the data is.
+
+CosmoFit does not implement a Boltzmann hierarchy, and should not:
+that is thousands of coupled ODEs per wavenumber through
+recombination, and a pure-Python version would be far too slow for
+an MCMC. A new `cosmology/boltzmann.py` translates a `Cosmology`
+into **CAMB**'s parameter conventions and calls it, as an optional
+dependency (`pip install "cosmofit[cmb]"`). Nothing else in the
+library imports it.
+
+Three details that decide whether this is right or subtly wrong:
+
+- **Which models can go through it.** LCDM maps onto CAMB directly.
+  Any model exposing a `w(z)` (wCDM, CPL, JBP, BA, GCG, and the new
+  PEDE/GEDE/IDE) is passed through CAMB's PPF dark-energy module as
+  a tabulated `w(a)` -- exact at background level, and stable across
+  the `w = -1` crossing that CPL posteriors routinely visit. The
+  **modified-gravity models are refused outright**. `FRHuSawicki`
+  would have run happily -- its background *is* LCDM's by
+  construction -- and returned LCDM's C_l with `f_R0` doing nothing,
+  which is worse than an error.
+- **Massive neutrinos.** CosmoFit counts them inside `Omega_m`;
+  CAMB counts them separately. So `omch2` is
+  `Omega_m h^2 - Omega_b h^2 - Omega_nu h^2` -- *subtracting*. Adding
+  instead shifts `Omega_c h^2` by ~0.0006, about half a sigma of
+  Planck's constraint on it, with no other symptom.
+- **A CAMB API trap, found by testing.** `pars.DarkEnergy = obj`
+  copies the object into CAMB's Fortran state, so setting the `w(a)`
+  table on the Python instance *afterwards* is silently discarded --
+  and CAMB then returns a perfectly valid cosmological-constant
+  spectrum for a w0-wa model. Caught by asserting that CPL at
+  `w0 = -1, wa = 0` reproduces LCDM *and* that CPL at
+  `w0 = -0.9, wa = -0.4` does not.
+
+**Validation.** Against the reference spectrum shipped with
+`planck-lite-py`, this implementation reproduces its published
+log-likelihood **exactly**: -291.33481235418026 for TTTEEE
+(bit-identical) and -101.58123068722571 vs -101.58123068722583 for
+TT (1e-13, matrix-inversion roundoff -- Cobaya's own plik_lite
+differs from `planck-lite-py` by 2e-13 on the same number).
+Independently, at Planck's best-fit LCDM it returns chi2 = 585 for
+613 bandpowers.
+
+**What it costs.** One CAMB call is ~0.7 s against ~1 ms for the
+whole rest of a joint likelihood, so a chain including this is
+roughly three orders of magnitude slower per step. That is not an
+implementation flaw -- it is why full CMB chains run on clusters and
+why compressed priors exist. Budget hours, use `n_processes`, and
+save the chain. A CMB spectrum also needs `ln1e10As`, `n_s` and
+`tau_reio`, which no background fit ever did; and because
+`plik_lite` starts at l = 30, `tau` is degenerate with the amplitude
+unless the new `"tau"` dataset is included.
+
+> The primordial amplitude is `ln1e10As`, not `A_s` -- that name was
+> already taken in this library by the Generalized Chaplygin Gas
+> parameter, an unrelated quantity that shares the symbol in its own
+> literature. Renaming the GCG one would invalidate every saved
+> chain that names it.
+
+### Six new datasets
+
+- **DESI DR2 BAO (2025)**, `dataset_kwargs={"desi": {"version": "desi2025"}}` --
+  three years of observations, >14 million galaxies and quasars,
+  twice the DR1 sample, and the measurement the strengthened
+  evolving-dark-energy claim rests on. Identical file format to DR1,
+  so it drops into the same loader. **Not** to be stacked with DR1:
+  DR2 contains every DR1 galaxy.
+- **Union3** (`"union3"`) -- 2087 supernovae fit with the UNITY1.5
+  hierarchical model and released as 22 binned distance moduli. The
+  third of the three compilations the DESI dark-energy results are
+  argued with, and they *disagree* about how far the data sits from
+  a cosmological constant: DES-SN5YR pulls hardest, Pantheon+ least,
+  Union3 in between. A library that can only fit one of them cannot
+  reproduce that comparison, which is the actual state of the
+  evidence.
+- **Low-z BAO** (`"bao_lowz"`) -- 6dFGS (z = 0.106) and SDSS DR7 MGS
+  (z = 0.15), the only BAO leverage below z = 0.2 (DESI starts at
+  0.295, BOSS at 0.38). Independent of both, so unlike DESI-vs-SDSS
+  these *can* be added to either. Two details are handled rather than
+  papered over: 6dFGS reports `r_s/D_V`, kept as its own observable
+  rather than inverted (inverting a Gaussian gives something that is
+  neither Gaussian nor centred on 1/mean), and its measurement is
+  calibrated against an Eisenstein-Hu fitting-formula sound horizon,
+  so the theory `r_d` is rescaled by 153.9/149.8 -- 2.7% on a
+  4.5%-precision point, the same class of definitional mismatch
+  v0.19.0 documents.
+- **`"h0"`, `"omega_b"`, `"tau"`** -- external single-number
+  measurements: SH0ES 2022/2024 and TDCOSMO 2025 time-delay lensing
+  for H0, BBN (Schoeneberg 2024 or Cooke 2018) for omega_b h^2, and
+  Planck lowE for tau.
+
+  These are **datasets, not priors**, and the distinction is
+  deliberate. The posterior is identical either way, but a prior is a
+  statement of belief before seeing data, while "SH0ES measured
+  73.04 +- 1.04" is data from a telescope with a systematic error
+  budget. As a dataset it shows up in the per-dataset chi2
+  breakdown, in the degrees-of-freedom count AIC/BIC use, in figure
+  legends, and in the chain metadata that decides whether a saved
+  chain may be resumed. A fit that quietly assumed the local
+  distance ladder should not look, from the outside, like a fit that
+  did not. It also makes the H0 tension askable in the form it is
+  argued: run the same model with and without `"h0"` and compare what
+  each dataset contributes.
+
+The BBN prior is more than an extra data point: BAO measures
+`D/r_d`, and with a BBN constraint on `omega_b` a BAO-only fit gains
+a CMB-independent route to H0 -- exactly how the DESI "BAO + BBN"
+constraints are produced.
+
+### Overlapping datasets now warn
+
+Every "don't combine X and Y" rule in this README was, until now,
+written down only in a docstring, where it protected nobody who did
+not go looking. `Fitter` now checks and warns, naming the reason.
+The failure it guards against is silent: overlapping data treated as
+independent gives a perfectly ordinary-looking posterior with error
+bars that are too small. It stays a warning, not an error --
+quantifying how much an overlap matters is a legitimate thing to
+want to do.
+
+Two new rules join the existing ones: Union3 must not be combined
+with Pantheon+ or DES-SN5YR, and `"planck"` must not be combined with
+`"planck_lite"` (the distance priors are a compression of exactly
+those bandpowers -- that is the entire CMB dataset twice).
+
+### Eight new models
+
+Grouped by what they actually change, since that decides what can be
+done with them:
+
+| Model | Extra parameters | Reduces to |
+|---|---|---|
+| **LogarithmicDE** | none (reuses `w0`, `wa`) | wCDM at `wa = 0` |
+| **PEDE** | **none at all** | — |
+| **GEDE** | `Delta`, `z_t` | LCDM at `Delta -> 0`; PEDE at `Delta = 1, z_t = 0` |
+| **LsCDM** | `z_dagger` | LCDM below the transition |
+| **IDE** | `xi` (with `w0`) | wCDM at `xi = 0` |
+| **RunningVacuum** | `nu` | LCDM at `nu = 0` |
+| **Cardassian** | `n_card`, `q_card` | LCDM at `n = 0, q = 1` |
+| **DGP** | **none at all** | — |
+
+Every reduction in that last column is a **test**
+(`tests/test_models.py`), asserted to machine precision, not a
+docstring claim. That matters more than it sounds: the Friedmann
+closure `E(0) = 1` pins some normalizations but not all of them, and
+a limit check pins the rest.
+
+Two of these -- PEDE and DGP -- have **exactly LCDM's parameter
+count** and a completely different expansion history. That makes the
+model comparison unusually clean: identical AIC/BIC penalties, so a
+chi2 difference is a difference in fit and nothing else.
+
+DGP also overrides `mu(a, k)` with the standard Koyama-Maartens
+result, so it joins the three modified-gravity models in predicting a
+growth history that differs from GR's at fixed background. On the
+self-accelerating branch gravity is *weaker* (`mu = 0.72` today,
+matching the literature), and the bundled fsigma8 data feels it
+directly.
+
+### A matter-scaling bug this surfaced
+
+RunningVacuum and IDE both change how *matter* dilutes -- that is
+their whole content. But `GrowthCalculator` read `Omega_m(a)` off
+`Omega_m (1+z)^3` for every model, so those two would have been given
+LCDM's growth source term alongside their own `E(z)`: internally
+inconsistent, and silent. `Cosmology` now has an overridable
+`Omega_matter(z)` hook that both models implement and every other
+model inherits unchanged. No existing result changes; the two new
+models get a growth history that is actually theirs.
+
+### The first test suite
+
+The library had no tests. It now has **130**, running in ~10 s, and
+they are aimed at the failure mode this project actually has:
+physics that is *plausibly* wrong rather than broken.
+
+- `test_models.py` -- Friedmann closure for every model (flat and
+  curved), `dEdz` against a central finite difference (two
+  independent hand transcriptions of the same algebra), every known
+  limit, published signatures (PEDE's `w(0) = -1.145`, DGP's
+  `Omega_rc` and growth suppression), and a bound on the error the
+  distance integrator's grid makes on LsCDM's genuine discontinuity.
+- `test_datasets.py` -- every dataset loads, every likelihood's
+  covariance matches its data vector, and every chi2 per data point
+  is O(1) at a concordance cosmology. The two deliberate exceptions
+  are the tensions themselves: `"h0"` disagrees at ~5 sigma and
+  `"s8"` at ~2.9 sigma, and the bounds are set just above those so a
+  *further* error would still be caught rather than hidden.
+- `test_planck_lite.py` -- the binning and covariance algebra against
+  published log-likelihoods, and the CAMB translation separately
+  against physics, so a failure says which half is wrong.
+
+Run them with `pip install -e ".[dev]" && pytest`.
+
+Version **v0.24.0** computes the BAO sound horizon `r_d` from the
+physical densities instead of fitting it.
+
+### What was wrong with fitting it
+
+Nothing, exactly -- treating `r_d` as a free nuisance parameter is a
+defensible and common choice, and it makes BAO immune to any
+assumption about the early universe. It is also the reason this
+library could not measure `H0` from BAO. `H0` and `r_d` enter every
+BAO observable only through the product `H0 * r_d`, so with `r_d`
+free they are perfectly degenerate and BAO constrains neither.
+
+`SoundHorizon` was, until now, a nine-line stub that returned the
+free parameter. It now does the integral:
+
+    r_d = int_{z_d}^inf c_s(z)/H(z) dz,
+    c_s = c / sqrt(3(1 + R_b)),  R_b = 3 omega_b/(4 omega_gamma) a
+
+### What is actually computed, and what is not
+
+**Computed from first principles:** photon density from `T_CMB`;
+massless neutrinos; the baryon loading; the integral itself.
+
+**Massive neutrinos, exactly.** They are relativistic at the drag
+epoch (`y = m/kT ~ 0.34` for 0.06 eV) and matter-like today, and the
+transition matters. The usual `[1 + (Ay)^p]^(1/p)` approximation
+costs 0.05% in `r_d` at `Sum m_nu = 0.06 eV` and 0.15% at 0.6 eV --
+the latter half of DESI's best BAO precision, spent on an
+approximation with no reason to be there. Instead the Fermi-Dirac
+energy density integral is tabulated once at import (a few ms) and
+splined afterwards. The familiar `Sum m_nu / omega_nu h^2 = 93.14 eV`
+shorthand is then not an input at all: the calculation **derives**
+93.0378 eV, where CAMB gets 93.04.
+
+**Fitted, and honestly labelled:** `z_drag` alone. The drag epoch is
+defined by a Thomson-drag optical depth over a full recombination
+history, which is a Boltzmann code's job. This takes the same route
+the library already took for `z_star` in v0.19.0 -- a fit calibrated
+directly against CAMB, over a 5850-point grid spanning `omega_b` in
+[0.018, 0.026], `omega_cb` in [0.09, 0.20], `N_eff` in [2.0, 5.0] and
+`Sum m_nu` in [0, 0.6] eV.
+
+> Eisenstein & Hu (1998)'s `z_drag` formula is bundled for comparison
+> and is **not** usable here: it gives 1020.7 where CAMB gives 1059.9,
+> 3.7% low, which puts `r_d` 2.5% high -- ten times DESI DR2's best
+> BAO error bar. That is not a flaw in EH98; their `z_d` was
+> calibrated jointly with their own closed-form `r_s`, and the two
+> halves are not separately meaningful. Splicing one of them onto a
+> modern integral is exactly the convention error v0.19.0 documents
+> at length, in a different place.
+
+### Accuracy
+
+Against CAMB's `rdrag` over that whole grid:
+
+| | max error |
+|---|---|
+| the integral alone, given CAMB's `z_drag` | 2.2e-6 |
+| the `z_drag` fit | 6.7e-5 |
+| **end to end** | **5.0e-5** |
+| end to end, within realistic priors | 1.4e-5 |
+
+DESI DR2's single best BAO bin is a 0.24% measurement, so the worst
+case is ~50 times smaller than the best data's error bar and the
+typical case ~500 times. A trimmed copy of that grid ships as a test
+fixture, so the comparison runs without CAMB installed.
+
+### `r_d` depends on less than you might expect
+
+The integral runs entirely through the radiation- and
+matter-dominated eras, so **`r_d` does not depend on `H0`, on
+curvature, or on the dark-energy model at all** -- only on
+`omega_b`, `omega_cb`, `N_eff` and `m_nu`. Verified against CAMB,
+which returns the same `rdrag` to 1e-7 across `H0` from 60 to 75.
+
+Two consequences. It works identically for **every** model in the
+library, including the modified-gravity ones a Boltzmann code will
+not accept. And the cache keys on the densities alone, so an MCMC
+step that moves only `w0` reuses it -- which matters, because the BAO
+likelihoods ask for `r_d` once per data point.
+
+### Using it
+
+Off by default: switching a fitted nuisance parameter into a derived
+quantity changes every BAO prediction, and that is a choice about the
+analysis.
+
+```python
+fit = Fitter(
+    model=LCDM,
+    datasets=["desi", "omega_b"],          # BAO + the BBN prior
+    dataset_kwargs={"desi": {"version": "desi2025"}},
+    free_params=["H0", "Omega_m", "Omega_b"],
+    initial={"H0": 68.0, "Omega_m": 0.30, "Omega_b": 0.0493},
+    compute_rd=True,
+)
+```
+
+`rd` must not be in `free_params` alongside it -- the likelihood
+would ignore the sampled value and its "posterior" would be its
+prior -- and the constructor says so rather than letting it happen.
+`Omega_b` becomes the parameter BAO now needs and cannot pin down on
+its own, which is what the `"omega_b"` BBN dataset is for. Running
+that fit (DESI DR2 + BBN, flat ΛCDM) gives
+
+    H0      = 68.55 +0.59 -0.60
+    Omega_m = 0.2977 +0.0087 -0.0085
+    Omega_b = 0.0472 +0.0008 -0.0008
+    r_d     = 148.10 +1.59 -1.63 Mpc   (derived)
+
+which lands where published DESI BAO+BBN constraints do -- an
+end-to-end check of the whole chain that no single unit test
+provides.
+
+`r_d` is a *derived* quantity now, so it leaves `summary()` and joins
+`z_t` and `q0` in `CosmoFit.stats.derived`:
+
+```python
+from CosmoFit.stats import derived
+derived.summarize(derived.sound_horizon(fit))
+```
+
+That works whether or not the fit used it. With `compute_rd=False`
+it returns what the early-universe physics *would* have predicted for
+the same densities, and comparing it against the fitted `r_d` is a
+real consistency test: a mismatch is the standard signature of new
+physics before recombination, and one of the main ways the Hubble
+tension is diagnosed.
+
+`compute_rd` is part of the chain signature, so a chain sampled one
+way cannot be resumed the other. The GUI gets a checkbox, which
+un-ticks `rd` for you and points at the BBN dataset if it is missing.
+
+### One bug this surfaced
+
+Nothing in the growth machinery: `Fitter` now also refuses
+`compute_rd=True` together with a free `rd`, which was previously
+expressible and would have produced a `rd` "posterior" identical to
+its prior with no indication anything was wrong.
+
+Seventeen new tests (**147 total**) cover the neutrino
+thermodynamics, the CAMB comparison, the independence claims above,
+quadrature convergence, and the wiring.
+
 The package structure may continue to evolve before the first stable **v1.0.0** release.
 
 ---
 
 ## Roadmap
 
+### Datasets
+
+* **eBOSS DR16 ELG and Lyman-alpha BAO** -- released as tabulated
+  (non-Gaussian) likelihood grids rather than mean+covariance, so
+  they need a grid-interpolating likelihood the library does not
+  have yet.
+* **DESI DR1/DR2 full-shape** (`fsigma8` + BAO jointly, with their
+  cross-covariance) -- more constraining than BAO alone, and the
+  natural companion to the growth machinery already here.
+* **Planck lensing** and **ACT DR6** -- more CMB, and an
+  independent one.
+* **Planck low-l (Commander/SimAll)** -- at l < 30 the C_l
+  distribution is not Gaussian, so this needs a different
+  likelihood form, not another bandpower vector. Until then the
+  `"tau"` prior stands in for it.
+
+### Physics
+
+* **Massive neutrinos and `N_eff` in each model's low-redshift
+  `E(z)`.** Both parameters now reach the Boltzmann backend and the
+  sound horizon, and both are treated exactly there -- but the
+  models' own `E(z)` still counts massive neutrinos inside
+  `Omega_m` as pure matter, which is right below z ~ 100 and
+  increasingly wrong above it.
+* **`Sum m_nu` as a fitted parameter.** Everything needed is in
+  place; what is missing is the growth-suppression signature that
+  actually constrains it.
+* **Holographic dark energy**, which needs a per-step ODE solve
+  rather than a closed form.
+
 ### v1.0.0
 
 * Stable public API
 * Complete documentation
+* Test coverage across the whole library, not only the newest parts
+* Continuous integration
 * Production-ready release
 
 ---

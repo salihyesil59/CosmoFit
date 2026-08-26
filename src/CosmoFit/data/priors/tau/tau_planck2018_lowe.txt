@@ -1,0 +1,13 @@
+# Reionization optical depth from Planck 2018 large-scale E-mode
+# polarization (the "lowE"/SimAll likelihood).
+# Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209, Table 1
+# (TT,TE,EE+lowE baseline).
+#
+# plik_lite covers only l >= 30, where tau enters solely through the
+# exp(-2 tau) damping of the spectra and is therefore degenerate with
+# the primordial amplitude A_s. Adding this prior is what breaks that
+# degeneracy -- it is the standard companion to a high-l-only CMB fit,
+# not an optional extra.
+#
+# [value] [sigma]   tau_reio
+0.0544 0.0073

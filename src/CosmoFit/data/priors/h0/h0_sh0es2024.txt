@@ -1,0 +1,5 @@
+# SH0ES distance ladder with the JWST/HST Cepheid re-calibration.
+# Breuval et al. (2024), ApJ 973, 30, arXiv:2404.08038.
+#
+# [value] [sigma]   H0 in km/s/Mpc
+73.17 0.86

@@ -91,6 +91,7 @@ SIGNATURE_KEYS = (
     "bounds",
     "fixed",
     "dataset_kwargs",
+    "compute_rd",
 )
 
 

@@ -145,6 +145,24 @@ class DESIDataset:
 
     reference: str = ""
 
+    #: Per-point factor the *theory* sound horizon must be multiplied
+    #: by before it is compared against ``value``. ``None`` (every
+    #: DESI/SDSS entry) means 1 everywhere.
+    #:
+    #: This is not a fudge factor -- it is a units conversion. A BAO
+    #: paper reports ``D_V/r_d`` in the units of whatever ``r_d``
+    #: *its own* fiducial cosmology assigned, and older analyses
+    #: computed that with the Eisenstein & Hu (1998) fitting formula
+    #: rather than by integrating the sound speed as a Boltzmann code
+    #: does. The two differ by ~2.7% (6dFGS: 153.9 vs 149.8 Mpc), so
+    #: comparing a modern ``r_d`` against a measurement calibrated on
+    #: the EH98 one is the same class of definitional mismatch that
+    #: :mod:`likelihoods.planck` documents at length -- and at 2.7%
+    #: on a 4.5%-precision measurement, it is not a rounding error.
+    #: The rescale is taken from that survey's entry in
+    #: CobayaSampler/cobaya, which applies exactly this factor.
+    rs_rescale: "np.ndarray | None" = None
+
 # -----------------------------------------------------------
 
     def __post_init__(
@@ -172,6 +190,24 @@ class DESIDataset:
                 "BAO dataset arrays have inconsistent lengths.",
 
             )
+
+        if self.rs_rescale is not None:
+
+            self.rs_rescale = np.asarray(
+
+                self.rs_rescale,
+
+                dtype=float,
+
+            )
+
+            if len(self.rs_rescale) != n:
+
+                raise ValueError(
+
+                    "BAO dataset rs_rescale has wrong length.",
+
+                )
 
         if self.covariance.shape != (
 
@@ -556,6 +592,251 @@ class S8Dataset:
     @property
     def size(self) -> int:
         return 1
+
+
+# ============================================================
+# Union3 binned supernovae
+# ============================================================
+
+@dataclass(slots=True)
+class Union3Dataset:
+    """
+    The Union3 supernova compilation in its released *binned* form:
+    22 distance moduli on a redshift grid, with a 22x22 magnitude
+    covariance.
+
+    Union3 is distributed this way on purpose. The full sample is
+    2087 supernovae fit with the UNITY1.5 Bayesian hierarchical
+    model, whose light-curve, host-mass and selection nuisance
+    parameters are marginalized *inside* that fit; what comes out
+    is a binned distance-modulus vector and its covariance, not a
+    per-supernova catalogue like
+    :class:`PantheonDataset` (apparent magnitudes) or
+    :class:`DESSN5YRDataset` (distance moduli). So this container
+    holds bins, and 22 of them carry most of the constraining power
+    of 2087 objects.
+
+    Like both other supernova samples, the overall distance-modulus
+    zero point is degenerate with H0 and is analytically
+    marginalized by :class:`~likelihoods.union3.Union3Likelihood`
+    rather than fit.
+
+    References
+    ----------
+    Rubin et al. (2023), "Union Through UNITY: Cosmology with
+    2,000 SNe Using a Unified Bayesian Framework",
+    arXiv:2311.12098 (ApJ, accepted).
+    """
+
+    z_cmb: np.ndarray
+
+    z_hel: np.ndarray
+
+    mu: np.ndarray
+
+    covariance: "CovarianceBase"
+
+    reference: str = ""
+
+    def __post_init__(self):
+
+        n = len(self.z_cmb)
+
+        if not (len(self.z_hel) == n == len(self.mu)):
+
+            raise ValueError(
+
+                "Union3 dataset arrays have inconsistent lengths.",
+
+            )
+
+        if self.covariance.shape != (n, n):
+
+            raise ValueError(
+
+                "Union3 dataset covariance has wrong shape.",
+
+            )
+
+    @property
+    def size(self) -> int:
+        """
+        Number of redshift bins.
+        """
+
+        return len(self.z_cmb)
+
+    @property
+    def z_hd(self) -> np.ndarray:
+        """
+        Alias for :attr:`z_cmb`, under the name Pantheon+ and
+        DES-SN5YR use for the same thing.
+
+        Those releases call it ``zHD`` -- the "Hubble diagram"
+        redshift, CMB-frame and peculiar-velocity-corrected --
+        while Union3's file column is ``zcmb``. The field keeps its
+        released name so provenance stays readable; this alias
+        exists so the shared supernova plotting code
+        (:meth:`~plots.FitPlotter._sn_hubble_diagram`) can take all
+        three datasets without a per-dataset branch.
+        """
+
+        return self.z_cmb
+
+
+# ============================================================
+# Single-number external priors
+# ============================================================
+
+@dataclass(slots=True)
+class GaussianPriorDataset:
+    """
+    A single Gaussian constraint on one named quantity -- a local
+    distance-ladder ``H0``, a BBN ``omega_b h^2``, a reionization
+    ``tau`` -- used by
+    :class:`~likelihoods.priors.GaussianPriorLikelihood`.
+
+    These are *external* measurements entering the fit as one data
+    point each, not compressions of a larger dataset the way
+    :class:`PlanckDataset` is. Keeping them as a dataset rather than
+    as a prior on the parameter is deliberate: a prior is a
+    statement about belief before seeing data, while
+    "SH0ES measured 73.04 +- 1.04" is data, and it should show up in
+    the chi2 accounting, the degrees-of-freedom count and the
+    dataset list like every other measurement does.
+
+    ``quantity`` names what is constrained; the likelihood maps it
+    to a model prediction (see
+    :data:`likelihoods.priors.QUANTITY_MAP`).
+    """
+
+    quantity: str
+
+    value: float
+
+    sigma: float
+
+    covariance: "CovarianceBase | None" = None
+
+    reference: str = ""
+
+    @property
+    def size(self) -> int:
+        return 1
+
+
+# ============================================================
+# Binned CMB power spectra
+# ============================================================
+
+@dataclass(slots=True)
+class CMBSpectrumDataset:
+    """
+    Binned CMB angular power-spectrum bandpowers and their
+    covariance -- the actual measured spectra, as opposed to the
+    three-number compression in :class:`PlanckDataset`.
+
+    Holds the Planck 2018 ``plik_lite`` TT/TE/EE bandpowers used by
+    :class:`~likelihoods.planck_lite.PlanckLiteLikelihood`, together
+    with the binning operator (``blmin``/``blmax``/``weights``) that
+    turns a theory C_l array into the same bandpowers, since the
+    data vector is meaningless without the window functions that
+    defined it.
+
+    Attributes
+    ----------
+    ell : np.ndarray
+        Effective multipole of each bandpower.
+    value : np.ndarray
+        Bandpower values, C_l in muK^2, ordered TT then TE then EE.
+    sigma : np.ndarray
+        Per-bandpower uncertainty (the covariance's diagonal; kept
+        for plotting error bars, not used in the chi2).
+    covariance : CovarianceBase
+        Full bandpower covariance across all three spectra.
+    n_bin : tuple[int, int, int]
+        Number of bandpowers in TT, TE, EE respectively, so the
+        concatenated vector can be split back apart.
+    blmin, blmax : np.ndarray
+        First/last multipole index contributing to each bandpower,
+        relative to ``lmin``.
+    weights : np.ndarray
+        Binning weights, indexed by the flattened window.
+    lmin, lmax : int
+        Multipole range the binning operator spans.
+    """
+
+    ell: np.ndarray
+
+    value: np.ndarray
+
+    sigma: np.ndarray
+
+    covariance: "CovarianceBase"
+
+    n_bin: tuple[int, int, int]
+
+    blmin: np.ndarray
+
+    blmax: np.ndarray
+
+    weights: np.ndarray
+
+    lmin: int = 30
+
+    lmax: int = 2508
+
+    reference: str = ""
+
+    def __post_init__(self):
+
+        n = len(self.value)
+
+        if sum(self.n_bin) != n:
+
+            raise ValueError(
+
+                f"CMB bandpower counts {self.n_bin} sum to "
+
+                f"{sum(self.n_bin)}, but the data vector has "
+
+                f"{n} entries.",
+
+            )
+
+        if self.covariance.shape != (n, n):
+
+            raise ValueError(
+
+                "CMB bandpower covariance has wrong shape.",
+
+            )
+
+    @property
+    def size(self) -> int:
+        """
+        Total number of bandpowers.
+        """
+
+        return len(self.value)
+
+    @property
+    def slices(self) -> dict[str, slice]:
+        """
+        Where each spectrum sits in the concatenated data vector.
+        """
+
+        n_tt, n_te, n_ee = self.n_bin
+
+        return {
+
+            "TT": slice(0, n_tt),
+
+            "TE": slice(n_tt, n_tt + n_te),
+
+            "EE": slice(n_tt + n_te, n_tt + n_te + n_ee),
+
+        }
 
 
 # ============================================================

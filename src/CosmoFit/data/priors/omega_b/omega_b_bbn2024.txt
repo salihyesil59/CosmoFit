@@ -1,0 +1,9 @@
+# Big Bang Nucleosynthesis constraint on the physical baryon density,
+# omega_b = Omega_b h^2, from the primordial deuterium and helium
+# abundances -- completely independent of the CMB.
+# Schoeneberg (2024), JCAP 06 (2024) 006, arXiv:2401.15054: the
+# conservative PDG-abundance value, marginalized over nuclear
+# reaction rates, and the prior DESI DR1/DR2 adopt.
+#
+# [value] [sigma]   omega_b h^2
+0.02218 0.00055
