@@ -443,6 +443,79 @@ PLANCK_LENSING_FILES = {
 }
 
 
+#: ACT DR6 CMB lensing. A second, independent reconstruction of the
+#: lensing potential -- different telescope, different sky,
+#: different pipeline -- and a tighter one than Planck's.
+#:
+#: ``bins`` is the slice of the released bandpower vector each
+#: variant adopts, applied identically to the data, the covariance
+#: and the binning matrix.
+ACT_LENSING_FILES = {
+
+    "act_baseline": {
+
+        "parent": "cmb",
+
+        "folder": "act_dr6_lensing",
+
+        "data": "clkk_bandpowers_act.txt",
+
+        "binning_matrix": "binning_matrix_act.txt",
+
+        # The CMB-marginalized covariance: it already accounts for
+        # the reconstruction's dependence on the primary CMB
+        # spectra, which is what lets this be used without the
+        # (unshippable) explicit normalization correction. See
+        # `likelihoods.act_lensing`.
+        "covariance": "covmat_act_cmbmarg.txt",
+
+        "bins": (2, -6),
+
+        "n_sims": 796,
+
+        "lmax": 2999,
+
+        "ell_range": (40, 763),
+
+        "reference": (
+            "Madhavacheril et al. (ACT Collaboration, 2024), ApJ 962, 113, "
+            "arXiv:2304.05203; Qu et al. (ACT Collaboration, 2024), "
+            "ApJ 962, 112, arXiv:2304.05202"
+        ),
+
+    },
+
+    "act_extended": {
+
+        "parent": "cmb",
+
+        "folder": "act_dr6_lensing",
+
+        "data": "clkk_bandpowers_act.txt",
+
+        "binning_matrix": "binning_matrix_act.txt",
+
+        "covariance": "covmat_act_cmbmarg.txt",
+
+        "bins": (2, -3),
+
+        "n_sims": 796,
+
+        "lmax": 2999,
+
+        "ell_range": (40, 1250),
+
+        "reference": (
+            "Madhavacheril et al. (ACT Collaboration, 2024), ApJ 962, 113, "
+            "arXiv:2304.05203; Qu et al. (ACT Collaboration, 2024), "
+            "ApJ 962, 112, arXiv:2304.05202 (extended multipole range)"
+        ),
+
+    },
+
+}
+
+
 #: Planck 2018 low-multipole EE (SimAll), as a tabulated
 #: probability rather than a mean and a covariance.
 LOWE_FILES = {
@@ -608,6 +681,8 @@ _REGISTRIES = {
     "planck_lensing": PLANCK_LENSING_FILES,
 
     "planck_lowe": LOWE_FILES,
+
+    "act_lensing": ACT_LENSING_FILES,
 
     **_PRIOR_REGISTRIES,
 
@@ -2059,6 +2134,132 @@ def load_planck_lensing(
         lmax=lmax,
 
         ell_range=tuple(entry["ell_range"]),
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
+# ACT DR6 CMB lensing
+# ============================================================
+
+def load_act_lensing(
+    version: str = "act_baseline",
+) -> CMBLensingDataset:
+    """
+    Load the ACT DR6 lensing bandpowers, binning matrix and
+    CMB-marginalized covariance.
+
+    Parameters
+    ----------
+    version : str, optional
+        ``"act_baseline"`` or ``"act_extended"``.
+
+    Returns
+    -------
+    CMBLensingDataset
+        With ``spectrum="KK"``: the windows act on the lensing
+        *convergence* ``C_L^{kappakappa}``, not on Planck's
+        potential convention.
+    """
+
+    entry = _validate_version("act_lensing", version)
+    dataset_path = _get_dataset_path("act_lensing", version)
+
+    start, end = entry["bins"]
+    lmax = int(entry["lmax"])
+
+    bandpowers = np.atleast_1d(
+
+        _load_txt(dataset_path / entry["data"]),
+
+    )
+
+    binning = _load_txt(dataset_path / entry["binning_matrix"])
+
+    full_covariance = _load_covariance(
+
+        dataset_path / entry["covariance"],
+
+    )
+
+    n_total = len(bandpowers)
+
+    if binning.shape[0] != n_total:
+
+        raise ValueError(
+
+            f"'{entry['binning_matrix']}': has {binning.shape[0]} "
+
+            f"rows against {n_total} bandpowers.",
+
+        )
+
+    # The same bins come out of all three, which is the whole point
+    # of doing it in one place: dropping them from the data and not
+    # from the covariance produces a chi2 that is merely wrong.
+    keep = np.arange(n_total)[start:end]
+
+    value = bandpowers[keep]
+
+    covariance = full_covariance[np.ix_(keep, keep)]
+
+    # `standardize` in ACT's own loader pads/trims the binning
+    # matrix to l = 0..lmax; the released matrix is at least that
+    # wide, so this is the trim half.
+    windows = np.zeros((len(keep), lmax + 1), dtype=float)
+
+    width = min(binning.shape[1], lmax + 1)
+
+    windows[:, :width] = binning[np.ix_(keep, np.arange(width))]
+
+    # Effective multipole of each bin, from the binning matrix
+    # itself rather than assumed.
+    ell = windows @ np.arange(lmax + 1)
+
+    # Hartlap: the covariance is estimated from a finite number of
+    # simulations, so its *inverse* is biased high by
+    # (n_sim - 1) / (n_sim - n_bin - 2). ACT's own code multiplies
+    # the inverse by the reciprocal; dividing the covariance here is
+    # algebraically the same and keeps the library's covariance
+    # machinery in charge of the inversion.
+    n_bin = len(keep)
+    n_sims = int(entry["n_sims"])
+
+    hartlap = (n_sims - n_bin - 2.0) / (n_sims - 1.0)
+
+    if hartlap <= 0.0:
+
+        raise ValueError(
+
+            f"Hartlap factor is non-positive for {n_bin} bins from "
+
+            f"{n_sims} simulations; the covariance cannot be "
+
+            f"inverted meaningfully.",
+
+        )
+
+    covariance = covariance / hartlap
+
+    return CMBLensingDataset(
+
+        ell=ell,
+
+        value=value,
+
+        sigma=np.sqrt(np.diag(covariance)),
+
+        covariance=make_covariance(cov=covariance),
+
+        windows=windows,
+
+        lmax=lmax,
+
+        ell_range=tuple(entry["ell_range"]),
+
+        spectrum="KK",
 
         reference=entry["reference"],
 

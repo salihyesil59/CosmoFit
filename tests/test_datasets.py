@@ -43,7 +43,7 @@ FIDUCIAL = dict(
 
 
 #: Datasets whose likelihood needs an optional dependency.
-NEEDS_CAMB = {"planck_lite", "planck_lensing", "planck_lowe"}
+NEEDS_CAMB = {"planck_lite", "planck_lensing", "planck_lowe", "act_lensing"}
 
 
 def _has_camb() -> bool:
@@ -135,6 +135,7 @@ CHI2_BOUNDS = {
     "planck": 3.0,
     "planck_lite": 2.0,
     "planck_lensing": 2.0,
+    "act_lensing": 2.5,
     # planck_lowe reports -2 log L from a tabulated probability, not
     # a sum of squared pulls -- it does not go to zero at a perfect
     # fit, so its "chi2 per point" is ~14 by construction. Bounded

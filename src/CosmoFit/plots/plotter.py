@@ -37,6 +37,7 @@ from CosmoFit.likelihoods import (
     PlanckLikelihood,
     PlanckLiteLikelihood,
     PlanckLensingLikelihood,
+    ACTDR6LensingLikelihood,
     FSigma8Likelihood,
 )
 
@@ -1435,12 +1436,19 @@ class FitPlotter:
 
     def cmb_lensing(self, save_path=None):
         r"""
-        Planck's CMB lensing bandpowers against the model.
+        CMB lensing bandpowers against the model.
 
-        Nine points of
+        Works for either reconstruction in the library -- Planck's
+        (9 bandpowers of
         :math:`[L(L+1)]^2 C_L^{\phi\phi} / 2\pi` over
-        :math:`8 \le L \le 400` -- the CMB's own measurement of
-        how much structure grew between recombination and now.
+        :math:`8 \le L \le 400`) or ACT DR6's (10 bandpowers of
+        :math:`C_L^{\kappa\kappa}` over :math:`40 \le L \le 763`).
+        The two are built on different, equivalent spectra, so the
+        y axis follows whichever is being plotted rather than
+        asserting one of them.
+
+        This is the CMB's own measurement of how much structure
+        grew between recombination and now.
 
         The model curve is the *binned* prediction, drawn at the
         same effective multipoles as the data rather than as a
@@ -1452,9 +1460,15 @@ class FitPlotter:
 
         import matplotlib.pyplot as plt
 
+        # Either reconstruction, whichever the fit holds --
+        # `_find_likelihood` takes a tuple, and both plot the same
+        # way once the axis label follows the dataset's own
+        # spectrum.
         lk = self._require_likelihood(
 
-            PlanckLensingLikelihood, "planck_lensing",
+            (PlanckLensingLikelihood, ACTDR6LensingLikelihood),
+
+            "planck_lensing' or 'act_lensing",
 
         )
 
@@ -1481,11 +1495,18 @@ class FitPlotter:
             label="Model (binned)",
         )
 
-        ax.set_ylabel(
-            r"$[L(L+1)]^2 C_L^{\phi\phi} / 2\pi$",
-        )
+        # The two releases are built on different -- equivalent --
+        # spectra, and labelling both as the potential would be a
+        # quiet factor-of-2pi/4 lie on the axis.
+        if data.spectrum == "KK":
+            ax.set_ylabel(r"$C_L^{\kappa\kappa}$")
+            what = "convergence"
+        else:
+            ax.set_ylabel(r"$[L(L+1)]^2 C_L^{\phi\phi} / 2\pi$")
+            what = "potential"
+
         ax.set_title(
-            rf"CMB lensing potential, ${low} \leq L \leq {high}$",
+            rf"CMB lensing {what}, ${low} \leq L \leq {high}$",
         )
         ax.legend(frameon=False)
         _style_axes(ax)

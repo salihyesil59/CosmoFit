@@ -19,6 +19,7 @@ from .planck import PlanckLikelihood
 from .planck_lite import PlanckLiteLikelihood
 from .planck_lensing import PlanckLensingLikelihood
 from .planck_lowe import PlanckLowEELikelihood
+from .act_lensing import ACTDR6LensingLikelihood
 from .priors import (
     GaussianPriorLikelihood,
     H0Likelihood,
@@ -49,6 +50,7 @@ __all__ = [
     "PlanckLiteLikelihood",
     "PlanckLensingLikelihood",
     "PlanckLowEELikelihood",
+    "ACTDR6LensingLikelihood",
     "GaussianPriorLikelihood",
     "H0Likelihood",
     "OmegaBLikelihood",
