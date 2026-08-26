@@ -127,19 +127,17 @@ CONFLICTING_DATASETS = {
 
     ("desi", "eboss_lya"):
         "DESI's Lyman-alpha forest sample is drawn from much of the "
-        "same sky as eBOSS's and is its successor; the two BAO "
-        "measurements at z ~ 2.33 are not independent.",
+        "same sky as eBOSS's and re-observes many of the same "
+        "quasars, so the two BAO measurements at z ~ 2.33 are "
+        "correlated. That this needs saying is not a judgement "
+        "call: DESI and eBOSS publish a *joint* Lyman-alpha "
+        "likelihood precisely because multiplying the separate ones "
+        "is wrong.",
 
     ("desi", "eboss_elg"):
         "DESI's emission-line galaxy sample succeeds eBOSS's over "
         "much of the same footprint.",
 
-    ("sdss_bao", "eboss_elg"):
-        "Both are eBOSS DR16. The ELG sample is a separate tracer "
-        "from the LRG and QSO samples in `sdss_bao`, so this is a "
-        "weaker overlap than the others here -- but the DR16 "
-        "covariances treat the tracers jointly and this pairing "
-        "does not.",
 
     ("pantheon", "des_sn5yr"):
         "DES-SN5YR's low-z anchor sample (~11% of it) is also "
@@ -1755,7 +1753,8 @@ class Fitter:
     # Best fit
     # ============================================================
 
-    def best_fit(self, x0=None, bounds=None, eps=None, method="L-BFGS-B"):
+    def best_fit(self, x0=None, bounds=None, eps=None,
+                 method="L-BFGS-B", restarts=0, seed=None):
         """
         Maximum-likelihood point via ``scipy.optimize.minimize``
         (L-BFGS-B), starting either from ``x0``, from the
@@ -1781,6 +1780,28 @@ class Fitter:
             L-BFGS-B is the right choice for the analytic
             likelihoods; ``"Nelder-Mead"`` is what the automatic
             rescue below falls back to.
+
+        restarts : int, optional
+            Additional starting points, drawn uniformly from the
+            prior, kept if they land lower. Zero by default, because
+            for a single-minimum posterior it only costs time.
+
+            Set it when the likelihood surface can have more than
+            one minimum. The case that motivated this: profiling
+            ``LsCDM``'s ``z_dagger`` across the redshift of a BAO
+            measurement, where the model's prediction jumps and the
+            surface acquires a second, worse basin. A single start
+            landed in it and returned a ``chi2`` *higher* than
+            nested ``LCDM``'s -- which is impossible, since
+            ``LsCDM`` contains ``LCDM`` at ``z_dagger -> inf``, and
+            was the only reason the failure was noticed at all.
+
+            No stall detection or Nelder-Mead rescue is skipped for
+            the restarts; each one is a full ``best_fit`` attempt.
+
+        seed : int, optional
+            Seed for the restart draws, so a multi-start fit is
+            reproducible.
 
         Notes
         -----
@@ -1821,6 +1842,12 @@ class Fitter:
         larger step is *not* uniformly better, and on some cheap
         likelihoods it converges to a slightly worse minimum than
         the default does.
+
+        The rescue cannot help with a *local* minimum, which is a
+        different failure: there the optimizer converges properly,
+        reports success, and is simply in the wrong basin. Nothing
+        in the result distinguishes that from the right answer, so
+        it is left to the caller -- ``restarts`` is the lever.
         """
 
         from scipy.optimize import minimize
@@ -1846,6 +1873,40 @@ class Fitter:
 
         options = {} if eps is None else {"eps": eps}
 
+        result = self._single_best_fit(x0, bounds, options, eps, method)
+
+        if restarts:
+
+            rng = np.random.default_rng(seed)
+
+            lower = np.asarray(self.prior.lower, dtype=float)
+            upper = np.asarray(self.prior.upper, dtype=float)
+
+            for _ in range(int(restarts)):
+
+                start = rng.uniform(lower, upper)
+
+                candidate = self._single_best_fit(
+                    start, bounds, options, eps, method,
+                )
+
+                if candidate.fun < result.fun:
+
+                    result = candidate
+
+        self.best_fit_result = result
+
+        return result
+
+    # ------------------------------------------------------------
+
+    def _single_best_fit(self, x0, bounds, options, eps, method):
+        """
+        One optimizer run from ``x0``, stall rescue included.
+        """
+
+        from scipy.optimize import minimize
+
         result = minimize(
             self.logpost.chi2,
             x0,
@@ -1859,8 +1920,6 @@ class Fitter:
         if rescuable and self._optimizer_stalled(result, x0, bounds):
 
             result = self._retry_best_fit(result, x0, bounds)
-
-        self.best_fit_result = result
 
         return result
 
