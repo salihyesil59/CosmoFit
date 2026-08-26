@@ -1889,6 +1889,13 @@ class Fitter:
 
                     result = candidate
 
+        # Leave the cosmology *at* the best fit rather than wherever
+        # the last objective evaluation happened to land. Without
+        # this, reading a per-likelihood chi2 after the fit reports
+        # the wrong cosmology -- silently, and with restarts on,
+        # from a random draw. It cost a notebook section.
+        self.logpost.chi2(result.x)
+
         self.best_fit_result = result
 
         return result

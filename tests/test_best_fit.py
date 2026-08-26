@@ -477,3 +477,25 @@ def test_restart_draws_give_up_rather_than_spin():
     points = fit._restart_points(np.random.default_rng(0), wanted=4)
 
     assert points == []
+
+
+def test_best_fit_leaves_the_cosmology_at_the_best_fit():
+    """
+    Reading a per-likelihood chi2 after the fit must describe the
+    best fit, not whatever the optimizer evaluated last.
+
+    Silent when wrong, and worse with `restarts`, where the last
+    evaluation can be a random draw from the prior.
+    """
+
+    fit = Fitter(**CHEAP)
+
+    fit.best_fit(restarts=6, seed=5)
+
+    total = sum(lk.chi2() for lk in fit.likelihoods)
+
+    assert total == pytest.approx(fit.best_fit_chi2, rel=1e-9)
+
+    for name, value in fit.best_fit_params.items():
+
+        assert getattr(fit.cosmology.params, name) == pytest.approx(value)
