@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.25.0"
+version = "0.26.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -37,6 +37,8 @@ keywords = [
     "camb",
     "boltzmann",
     "power-spectrum",
+    "cmb-lensing",
+    "reionization",
     "wcdm",
     "cpl",
     "lcdm",

@@ -43,7 +43,7 @@ FIDUCIAL = dict(
 
 
 #: Datasets whose likelihood needs an optional dependency.
-NEEDS_CAMB = {"planck_lite"}
+NEEDS_CAMB = {"planck_lite", "planck_lensing", "planck_lowe"}
 
 
 def _has_camb() -> bool:
@@ -134,6 +134,12 @@ CHI2_BOUNDS = {
     "union3": 2.0,
     "planck": 3.0,
     "planck_lite": 2.0,
+    "planck_lensing": 2.0,
+    # planck_lowe reports -2 log L from a tabulated probability, not
+    # a sum of squared pulls -- it does not go to zero at a perfect
+    # fit, so its "chi2 per point" is ~14 by construction. Bounded
+    # only to catch an order-of-magnitude indexing error.
+    "planck_lowe": 20.0,
     "fsigma8": 2.0,
     # KiDS-1000's S8 = 0.759 sits ~2.9 sigma below what the
     # Planck-like fiducial above implies (S8 = 0.824), so chi2 ~ 8.5
@@ -211,6 +217,15 @@ def test_covariance_matches_data_length(name, cosmology):
     residual = np.atleast_1d(likelihood.residuals())
 
     assert len(residual) == likelihood.n_data
+
+    if likelihood.covariance is None:
+
+        # A non-Gaussian likelihood -- Planck's low-l EE is a
+        # tabulated probability with no covariance at all. Its
+        # `residuals()` is a diagnostic against the table's most
+        # probable value, not the quantity its chi2 is built from,
+        # so there is nothing further to check here.
+        return
 
     assert likelihood.covariance.shape == (
 

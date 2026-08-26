@@ -35,6 +35,8 @@ from CosmoFit.likelihoods import (
     DESSN5YRLikelihood,
     Union3Likelihood,
     PlanckLikelihood,
+    PlanckLiteLikelihood,
+    PlanckLensingLikelihood,
     FSigma8Likelihood,
 )
 
@@ -1325,6 +1327,187 @@ class FitPlotter:
             lk, dataset_label="6dFGS + SDSS MGS",
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
+
+    # ------------------------------------------------------------
+
+    def cmb_spectra(self, save_path=None):
+        r"""
+        The CMB angular power spectra: measured bandpowers against
+        the model, with a residual panel under each.
+
+        One column per spectrum in the fit (TT, TE, EE), plotted as
+        :math:`D_\ell = \ell(\ell+1)C_\ell/2\pi` in muK^2 --
+        the convention every CMB paper uses, and the one that makes
+        the acoustic peaks visible rather than burying them under
+        the :math:`\ell^{-2}` fall-off of :math:`C_\ell` itself.
+        The likelihood works in :math:`C_\ell`; the conversion here
+        is for the eye only, applied to data and model alike using
+        each bandpower's own effective multipole.
+
+        With 615 bandpowers the error bars are mostly smaller than
+        the markers, which is the honest picture -- the residual
+        panels are where anything interesting is visible, so they
+        are plotted in units of sigma rather than muK^2.
+        """
+
+        import matplotlib.pyplot as plt
+
+        lk = self._require_likelihood(PlanckLiteLikelihood, "planck_lite")
+
+        data = lk.data
+
+        model = lk.model()
+        sigma = lk.covariance.sigma
+
+        names = [
+            name for name in ("TT", "TE", "EE")
+            if name in lk.used
+        ]
+
+        fig, axes = plt.subplots(
+            2, len(names),
+            figsize=(5.2 * len(names), 6.5),
+            sharex="col",
+            squeeze=False,
+            gridspec_kw={"height_ratios": [3, 1]},
+        )
+
+        # `slices` indexes the *full* 613/615-vector; a TT-only or
+        # EE-only selection has already been cut down, so offsets
+        # are recomputed against what this likelihood actually holds.
+        start = 0
+
+        for column, name in enumerate(names):
+
+            count = data.n_bin[("TT", "TE", "EE").index(name)]
+
+            block = slice(start, start + count)
+            start += count
+
+            ell = data.ell[block]
+
+            # D_l = l(l+1) C_l / 2pi, applied to data and model with
+            # the same factor so the residual panel below is
+            # unaffected by the conversion.
+            factor = ell * (ell + 1.0) / (2.0 * np.pi)
+
+            ax_top, ax_bot = axes[0][column], axes[1][column]
+
+            ax_top.errorbar(
+                ell, factor * data.value[block],
+                yerr=factor * sigma[block],
+                fmt="o", ms=2.5, elinewidth=0.7, alpha=0.7,
+                color=COLOR_DATA, label=f"Planck ({count})",
+            )
+            ax_top.plot(
+                ell, factor * model[block],
+                color=COLOR_MODEL, lw=1.6, label="Model",
+            )
+
+            ax_top.set_title(rf"$D_\ell^{{{name}}}$")
+            ax_top.legend(frameon=False)
+            _style_axes(ax_top)
+
+            pulls = (data.value[block] - model[block]) / sigma[block]
+
+            ax_bot.axhline(0.0, color=COLOR_REFERENCE, lw=1.0, ls="--")
+            ax_bot.errorbar(
+                ell, pulls, yerr=1.0,
+                fmt="o", ms=2.5, elinewidth=0.7, alpha=0.6,
+                color=COLOR_DATA,
+            )
+            ax_bot.set_xlabel(r"Multipole $\ell$")
+            ax_bot.set_ylim(-4.5, 4.5)
+            _style_axes(ax_bot)
+
+            if column == 0:
+                ax_top.set_ylabel(r"$D_\ell$ [$\mu$K$^2$]")
+                ax_bot.set_ylabel(r"residual [$\sigma$]")
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def cmb_lensing(self, save_path=None):
+        r"""
+        Planck's CMB lensing bandpowers against the model.
+
+        Nine points of
+        :math:`[L(L+1)]^2 C_L^{\phi\phi} / 2\pi` over
+        :math:`8 \le L \le 400` -- the CMB's own measurement of
+        how much structure grew between recombination and now.
+
+        The model curve is the *binned* prediction, drawn at the
+        same effective multipoles as the data rather than as a
+        smooth line through them. That is deliberate: the
+        bandpowers are broad (the first spans L = 8-40), and a
+        smooth theory curve would invite reading a precision into
+        the comparison that the binning does not support.
+        """
+
+        import matplotlib.pyplot as plt
+
+        lk = self._require_likelihood(
+
+            PlanckLensingLikelihood, "planck_lensing",
+
+        )
+
+        data = lk.data
+
+        model = lk.model()
+
+        fig, (ax, ax_bot) = plt.subplots(
+            2, 1, figsize=(8, 6.5), sharex=True,
+            gridspec_kw={"height_ratios": [3, 1]},
+        )
+
+        low, high = data.ell_range
+
+        ax.errorbar(
+            data.ell, data.value, yerr=lk.covariance.sigma,
+            fmt="o", ms=6, elinewidth=1.0, capsize=3,
+            color=COLOR_DATA,
+            label=f"Planck 2018 lensing ({lk.n_data})",
+        )
+        ax.plot(
+            data.ell, model, "s--", ms=6, lw=1.4,
+            color=COLOR_MODEL, markerfacecolor="none",
+            label="Model (binned)",
+        )
+
+        ax.set_ylabel(
+            r"$[L(L+1)]^2 C_L^{\phi\phi} / 2\pi$",
+        )
+        ax.set_title(
+            rf"CMB lensing potential, ${low} \leq L \leq {high}$",
+        )
+        ax.legend(frameon=False)
+        _style_axes(ax)
+
+        pulls = lk.residuals() / lk.covariance.sigma
+
+        ax_bot.axhline(0.0, color=COLOR_REFERENCE, lw=1.0, ls="--")
+        ax_bot.errorbar(
+            data.ell, pulls, yerr=1.0,
+            fmt="o", ms=5, elinewidth=0.9, color=COLOR_DATA,
+        )
+        ax_bot.set_xlabel(r"Multipole $L$")
+        ax_bot.set_ylabel(r"residual [$\sigma$]")
+        ax_bot.set_ylim(-3.5, 3.5)
+        _style_axes(ax_bot)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
 
     # ------------------------------------------------------------
 

@@ -158,6 +158,7 @@ class PlanckLiteLikelihood(BaseLikelihood):
         cosmology,
         version: str = "planck2018",
         spectra: str = "TTTEEE",
+        use_low_ell: bool = False,
         lens_potential_accuracy: int = 1,
     ):
 
@@ -175,12 +176,16 @@ class PlanckLiteLikelihood(BaseLikelihood):
 
         self.used = SPECTRA_SETS[spectra]
 
-        dataset = load_plik_lite(version)
+        self.use_low_ell = use_low_ell
+
+        dataset = load_plik_lite(version, use_low_ell=use_low_ell)
 
         # Constructed before `super().__init__` so that an
         # unrepresentable model fails here, at setup, rather than
         # thousands of MCMC steps in.
-        self.backend = CAMBBackend(
+        # Shared with any other CAMB-based likelihood on the same
+        # cosmology -- see `CAMBBackend.shared`.
+        self.backend = CAMBBackend.shared(
 
             cosmology,
 
@@ -194,7 +199,10 @@ class PlanckLiteLikelihood(BaseLikelihood):
 
         super().__init__(
 
-            name=f"Planck-lite {spectra}",
+            name=(
+                f"Planck-lite {spectra}"
+                + (" + lowTT" if use_low_ell else "")
+            ),
 
             dataset=self._restrict(dataset),
 
@@ -290,6 +298,8 @@ class PlanckLiteLikelihood(BaseLikelihood):
     def _bin(
         self,
         cl: np.ndarray,
+        spectrum: str,
+        cl_lmin: int,
     ) -> np.ndarray:
         """
         Apply Planck's bandpower window functions to a theory C_l
@@ -314,20 +324,38 @@ class PlanckLiteLikelihood(BaseLikelihood):
 
         data = self.full_data
 
-        n_max = max(data.n_bin)
+        if spectrum == "TT":
+
+            blmin, blmax, weights, lmin_windows = data.tt_windows
+
+            n_max = data.n_bin[0]
+
+        else:
+
+            blmin, blmax, weights, lmin_windows = (
+                data.blmin, data.blmax, data.weights, data.lmin
+            )
+
+            n_max = max(data.n_bin[1:])
 
         binned = np.empty(n_max, dtype=float)
 
         for i in range(n_max):
 
-            lo = data.blmin[i]
-            hi = data.blmax[i] + 1
+            # Window i covers multipoles
+            # [blmin[i] + lmin_windows, blmax[i] + lmin_windows],
+            # and `cl` is indexed from `cl_lmin` -- so the two
+            # offsets do not cancel in general and both have to be
+            # written out. The weights, by contrast, are indexed by
+            # the window offset alone.
+            lo = blmin[i] + lmin_windows - cl_lmin
+            hi = blmax[i] + lmin_windows - cl_lmin + 1
 
             binned[i] = np.dot(
 
                 cl[lo:hi],
 
-                data.weights[lo:hi],
+                weights[blmin[i]:blmax[i] + 1],
 
             )
 
@@ -348,7 +376,12 @@ class PlanckLiteLikelihood(BaseLikelihood):
 
         data = self.full_data
 
-        cls = self.backend.cls(lmin=data.lmin)
+        # With the low-l bins the TT windows reach down to l = 2, so
+        # the theory spectra have to start there rather than at
+        # plik_lite's l = 30.
+        cl_lmin = min(data.lmin, data.lmin_tt)
+
+        cls = self.backend.cls(lmin=cl_lmin)
 
         n_tt, n_te, n_ee = data.n_bin
 
@@ -358,7 +391,7 @@ class PlanckLiteLikelihood(BaseLikelihood):
 
             [
 
-                self._bin(cls[name])[: counts[name]]
+                self._bin(cls[name], name, cl_lmin)[: counts[name]]
 
                 for name in SPECTRA_SETS["TTTEEE"]
 

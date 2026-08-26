@@ -53,6 +53,8 @@ from CosmoFit import (
     DESSN5YRLikelihood,
     Union3Likelihood,
     PlanckLikelihood,
+    PlanckLiteLikelihood,
+    PlanckLensingLikelihood,
     FSigma8Likelihood,
 )
 from CosmoFit import available_versions, dataset_reference
@@ -324,6 +326,8 @@ DATASET_LABELS = {
     "union3": "Union3 (SNe Ia, binned)",
     "planck": "Planck 2018 CMB (distance priors)",
     "planck_lite": "Planck 2018 CMB (full TT/TE/EE spectra)",
+    "planck_lensing": "Planck 2018 CMB lensing",
+    "planck_lowe": "Planck 2018 low-ℓ EE (τ, tabulated)",
     "fsigma8": "Growth rate fσ₈(z) (RSD)",
     "s8": "S₈ weak-lensing prior",
     "h0": "Local H₀ (distance ladder)",
@@ -339,7 +343,7 @@ DATASET_GROUPS = [
     ("📏 Expansion rate", ["cc"]),
     ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz"]),
     ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
-    ("🔥 CMB", ["planck", "planck_lite"]),
+    ("🔥 CMB", ["planck", "planck_lite", "planck_lensing", "planck_lowe"]),
     ("🕸️ Growth of structure", ["fsigma8", "s8"]),
     ("📌 External measurements", ["h0", "omega_b", "tau"]),
 ]
@@ -463,6 +467,33 @@ DATASET_INFO = {
             "w(z)."
         ),
         constrains="everything, tightly -- needs n_s, ln10¹⁰A_s, τ free",
+    ),
+
+    "planck_lensing": dict(
+        observable="C_L^φφ (lensing potential)",
+        n="9 bandpowers", z="L = 8 – 400",
+        what=(
+            "The CMB lensed by everything it passed through, "
+            "inverted to map the matter back to z ~ 2. **A growth "
+            "measurement made by the CMB itself** — every other CMB "
+            "dataset here constrains recombination and reaches the "
+            "present only through a distance."
+        ),
+        constrains="σ₈·Ω_m^0.25 — the CMB's own side of the S₈ question",
+    ),
+
+    "planck_lowe": dict(
+        observable="D_ℓ^EE at ℓ = 2–29",
+        n="28 multipoles", z="z ≈ 8 (reionization)",
+        what=(
+            "Planck's low-ℓ polarization, as the **tabulated, "
+            "non-Gaussian** likelihood it actually is rather than a "
+            "mean and an error bar. Below ℓ = 30 there are only "
+            "2ℓ+1 modes on the sky, so the C_ℓ distribution is "
+            "strongly skewed — and that is exactly the regime "
+            "carrying the CMB's information about τ."
+        ),
+        constrains="τ — the real thing, not the Gaussian shorthand",
     ),
 
     "fsigma8": dict(
@@ -589,11 +620,23 @@ INCOMPATIBLE_PAIRS = [
     ({"pantheon", "union3"}, "Union3 and Pantheon+ compile substantially the same supernovae."),
     ({"des_sn5yr", "union3"}, "Union3's high-z half overlaps the DES sample."),
     ({"planck", "planck_lite"}, "The distance priors are a compression of exactly these bandpowers -- this is the whole Planck dataset twice."),
+    ({"planck_lowe", "tau"}, "The τ prior is a Gaussian compression of exactly this low-ℓ EE likelihood -- the same measurement twice."),
 ]
 
 #: Datasets that are slow enough to be worth warning about before
 #: someone ticks them and waits.
 SLOW_DATASETS = {
+    "planck_lowe": (
+        "Planck low-ℓ EE runs CAMB on every likelihood evaluation, "
+        "like the other from-scratch CMB datasets. Cheap to add "
+        "*next to* them (one CAMB call serves all), expensive alone."
+    ),
+    "planck_lensing": (
+        "Planck lensing runs CAMB on every likelihood evaluation, "
+        "same as the full spectra below. It is cheap to add *next "
+        "to* them (one CAMB call serves both) and expensive on its "
+        "own. LCDM and w(z) models only."
+    ),
     "planck_lite": (
         "Planck TT/TE/EE computes the CMB power spectrum from scratch "
         "with CAMB on every likelihood evaluation (~0.7 s per step, "
@@ -658,6 +701,8 @@ PLOT_LABELS = {
     "sdss_bao_distances": "BAO distances (SDSS)",
     "lowz_bao_distances": "BAO distances (6dFGS + MGS)",
     "planck_residuals": "Planck residuals (pull plot)",
+    "cmb_spectra": "CMB power spectra (TT/TE/EE)",
+    "cmb_lensing": "CMB lensing bandpowers",
     "w_of_z": "w(z) evolution",
     "w0_wa_plane": "w0-wa dark-energy plane",
     "deceleration": "Deceleration parameter q(z)",
@@ -728,6 +773,10 @@ DATASET_PARAMS = {
     "bao_lowz": {"rd"},
     "planck": {"Omega_b"},
     "planck_lite": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
+                    "N_eff", "m_nu", "A_planck"},
+    "planck_lensing": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
+                       "N_eff", "m_nu"},
+    "planck_lowe": {"Omega_b", "n_s", "ln1e10As", "tau_reio",
                     "N_eff", "m_nu", "A_planck"},
     "fsigma8": {"sigma8"},
     "s8": {"sigma8"},
@@ -886,6 +935,16 @@ def _fit_warnings(model_choice, model_cls, datasets, free_params,
             "With r_d computed, **Ω_b** is what carries H₀ -- leaving "
             "it fixed pins r_d to one value and throws away the "
             "reason to compute it. Free Ω_b and tick the BBN prior.",
+        ))
+
+    if selected & {"planck_lite", "planck_lensing"} and "sigma8" in free_params:
+        warnings.append((
+            "⚠️",
+            "**σ₈ is defined twice here.** The CMB datasets compute "
+            "it from `ln10¹⁰A_s` through the transfer function, "
+            "while fσ₈/S₈ are compared against the *free* σ₈ you "
+            "are sampling — and nothing makes the two agree. Fix "
+            "σ₈, or drop one side.",
         ))
 
     if "planck_lite" in selected:
@@ -1066,6 +1125,8 @@ def _available_plots(fit: Fitter) -> list[str]:
         (SDSSBAOLikelihood, "sdss_bao_distances"),
         (BAOLowZLikelihood, "lowz_bao_distances"),
         (PlanckLikelihood, "planck_residuals"),
+        (PlanckLiteLikelihood, "cmb_spectra"),
+        (PlanckLensingLikelihood, "cmb_lensing"),
         (FSigma8Likelihood, "growth"),
     ]
 
