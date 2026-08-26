@@ -40,14 +40,18 @@ import streamlit as st
 from CosmoFit import (
     __version__,
     LCDM, WCDM, CPL, JBP, BA, GCG,
+    LogarithmicDE, PEDE, GEDE, LsCDM,
+    IDE, RunningVacuum, Cardassian, DGP,
     FQExponential, FRTLinear, FRHuSawicki,
     Fitter,
     model_from_expression,
     CCLikelihood,
     DESILikelihood,
     SDSSBAOLikelihood,
+    BAOLowZLikelihood,
     PantheonLikelihood,
     DESSN5YRLikelihood,
+    Union3Likelihood,
     PlanckLikelihood,
     FSigma8Likelihood,
 )
@@ -67,7 +71,15 @@ BUILTIN_MODELS = {
     "CPL": CPL,
     "JBP": JBP,
     "BA": BA,
+    "LogarithmicDE": LogarithmicDE,
+    "PEDE": PEDE,
+    "GEDE": GEDE,
+    "LsCDM": LsCDM,
     "GCG": GCG,
+    "IDE": IDE,
+    "RunningVacuum": RunningVacuum,
+    "Cardassian": Cardassian,
+    "DGP": DGP,
     "FQExponential": FQExponential,
     "FRTLinear": FRTLinear,
     "FRHuSawicki": FRHuSawicki,
@@ -75,20 +87,44 @@ BUILTIN_MODELS = {
 
 DATASET_LABELS = {
     "cc": "Cosmic Chronometers (CC)",
-    "desi": "DESI 2024 BAO",
+    "desi": "DESI BAO (DR1 2024; DR2 2025 via version)",
     "sdss_bao": "SDSS BAO (BOSS DR12 + eBOSS DR16)",
+    "bao_lowz": "Low-z BAO (6dFGS + SDSS MGS)",
     "pantheon": "Pantheon+ (SNe Ia)",
     "des_sn5yr": "DES-SN5YR (SNe Ia)",
+    "union3": "Union3 (SNe Ia, 22 binned)",
     "planck": "Planck 2018 (CMB distance priors)",
+    "planck_lite": "Planck 2018 TT/TE/EE (full spectra, needs CAMB)",
     "fsigma8": "Growth rate (fsigma8, Gold-2018 RSD)",
     "s8": "S8 weak-lensing prior (KiDS-1000)",
+    "h0": "Local H0 (SH0ES 2022)",
+    "omega_b": "BBN prior on omega_b h^2",
+    "tau": "Reionization tau prior (Planck lowE)",
 }
 
 #: Dataset pairs that double-count data if combined -- see README.
 INCOMPATIBLE_PAIRS = [
     ({"desi", "sdss_bao"}, "DESI and SDSS BAO target much of the same sky; combining them double-counts structure."),
     ({"pantheon", "des_sn5yr"}, "DES-SN5YR's low-z sample overlaps Pantheon+; combining them double-counts those supernovae."),
+    ({"pantheon", "union3"}, "Union3 and Pantheon+ compile substantially the same supernovae."),
+    ({"des_sn5yr", "union3"}, "Union3's high-z half overlaps the DES sample."),
+    ({"planck", "planck_lite"}, "The distance priors are a compression of exactly these bandpowers -- this is the whole Planck dataset twice."),
 ]
+
+#: Datasets that are slow enough to be worth warning about before
+#: someone ticks them and waits.
+SLOW_DATASETS = {
+    "planck_lite": (
+        "Planck TT/TE/EE computes the CMB power spectrum from scratch "
+        "with CAMB on every likelihood evaluation (~0.7 s per step, "
+        "against ~1 ms for every other dataset combined). A full chain "
+        "takes hours, not minutes -- use a saved chain, raise "
+        "n_processes, and consider the compressed distance priors "
+        "('Planck 2018 CMB distance priors') unless you specifically "
+        "need the spectra. It also only works for LCDM and models with "
+        "a w(z), not the modified-gravity ones."
+    ),
+}
 
 #: LaTeX preview shown next to each model picker -- background
 #: expansion for the LCDM/WCDM family, dark-energy equation of state
@@ -100,7 +136,15 @@ MODEL_EQUATIONS = {
     "CPL": r"w(z) = w_0 + w_a \dfrac{z}{1+z}",
     "JBP": r"w(z) = w_0 + w_a \dfrac{z}{(1+z)^2}",
     "BA": r"w(z) = w_0 + w_a \dfrac{z(1+z)}{1+z^2}",
+    "LogarithmicDE": r"w(z) = w_0 + w_a \ln(1+z)",
+    "PEDE": r"\Omega_{DE}(z) = \Omega_{DE,0}\left[1 - \tanh\left(\log_{10}(1+z)\right)\right]",
+    "GEDE": r"\Omega_{DE}(z) \propto 1 - \tanh\left[\Delta \log_{10}\dfrac{1+z}{1+z_t}\right]",
+    "LsCDM": r"E(z)^2 = \Omega_m (1+z)^3 + \Omega_k (1+z)^2 + \Omega_{\Lambda_s} \,\mathrm{sgn}(z_\dagger - z)",
     "GCG": r"p = -\dfrac{A}{\rho^{\alpha}}",
+    "IDE": r"Q = 3\xi H \rho_{DE}, \quad w = w_0",
+    "RunningVacuum": r"\Lambda(H) = c_0 + 3\nu H^2",
+    "Cardassian": r"H^2 = A\rho + B\rho^{n} \ \ (\text{modified polytropic})",
+    "DGP": r"E(z) = \sqrt{\Omega_{rc} + \Omega_m (1+z)^3} + \sqrt{\Omega_{rc}}",
     "FQExponential": r"f(Q) = Q\, e^{\lambda Q_0/Q},\quad Q=6H^2",
     "FRTLinear": r"f(R,T) = R + 2\lambda T",
     "FRHuSawicki": r"f(R) = -m^2\dfrac{c_1(R/m^2)^n}{c_2(R/m^2)^n+1}",
@@ -128,9 +172,11 @@ PLOT_LABELS = {
     "corner": "Corner plot",
     "hubble_diagram": "Hubble diagram (Pantheon+)",
     "des_hubble_diagram": "Hubble diagram (DES-SN5YR)",
+    "union3_hubble_diagram": "Hubble diagram (Union3)",
     "hz": "H(z) diagram (CC)",
     "bao_distances": "BAO distances (DESI)",
     "sdss_bao_distances": "BAO distances (SDSS)",
+    "lowz_bao_distances": "BAO distances (6dFGS + MGS)",
     "planck_residuals": "Planck residuals (pull plot)",
     "w_of_z": "w(z) evolution",
     "w0_wa_plane": "w0-wa dark-energy plane",
@@ -312,9 +358,11 @@ def _available_plots(fit: Fitter) -> list[str]:
     likelihood_plots = [
         (PantheonLikelihood, "hubble_diagram"),
         (DESSN5YRLikelihood, "des_hubble_diagram"),
+        (Union3Likelihood, "union3_hubble_diagram"),
         (CCLikelihood, "hz"),
         (DESILikelihood, "bao_distances"),
         (SDSSBAOLikelihood, "sdss_bao_distances"),
+        (BAOLowZLikelihood, "lowz_bao_distances"),
         (PlanckLikelihood, "planck_residuals"),
         (FSigma8Likelihood, "growth"),
     ]
@@ -589,6 +637,40 @@ with st.sidebar:
         if pair <= selected_set:
             st.warning(f"{' + '.join(sorted(pair))}: {reason}", icon="⚠️")
 
+    for key, note in SLOW_DATASETS.items():
+        if key in selected_set:
+            st.warning(f"{DATASET_LABELS.get(key, key)}: {note}", icon="🐢")
+
+    compute_rd = st.checkbox(
+        "Compute $r_d$ from the physical densities",
+        value=False,
+        help="By default the BAO sound horizon r_d is a free nuisance "
+             "parameter, which means BAO constrains only the product "
+             "H0*r_d and cannot measure H0 at all. Tick this to derive "
+             "r_d from omega_b, omega_cb, N_eff and m_nu instead "
+             "(validated against CAMB to 5e-5). H0 then becomes "
+             "measurable -- through Omega_b, so free Omega_b and tick "
+             "the BBN dataset above. 'rd' must not be left ticked as a "
+             "free parameter below.",
+    )
+
+    if compute_rd:
+        if not any(k in selected_set for k in ("desi", "sdss_bao", "bao_lowz")):
+            st.info(
+                "r_d only enters through BAO -- with no BAO dataset "
+                "ticked, computing it changes nothing.",
+                icon="ℹ️",
+            )
+        elif "omega_b" not in selected_set:
+            st.info(
+                "With r_d computed, H0 is measurable through Omega_b, "
+                "which BAO alone cannot pin down. Tick the BBN prior "
+                "on omega_b h^2 to close the loop -- that pairing is "
+                "how every published 'BAO + BBN gives H0' constraint "
+                "is produced.",
+                icon="ℹ️",
+            )
+
     st.markdown("### ⚙️ MCMC settings")
 
     with st.container(border=True):
@@ -851,12 +933,28 @@ if run_clicked:
         try:
             for i in range(n_models):
 
+                free_params = model_free_params[i]
+
+                if compute_rd and "rd" in free_params:
+                    # The GUI's parameter table lists every parameter
+                    # the model has, and `rd` is ticked by default for
+                    # BAO fits -- so silently un-tick it rather than
+                    # raising at people who ticked a box in one place
+                    # and a checkbox in another.
+                    free_params = [n for n in free_params if n != "rd"]
+                    st.info(
+                        f"Model {i + 1}: dropped `rd` from the free "
+                        f"parameters -- it is being computed, not fitted.",
+                        icon="ℹ️",
+                    )
+
                 fit = Fitter(
                     model=model_classes[i],
                     datasets=selected_datasets,
-                    free_params=model_free_params[i],
+                    free_params=free_params,
                     initial=model_initial[i],
                     bounds=model_bounds[i],
+                    compute_rd=compute_rd,
                 )
 
                 model_label = f"Model {i + 1}"

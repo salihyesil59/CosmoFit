@@ -46,9 +46,17 @@ from CosmoFit.cosmology.core.parameters import CosmologyParameters
 from CosmoFit.likelihoods.cc import CCLikelihood
 from CosmoFit.likelihoods.desi import DESILikelihood
 from CosmoFit.likelihoods.sdss_bao import SDSSBAOLikelihood
+from CosmoFit.likelihoods.bao_lowz import BAOLowZLikelihood
 from CosmoFit.likelihoods.pantheon import PantheonLikelihood
 from CosmoFit.likelihoods.des_sn5yr import DESSN5YRLikelihood
+from CosmoFit.likelihoods.union3 import Union3Likelihood
 from CosmoFit.likelihoods.planck import PlanckLikelihood
+from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
+from CosmoFit.likelihoods.priors import (
+    H0Likelihood,
+    OmegaBLikelihood,
+    TauLikelihood,
+)
 from CosmoFit.likelihoods.fsigma8 import FSigma8Likelihood
 from CosmoFit.likelihoods.s8 import S8Likelihood
 from CosmoFit.likelihoods.joint import JointLikelihood
@@ -78,11 +86,51 @@ DATASET_REGISTRY = {
     "cc": CCLikelihood,
     "desi": DESILikelihood,
     "sdss_bao": SDSSBAOLikelihood,
+    "bao_lowz": BAOLowZLikelihood,
     "pantheon": PantheonLikelihood,
     "des_sn5yr": DESSN5YRLikelihood,
+    "union3": Union3Likelihood,
     "planck": PlanckLikelihood,
+    "planck_lite": PlanckLiteLikelihood,
     "fsigma8": FSigma8Likelihood,
     "s8": S8Likelihood,
+    "h0": H0Likelihood,
+    "omega_b": OmegaBLikelihood,
+    "tau": TauLikelihood,
+}
+
+
+#: Pairs of datasets that must not appear in the same fit, and why.
+#:
+#: Every entry is a case where two datasets are not independent
+#: measurements but the same sky, the same supernovae, or the same
+#: number twice -- so combining them multiplies a likelihood by
+#: (part of) itself, which understates the uncertainty and biases
+#: the result without producing any visible symptom. Each was
+#: previously documented only in the relevant likelihood's
+#: docstring, where nothing checked it. :class:`Fitter` now warns.
+CONFLICTING_DATASETS = {
+
+    ("desi", "sdss_bao"):
+        "DESI covers much of the same sky and the same structure "
+        "BOSS/eBOSS did; they are not independent.",
+
+    ("pantheon", "des_sn5yr"):
+        "DES-SN5YR's low-z anchor sample (~11% of it) is also "
+        "compiled into Pantheon+.",
+
+    ("pantheon", "union3"):
+        "Union3 and Pantheon+ compile substantially the same "
+        "literature supernovae.",
+
+    ("des_sn5yr", "union3"):
+        "Union3's high-redshift half overlaps the DES sample.",
+
+    ("planck", "planck_lite"):
+        "The distance priors are a compression of exactly these "
+        "bandpowers -- this is the whole Planck dataset twice, "
+        "once in full and once in summary.",
+
 }
 
 
@@ -96,12 +144,62 @@ DATASET_LABELS = {
     "cc": "CC",
     "desi": "DESI",
     "sdss_bao": "SDSS",
+    "bao_lowz": "6dFGS + MGS",
     "pantheon": "Pantheon+",
     "des_sn5yr": "DES-SN5YR",
+    "union3": "Union3",
     "planck": "Planck",
+    "planck_lite": "Planck TTTEEE",
     "fsigma8": r"$f\sigma_8$",
     "s8": r"$S_8$",
+    "h0": r"$H_0$",
+    "omega_b": "BBN",
+    "tau": r"$\tau$",
 }
+
+
+def _warn_conflicting_datasets(names) -> None:
+    """
+    Warn if a fit combines two datasets that are not independent.
+
+    Every rule in :data:`CONFLICTING_DATASETS` was already written
+    down in a likelihood docstring, where it protected nobody who
+    did not go looking. The failure mode is silent -- overlapping
+    data treated as independent produces a perfectly ordinary-looking
+    posterior with error bars that are too small -- so it is worth
+    saying out loud at the one moment the combination is chosen.
+
+    A warning, not an error: there are legitimate reasons to build
+    such a fit deliberately (quantifying how much the overlap
+    matters, reproducing a published analysis that made this
+    choice), and refusing outright would make those impossible.
+    """
+
+    import warnings
+
+    seen = set(names)
+
+    for (first, second), reason in CONFLICTING_DATASETS.items():
+
+        if first in seen and second in seen:
+
+            warnings.warn(
+
+                f"Datasets '{first}' and '{second}' should not be "
+
+                f"combined: {reason} Treating them as independent "
+
+                f"double-counts that data, which understates the "
+
+                f"uncertainties and can bias the result. Use one "
+
+                f"of the two.",
+
+                UserWarning,
+
+                stacklevel=3,
+
+            )
 
 
 def dataset_label(names) -> str:
@@ -331,6 +429,30 @@ class Fitter:
         Extra keyword arguments passed to the constructor of
         each likelihood, keyed by dataset name. E.g.
         ``{"pantheon": {"marginalize_MB": True}}``.
+
+    compute_rd : bool, optional
+        If True, the BAO sound horizon ``rd`` is *computed* from
+        the physical densities (``omega_b``, ``omega_cb``,
+        ``N_eff``, ``m_nu``) rather than fitted as a free nuisance
+        parameter -- see
+        :mod:`cosmology.calculators.sound_horizon`. Default False.
+
+        This changes what a BAO fit can measure. With ``rd`` free,
+        BAO constrains only the product ``H0 rd``, so ``H0`` is
+        unconstrained by BAO alone. With ``rd`` computed, ``H0``
+        becomes measurable -- but through ``Omega_b``, which BAO
+        cannot pin down on its own. That is what the ``"omega_b"``
+        (BBN) dataset is for, and the pair is how every published
+        "BAO + BBN gives H0" constraint is produced::
+
+            Fitter(model=LCDM,
+                   datasets=["desi", "omega_b"],
+                   free_params=["H0", "Omega_m", "Omega_b"],
+                   compute_rd=True)
+
+        Passing ``compute_rd=True`` with ``"rd"`` in
+        ``free_params`` raises: the likelihood would ignore the
+        sampled value, and its "posterior" would be its prior.
     """
 
     def __init__(
@@ -342,11 +464,37 @@ class Fitter:
         fixed=None,
         bounds=None,
         dataset_kwargs=None,
+        compute_rd=False,
     ):
 
         self.model_cls = model
         self.free_params = list(free_params)
         self.dataset_names = list(datasets)
+        self.compute_rd = bool(compute_rd)
+
+        if self.compute_rd and "rd" in self.free_params:
+
+            raise ValueError(
+
+                "`compute_rd=True` derives rd from the physical "
+
+                "densities (omega_b, omega_cb, N_eff, m_nu), so it "
+
+                "cannot also be a free parameter -- sampling it "
+
+                "would be sampling a value the likelihood ignores, "
+
+                "producing a posterior for `rd` that is just its "
+
+                "prior. Drop 'rd' from free_params.\n\n"
+
+                "With rd computed, `Omega_b` is what BAO now needs "
+
+                "in order to say anything about H0: free it and add "
+
+                "the 'omega_b' (BBN) dataset."
+
+            )
 
         # ------------------------------------------------------
         # Build the (shared, mutable) parameter object
@@ -395,6 +543,10 @@ class Fitter:
 
         self.cosmology = self.model_cls(self.params)
 
+        # Set on the instance, not the class -- two fitters in one
+        # session (a compute_rd comparison, say) must not share it.
+        self.cosmology.compute_rd = self.compute_rd
+
         # ------------------------------------------------------
         # Build likelihoods
         # ------------------------------------------------------
@@ -403,6 +555,8 @@ class Fitter:
         self.dataset_kwargs = dataset_kwargs
 
         self.likelihoods = []
+
+        _warn_conflicting_datasets(self.dataset_names)
 
         for name in self.dataset_names:
 
@@ -825,6 +979,7 @@ class Fitter:
             initial=self.params.as_dict(),
             bounds=self.bounds,
             dataset_kwargs=self.dataset_kwargs,
+            compute_rd=self.compute_rd,
         )
 
     # ------------------------------------------------------------
@@ -1061,6 +1216,7 @@ class Fitter:
                 if name not in self.free_params
             },
             "dataset_kwargs": self.dataset_kwargs or {},
+            "compute_rd": bool(self.compute_rd),
         }
 
     # ------------------------------------------------------------
@@ -1408,6 +1564,9 @@ class Fitter:
                 for key, value in (meta.get("bounds") or {}).items()
             },
             dataset_kwargs=meta.get("dataset_kwargs") or None,
+            # Absent from chains written before rd could be
+            # computed, where it was necessarily False.
+            compute_rd=bool(meta.get("compute_rd", False)),
         )
         kwargs.update(overrides)
 

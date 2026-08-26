@@ -30,8 +30,10 @@ from CosmoFit.likelihoods import (
     CCLikelihood,
     DESILikelihood,
     SDSSBAOLikelihood,
+    BAOLowZLikelihood,
     PantheonLikelihood,
     DESSN5YRLikelihood,
+    Union3Likelihood,
     PlanckLikelihood,
     FSigma8Likelihood,
 )
@@ -1067,6 +1069,45 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
+    def union3_hubble_diagram(self, save_path=None, n_draws=300, seed=0):
+        """
+        Union3 Hubble diagram: binned distance modulus vs.
+        redshift, with a residuals sub-panel.
+
+        Twenty-two points rather than the ~1800 of the other two SN
+        figures, because Union3 is released binned -- so this panel
+        looks sparse next to the Pantheon+ or DES-SN5YR ones and
+        carries comparable constraining power anyway. The error
+        bars are correspondingly small and, unlike DES-SN5YR's, all
+        of comparable size, so nothing is de-weighted out of view
+        here.
+
+        As with DES-SN5YR the data vector is already a distance
+        modulus, so the y axis really is ``mu``; the model curve
+        carries the analytically marginalized zero point (or
+        ``cosmology.MB`` if it was fit explicitly), and the legend
+        says which.
+        """
+
+        lk = self._require_likelihood(Union3Likelihood, "union3")
+
+        return self._sn_hubble_diagram(
+            lk,
+            y_data=lk.data.mu,
+            offset_fn=lambda: (
+                lk.best_fit_offset() if lk.marginalize_offset else 0.0
+            ),
+            dataset_label="Union3",
+            y_label=r"$\mu$ [mag]",
+            residual_label=r"$\Delta\mu$",
+            model_label=_sn_model_label(
+                "zero-point", lk.marginalize_offset,
+            ),
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
     def hz(self, save_path=None, n_draws=300, seed=0):
         """
         Cosmic Chronometer H(z) diagram: expansion-rate
@@ -1254,6 +1295,34 @@ class FitPlotter:
 
         return self._bao_distances(
             lk, dataset_label="SDSS (DR12+DR16)",
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def lowz_bao_distances(self, save_path=None, n_draws=300, seed=0):
+        """
+        Low-redshift BAO plot (6dFGS z=0.106, SDSS DR7 MGS z=0.15):
+        one panel per observable type against the model curve.
+
+        Two panels with one point each -- 6dFGS reports
+        ``r_d/D_V`` and the MGS reports ``D_V/r_d``, so they cannot
+        share an axis without inverting one of them, which is
+        exactly what the likelihood declines to do (see
+        :class:`~likelihoods.bao_lowz.BAOLowZLikelihood`). The
+        figure shows them as they were measured.
+
+        The 6dFGS panel's model curve includes that survey's
+        ``rs_rescale``, so what is drawn is what the chi2 actually
+        compares -- a curve computed with the un-rescaled ``r_d``
+        would sit visibly off its own data point for no reason a
+        reader could see.
+        """
+
+        lk = self._require_likelihood(BAOLowZLikelihood, "bao_lowz")
+
+        return self._bao_distances(
+            lk, dataset_label="6dFGS + SDSS MGS",
             n_draws=n_draws, seed=seed, save_path=save_path,
         )
 

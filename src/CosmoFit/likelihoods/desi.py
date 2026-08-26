@@ -24,16 +24,30 @@ from .base import BaseLikelihood
 #: so that figures and code agree on one symbol; only these keys
 #: keep the data file's wording, so a dataset can be loaded
 #: without renaming its own columns.
+#: Every entry takes ``(cosmology, z)`` plus an optional ``rd``
+#: overriding the cosmology's own sound horizon -- the hook
+#: :attr:`~data.dataset.DESIDataset.rs_rescale` needs for a survey
+#: that calibrated its measurement against a differently-defined
+#: ``r_d`` (see :class:`~likelihoods.desi.BAODistanceLikelihood`).
+#: Callers that do not care (every plot, every dataset without a
+#: rescale) can keep calling them with two arguments.
 MODEL_MAP = {
 
-    "DM_over_rs": lambda m, z:
-        m.distance.DM(z) / m.rd,
+    "DM_over_rs": lambda m, z, rd=None:
+        m.distance.DM(z) / (m.rd if rd is None else rd),
 
-    "DH_over_rs": lambda m, z:
-        m.distance.DH(z) / m.rd,
+    "DH_over_rs": lambda m, z, rd=None:
+        m.distance.DH(z) / (m.rd if rd is None else rd),
 
-    "DV_over_rs": lambda m, z:
-        m.distance.DV(z) / m.rd,
+    "DV_over_rs": lambda m, z, rd=None:
+        m.distance.DV(z) / (m.rd if rd is None else rd),
+
+    # 6dFGS reports the reciprocal (Beutler et al. 2011). Kept as
+    # its own observable rather than inverted in the data file:
+    # 0.336 +- 0.015 is Gaussian in r_s/D_V, and the reciprocal of
+    # a Gaussian is neither Gaussian nor centred on 1/mean.
+    "rs_over_DV": lambda m, z, rd=None:
+        (m.rd if rd is None else rd) / m.distance.DV(z),
 
 }
 
@@ -46,6 +60,7 @@ OBSERVABLE_LABELS = {
     "DM_over_rs": r"$D_M(z)\,/\,r_d$",
     "DH_over_rs": r"$D_H(z)\,/\,r_d$",
     "DV_over_rs": r"$D_V(z)\,/\,r_d$",
+    "rs_over_DV": r"$r_d\,/\,D_V(z)$",
 }
 
 
@@ -55,10 +70,18 @@ class BAODistanceLikelihood(BaseLikelihood):
     dataset is a vector of (z, value, observable-type) triplets
     against a single covariance -- currently
     :class:`DESILikelihood` and
-    :class:`~likelihoods.sdss_bao.SDSSBAOLikelihood`. ``observable``
-    selects which entry of :data:`MODEL_MAP` (``"DM_over_rs"``,
-    ``"DH_over_rs"``, ``"DV_over_rs"``) each data point is compared
-    against.
+    :class:`~likelihoods.sdss_bao.SDSSBAOLikelihood` and
+    :class:`~likelihoods.bao_lowz.BAOLowZLikelihood`.
+    ``observable`` selects which entry of :data:`MODEL_MAP`
+    (``"DM_over_rs"``, ``"DH_over_rs"``, ``"DV_over_rs"``,
+    ``"rs_over_DV"``) each data point is compared against.
+
+    If the dataset carries an
+    :attr:`~data.dataset.DESIDataset.rs_rescale`, each point's
+    prediction uses ``rd * rescale`` in place of the cosmology's
+    own ``rd`` -- the units conversion a survey needs when it
+    quoted its BAO ratio against a fitting-formula sound horizon
+    rather than an integrated one.
     """
 
     # -----------------------------------------------------------
@@ -72,11 +95,17 @@ class BAODistanceLikelihood(BaseLikelihood):
 
         prediction: list[float] = []
 
-        for observable, z in zip(
+        rescale = self.data.rs_rescale
 
-            self.data.observable,
+        for index, (observable, z) in enumerate(
 
-            self.data.z,
+            zip(
+
+                self.data.observable,
+
+                self.data.z,
+
+            ),
 
         ):
 
@@ -96,6 +125,16 @@ class BAODistanceLikelihood(BaseLikelihood):
 
                 ) from exc
 
+            rd = (
+
+                None
+
+                if rescale is None
+
+                else self.cosmology.rd * rescale[index]
+
+            )
+
             prediction.append(
 
                 model(
@@ -103,6 +142,8 @@ class BAODistanceLikelihood(BaseLikelihood):
                     self.cosmology,
 
                     z,
+
+                    rd,
 
                 ),
 

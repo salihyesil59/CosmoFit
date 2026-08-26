@@ -40,16 +40,20 @@ class BackgroundCalculator:
     # ---------------------------------------------------------
 
     def Omega_m(self, z):
+        """
+        Matter density parameter at redshift ``z``.
 
-        z = np.asarray(z)
+        Delegates the numerator to the model's own
+        :meth:`~cosmology.core.base.Cosmology.Omega_matter`, so a
+        model in which matter does not dilute as ``(1+z)^3`` (a
+        running vacuum, an interacting dark sector) reports its
+        real matter fraction here -- and, through it, in the
+        linear growth equation.
+        """
 
         return (
 
-            self.cosmo.Omega_m
-
-            *
-
-            (1.0 + z) ** 3
+            self.cosmo.Omega_matter(z)
 
             /
 

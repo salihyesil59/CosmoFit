@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.22.0"
+version = "0.24.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -34,15 +34,30 @@ keywords = [
     "cc",
     "cmb",
     "planck",
+    "camb",
+    "boltzmann",
+    "power-spectrum",
     "wcdm",
     "cpl",
     "lcdm",
     "jbp",
     "chaplygin-gas",
     "des-sn5yr",
+    "union3",
     "sdss",
     "eboss",
     "boss",
+    "6dfgs",
+    "bbn",
+    "sh0es",
+    "pede",
+    "dgp",
+    "cardassian",
+    "running-vacuum",
+    "interacting-dark-energy",
+    "sound-horizon",
+    "drag-epoch",
+    "neutrinos",
     "likelihood",
     "mcmc",
     "hdf5",
@@ -85,6 +100,14 @@ speed = [
     "numba>=0.60",
 ]
 
+# Boltzmann-code backend, needed only by the "planck_lite" dataset
+# (the from-scratch CMB power spectrum). Everything else in the
+# library -- including the compressed Planck distance priors --
+# works without it.
+cmb = [
+    "camb>=1.5",
+]
+
 gui = [
     "streamlit>=1.38",
 ]
@@ -108,9 +131,11 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 
-# Bundled observational datasets (CC, DESI BAO, Pantheon+,
-# DES-SN5YR, Planck) living under CosmoFit/data/ -- not .py files,
-# so setuptools won't pick them up automatically.
+# Bundled observational datasets (CC, DESI DR1/DR2 BAO, SDSS BAO,
+# 6dFGS/MGS, Pantheon+, DES-SN5YR, Union3, Planck distance priors,
+# Planck plik_lite bandpowers, growth/S8, and the external H0/BBN/tau
+# priors) living under CosmoFit/data/ -- not .py files, so setuptools
+# won't pick them up automatically.
 CosmoFit = [
     "data/**/*.txt",
     "data/**/*.dat",

@@ -20,6 +20,9 @@ from .dataset import DESSN5YRDataset
 from .dataset import PlanckDataset
 from .dataset import GrowthDataset
 from .dataset import S8Dataset
+from .dataset import Union3Dataset
+from .dataset import GaussianPriorDataset
+from .dataset import CMBSpectrumDataset
 
 from .covariance import make_covariance
 
@@ -65,6 +68,75 @@ DESI_FILES = {
         "covariance": "desi_2024_gaussian_bao_ALL_GCcomb_cov.txt",
 
         "reference": "DESI Collaboration (2024), JCAP 02 (2025) 021, arXiv:2404.03002",
+
+    },
+
+    # DESI Data Release 2: three years of observations, >14 million
+    # galaxies and quasars, twice the DR1 sample. Same 13-element
+    # (z, value, observable) format and same provenance
+    # (CobayaSampler/bao_data) as DR1 above, so it drops straight
+    # into the same loader -- only the numbers change.
+    #
+    # Not a superset to be stacked with DR1: DR2 *includes* every
+    # DR1 galaxy, so combining the two versions double-counts the
+    # entire DR1 sample. Pick one.
+    "desi2025": {
+
+        "parent": "bao",
+
+        "folder": "desi_dr2",
+
+        "data": "desi_dr2_gaussian_bao_ALL_GCcomb_mean.txt",
+
+        "covariance": "desi_dr2_gaussian_bao_ALL_GCcomb_cov.txt",
+
+        "reference": "DESI Collaboration (2025), arXiv:2503.14738 (DESI DR2 Results II)",
+
+    },
+
+}
+
+
+#: Pre-DESI, pre-BOSS low-redshift BAO: the two single-point
+#: measurements that anchor the BAO distance ladder below z = 0.2,
+#: where every other BAO dataset in this library has no coverage
+#: at all (DESI's lowest bin is z = 0.295, SDSS's is z = 0.38).
+#: Independent of both, so unlike DESI-vs-SDSS these *can* be
+#: combined with either.
+BAO_LOWZ_FILES = {
+
+    "6dfgs+mgs": {
+
+        "parent": "bao",
+
+        "folder": "lowz",
+
+        "components": (
+
+            {
+                "data": "sixdfgs_2011_bao.txt",
+                "sigma": "sixdfgs_2011_bao_sigma.txt",
+                # Beutler et al. quote r_s/D_V in units of the
+                # Eisenstein & Hu (1998) fitting-formula sound
+                # horizon (153.9 Mpc for their fiducial), where a
+                # Boltzmann code gives 149.8 Mpc for the same
+                # cosmology. See `DESIDataset.rs_rescale`.
+                "rs_rescale": 153.9 / 149.8,
+            },
+
+            {
+                "data": "sdss_dr7_mgs_bao.txt",
+                "sigma": "sdss_dr7_mgs_bao_sigma.txt",
+            },
+
+        ),
+
+        "reference": (
+            "Beutler et al. (2011), MNRAS 416, 3017, arXiv:1106.3366 "
+            "(6dFGS, z=0.106); "
+            "Ross et al. (2015), MNRAS 449, 835, arXiv:1409.3242 "
+            "(SDSS DR7 MGS, z=0.15)"
+        ),
 
     },
 
@@ -220,6 +292,25 @@ S8_FILES = {
 }
 
 
+UNION3_FILES = {
+
+    "union3": {
+
+        "parent": "sn",
+
+        "folder": "union3",
+
+        "data": "union3_lcparam_full.txt",
+
+        "covariance": "union3_mag_covmat.txt",
+
+        "reference": "Rubin et al. (2023), arXiv:2311.12098 (Union3 / UNITY1.5)",
+
+    },
+
+}
+
+
 PLANCK_FILES = {
 
     "planck2018": {
@@ -235,6 +326,157 @@ PLANCK_FILES = {
         "reference": "Chen, Huang & Wang (2019), JCAP 02 (2019) 028, arXiv:1808.05724",
 
     },
+
+}
+
+
+#: Planck 2018 ``plik_lite`` binned TT/TE/EE bandpowers -- the
+#: foreground-marginalized high-l likelihood, i.e. the measured
+#: CMB spectra themselves rather than the three-number compression
+#: in :data:`PLANCK_FILES`. Used by
+#: :class:`~likelihoods.planck_lite.PlanckLiteLikelihood`, which
+#: needs a Boltzmann code to predict C_l and so is the one dataset
+#: here with an optional dependency (CAMB).
+PLIK_LITE_FILES = {
+
+    "planck2018": {
+
+        "parent": "cmb",
+
+        "folder": "plik_lite",
+
+        "data": "cl_cmb_plik_v22.dat",
+
+        # A Fortran unformatted record holding the 613x613
+        # bandpower covariance -- see `_load_plik_covariance`.
+        "covariance": "c_matrix_plik_v22.dat",
+
+        "blmin": "blmin.dat",
+
+        "blmax": "blmax.dat",
+
+        "weights": "bweight.dat",
+
+        #: TT, TE, EE bandpower counts. TT spans l = 30-2508,
+        #: TE and EE l = 30-1996.
+        "n_bin": (215, 199, 199),
+
+        "lmin": 30,
+
+        "lmax": 2508,
+
+        "reference": (
+            "Planck Collaboration (2020), A&A 641, A5, arXiv:1907.12875 "
+            "(likelihood); data as redistributed by "
+            "heatherprince/planck-lite-py from the Planck Legacy Archive"
+        ),
+
+    },
+
+}
+
+
+#: External single-number Gaussian constraints (see
+#: :class:`~data.dataset.GaussianPriorDataset`). Each entry names
+#: the *quantity* it constrains, which
+#: :class:`~likelihoods.priors.GaussianPriorLikelihood` maps to a
+#: model prediction.
+PRIOR_FILES = {
+
+    "h0": {
+
+        "quantity": "H0",
+
+        "parent": "priors",
+
+        "folder": "h0",
+
+        "versions": {
+
+            "sh0es2022": {
+                "data": "h0_sh0es2022.txt",
+                "reference": "Riess et al. (2022), ApJ 934, L7, arXiv:2112.04510",
+            },
+
+            "sh0es2024": {
+                "data": "h0_sh0es2024.txt",
+                "reference": "Breuval et al. (2024), ApJ 973, 30, arXiv:2404.08038",
+            },
+
+            "tdcosmo2025": {
+                "data": "h0_tdcosmo2025.txt",
+                "reference": "TDCOSMO Collaboration / Birrer et al. (2025), A&A 704, A63, arXiv:2506.03023",
+            },
+
+        },
+
+    },
+
+    "omega_b": {
+
+        "quantity": "omega_b_h2",
+
+        "parent": "priors",
+
+        "folder": "omega_b",
+
+        "versions": {
+
+            "bbn2024": {
+                "data": "omega_b_bbn2024.txt",
+                "reference": "Schoeneberg (2024), JCAP 06 (2024) 006, arXiv:2401.15054",
+            },
+
+            "cooke2018": {
+                "data": "omega_b_cooke2018.txt",
+                "reference": "Cooke, Pettini & Steidel (2018), ApJ 855, 102, arXiv:1710.11129",
+            },
+
+        },
+
+    },
+
+    "tau": {
+
+        "quantity": "tau_reio",
+
+        "parent": "priors",
+
+        "folder": "tau",
+
+        "versions": {
+
+            "planck2018": {
+                "data": "tau_planck2018_lowe.txt",
+                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209",
+            },
+
+        },
+
+    },
+
+}
+
+
+#: Flattened ``PRIOR_FILES``, so each prior dataset ("h0",
+#: "omega_b", "tau") looks like every other registry to
+#: :func:`_validate_version` and :func:`available_versions`.
+_PRIOR_REGISTRIES = {
+
+    name: {
+
+        version: {
+            **spec,
+            "parent": entry["parent"],
+            "folder": entry["folder"],
+            "quantity": entry["quantity"],
+        }
+
+        for version, spec in entry["versions"].items()
+
+    }
+
+    for name, entry in PRIOR_FILES.items()
 
 }
 
@@ -260,6 +502,14 @@ _REGISTRIES = {
     "s8": S8_FILES,
 
     "planck": PLANCK_FILES,
+
+    "bao_lowz": BAO_LOWZ_FILES,
+
+    "union3": UNION3_FILES,
+
+    "planck_lite": PLIK_LITE_FILES,
+
+    **_PRIOR_REGISTRIES,
 
 }
 
@@ -946,6 +1196,118 @@ def load_sdss_bao(
     )
 
 # ============================================================
+# BAO (low-z: 6dFGS + SDSS DR7 MGS)
+# ============================================================
+
+def load_bao_lowz(
+    version: str = "6dfgs+mgs",
+) -> DESIDataset:
+    """
+    Load the low-redshift BAO anchors (6dFGS z=0.106, SDSS DR7 MGS
+    z=0.15), in the same (z, value, observable-type) format DESI
+    and SDSS use.
+
+    Both are single measurements from independent surveys with no
+    published cross-correlation, so the covariance is diagonal.
+
+    One of them (6dFGS) reports ``r_s/D_V`` rather than the
+    ``D_V/r_s`` every other BAO dataset here uses. That is kept as
+    its own observable type rather than inverted: 0.336 +- 0.015 is
+    Gaussian in ``r_s/D_V``, and 1/x of a Gaussian is neither
+    Gaussian nor centred on 1/mean. It also carries an
+    ``rs_rescale`` (see :class:`~data.dataset.DESIDataset`), since
+    it was calibrated against an Eisenstein & Hu (1998) sound
+    horizon rather than an integrated one.
+
+    Parameters
+    ----------
+    version : str, optional
+        Dataset version.
+
+    Returns
+    -------
+    DESIDataset
+    """
+
+    entry = _validate_version("bao_lowz", version)
+    dataset_path = _get_dataset_path("bao_lowz", version)
+
+    z_parts = []
+    value_parts = []
+    observable_parts = []
+    sigma_parts = []
+    rescale_parts = []
+
+    for component in entry["components"]:
+
+        data = _load_txt(
+
+            dataset_path / component["data"],
+
+            dtype=None,
+
+        )
+
+        sigma = np.atleast_1d(
+
+            _load_txt(dataset_path / component["sigma"]),
+
+        ).astype(float)
+
+        # A one-row file comes back from genfromtxt as a 0-d
+        # structured scalar rather than a length-1 array, so every
+        # field needs atleast_1d before it can be concatenated.
+        z = np.atleast_1d(np.asarray(data["f0"], dtype=float))
+        value = np.atleast_1d(np.asarray(data["f1"], dtype=float))
+        observable = np.atleast_1d(np.asarray(data["f2"], dtype=str))
+
+        if not (len(z) == len(value) == len(observable) == len(sigma)):
+
+            raise ValueError(
+
+                f"'{component['data']}': data and sigma files "
+
+                f"disagree on the number of measurements.",
+
+            )
+
+        z_parts.append(z)
+        value_parts.append(value)
+        observable_parts.append(observable)
+        sigma_parts.append(sigma)
+
+        rescale_parts.append(
+
+            np.full(
+
+                len(z),
+
+                float(component.get("rs_rescale", 1.0)),
+
+            ),
+
+        )
+
+    sigma = np.concatenate(sigma_parts)
+
+    return DESIDataset(
+
+        z=np.concatenate(z_parts),
+
+        value=np.concatenate(value_parts),
+
+        observable=np.concatenate(observable_parts),
+
+        covariance=make_covariance(sigma=sigma),
+
+        rs_rescale=np.concatenate(rescale_parts),
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
 # Pantheon+ / Pantheon+SH0ES
 # ============================================================
 
@@ -1184,6 +1546,136 @@ def load_des_sn5yr(
 
 
 # ============================================================
+# Union3
+# ============================================================
+
+def _load_cosmomc_covmat(
+    path: Path,
+    expected: int,
+) -> np.ndarray:
+    """
+    Read a CosmoMC-style supernova magnitude covariance: one
+    integer giving the matrix dimension, followed by that many
+    squared entries in row-major order.
+
+    Parameters
+    ----------
+    path
+        Path to the file.
+
+    expected
+        Number of data rows the covariance must match.
+    """
+
+    _check_file_exists(path)
+
+    flat = np.loadtxt(path).ravel()
+
+    n = int(flat[0])
+
+    if n != expected:
+
+        raise ValueError(
+
+            f"'{path.name}': covariance declares dimension {n}, "
+
+            f"but the data file has {expected} rows.",
+
+        )
+
+    if flat.size != 1 + n * n:
+
+        raise ValueError(
+
+            f"'{path.name}': expected {1 + n * n} numbers for a "
+
+            f"{n}x{n} covariance, but found {flat.size}.",
+
+        )
+
+    return flat[1:].reshape(n, n)
+
+
+# ------------------------------------------------------------
+
+def load_union3(
+    version: str = "union3",
+) -> Union3Dataset:
+    """
+    Load the Union3 binned supernova compilation (Rubin et al.
+    2023): 22 distance-modulus bins and their 22x22 magnitude
+    covariance.
+
+    Distributed in the CosmoMC ``lcparam``/``mag_covmat`` format,
+    where the ``mb`` column holds the binned *distance modulus*
+    (~36-46 mag) rather than an apparent magnitude, since UNITY1.5
+    has already marginalized the light-curve standardization
+    internally. Only ``zcmb``, ``zhel`` and ``mb`` carry
+    information; the remaining SALT2 columns are zero-filled
+    placeholders kept so the file matches the format.
+
+    Parameters
+    ----------
+    version : str, optional
+        Dataset version.
+
+    Returns
+    -------
+    Union3Dataset
+    """
+
+    entry = _validate_version("union3", version)
+    dataset_path = _get_dataset_path("union3", version)
+
+    data_path = dataset_path / entry["data"]
+
+    _check_file_exists(data_path)
+
+    # Read by column position, not by header name. The released
+    # file's header lists 19 columns but its rows carry 18 (the
+    # trailing `biascor` field is absent), which `names=True`
+    # rejects outright. Only three columns are used anyway, and
+    # they are the first ones, ahead of the mismatch.
+    z_cmb, z_hel, mu = np.loadtxt(
+
+        data_path,
+
+        usecols=(1, 2, 4),
+
+        unpack=True,
+
+        ndmin=2,
+
+    )
+
+    z_cmb = np.atleast_1d(z_cmb)
+    z_hel = np.atleast_1d(z_hel)
+    mu = np.atleast_1d(mu)
+
+    covariance = _load_cosmomc_covmat(
+
+        dataset_path / entry["covariance"],
+
+        expected=len(z_cmb),
+
+    )
+
+    return Union3Dataset(
+
+        z_cmb=z_cmb,
+
+        z_hel=z_hel,
+
+        mu=mu,
+
+        covariance=make_covariance(cov=covariance),
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
 # Growth rate (fsigma8)
 # ============================================================
 
@@ -1308,6 +1800,256 @@ def load_s8(
         sigma=sigma,
 
         covariance=make_covariance(sigma=np.array([sigma])),
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
+# External single-number Gaussian constraints
+# ============================================================
+
+def load_gaussian_prior(
+    dataset: str,
+    version: str | None = None,
+) -> GaussianPriorDataset:
+    """
+    Load a single external Gaussian constraint -- a local
+    distance-ladder ``H0``, a BBN ``omega_b h^2``, or a
+    reionization ``tau``.
+
+    These enter a fit as one-point datasets rather than as priors
+    on the parameter; see
+    :class:`~data.dataset.GaussianPriorDataset` for why.
+
+    Parameters
+    ----------
+    dataset : str
+        Which constraint: ``"h0"``, ``"omega_b"`` or ``"tau"``.
+
+    version : str, optional
+        Which measurement of it. Defaults to the first entry
+        registered for that dataset (``"sh0es2022"``,
+        ``"bbn2024"``, ``"planck2018"``).
+
+    Returns
+    -------
+    GaussianPriorDataset
+    """
+
+    if dataset not in _PRIOR_REGISTRIES:
+
+        raise ValueError(
+
+            f"Unknown prior dataset '{dataset}'. "
+
+            f"Available: {list(_PRIOR_REGISTRIES)}",
+
+        )
+
+    if version is None:
+
+        version = next(iter(_PRIOR_REGISTRIES[dataset]))
+
+    entry = _validate_version(dataset, version)
+    dataset_path = _get_dataset_path(dataset, version)
+
+    data = np.atleast_1d(
+
+        _load_txt(dataset_path / entry["data"]),
+
+    ).astype(float)
+
+    if data.size != 2:
+
+        raise ValueError(
+
+            f"'{entry['data']}': expected one '<value> <sigma>' "
+
+            f"row, but found {data.size} numbers.",
+
+        )
+
+    value = float(data[0])
+    sigma = float(data[1])
+
+    if sigma <= 0.0:
+
+        raise ValueError(
+
+            f"'{entry['data']}': sigma must be positive.",
+
+        )
+
+    return GaussianPriorDataset(
+
+        quantity=entry["quantity"],
+
+        value=value,
+
+        sigma=sigma,
+
+        covariance=make_covariance(sigma=np.array([sigma])),
+
+        reference=entry["reference"],
+
+    )
+
+
+# ============================================================
+# Planck plik_lite binned TT/TE/EE bandpowers
+# ============================================================
+
+def _load_plik_covariance(
+    path: Path,
+    n: int,
+) -> np.ndarray:
+    """
+    Read the ``plik_lite`` bandpower covariance.
+
+    The released file is a single Fortran unformatted record: a
+    4-byte length marker, ``n*n`` little-endian float64s, and a
+    closing marker. Only the lower triangle is filled in, so the
+    upper triangle is mirrored onto it here.
+
+    ``scipy.io.FortranFile`` would read this in one line, but that
+    would make SciPy's I/O module a hard import for a dataset most
+    fits never touch; the record layout is fixed and three lines of
+    NumPy, so it is read directly.
+    """
+
+    _check_file_exists(path)
+
+    expected = n * n
+
+    raw = path.read_bytes()
+
+    # 4-byte opening marker + n*n float64s + 4-byte closing marker.
+    if len(raw) != 8 + 8 * expected:
+
+        raise ValueError(
+
+            f"'{path.name}': expected a Fortran record holding "
+
+            f"{n}x{n} float64s ({8 + 8 * expected} bytes with its "
+
+            f"markers), but the file is {len(raw)} bytes.",
+
+        )
+
+    # The payload starts 4 bytes in, i.e. half a float64 -- so the
+    # offset has to be applied to the byte buffer, not to a float
+    # view of it.
+    cov = np.frombuffer(
+
+        raw,
+
+        dtype=np.float64,
+
+        count=expected,
+
+        offset=4,
+
+    ).reshape(n, n).copy()
+
+    # Released with only one triangle populated.
+    cov = np.tril(cov) + np.tril(cov, -1).T
+
+    return cov
+
+
+# ------------------------------------------------------------
+
+def load_plik_lite(
+    version: str = "planck2018",
+) -> CMBSpectrumDataset:
+    """
+    Load the Planck 2018 ``plik_lite`` binned TT/TE/EE bandpowers,
+    their joint covariance, and the binning operator that produced
+    them.
+
+    This is the *measured CMB power spectrum*, not the
+    three-number distance-prior compression that
+    :func:`load_planck` returns -- see
+    :class:`~likelihoods.planck_lite.PlanckLiteLikelihood` for
+    what that buys and what it costs.
+
+    ``plik_lite`` is the foreground-marginalized variant of the
+    Planck high-l likelihood: the ~20 nuisance parameters
+    describing dust, point sources and the SZ effect have already
+    been marginalized over by the Planck team, leaving a single
+    calibration parameter (``A_planck``). That is what makes it
+    usable outside a full Planck pipeline.
+
+    Parameters
+    ----------
+    version : str, optional
+        Dataset version.
+
+    Returns
+    -------
+    CMBSpectrumDataset
+    """
+
+    entry = _validate_version("planck_lite", version)
+    dataset_path = _get_dataset_path("planck_lite", version)
+
+    ell, value, sigma = np.loadtxt(
+
+        dataset_path / entry["data"],
+
+        unpack=True,
+
+    )
+
+    n = len(value)
+
+    if sum(entry["n_bin"]) != n:
+
+        raise ValueError(
+
+            f"'{entry['data']}': registry declares "
+
+            f"{entry['n_bin']} bandpowers ({sum(entry['n_bin'])} "
+
+            f"total) but the file holds {n}.",
+
+        )
+
+    covariance = _load_plik_covariance(
+
+        dataset_path / entry["covariance"],
+
+        n=n,
+
+    )
+
+    blmin = np.loadtxt(dataset_path / entry["blmin"]).astype(int)
+    blmax = np.loadtxt(dataset_path / entry["blmax"]).astype(int)
+    weights = np.loadtxt(dataset_path / entry["weights"])
+
+    return CMBSpectrumDataset(
+
+        ell=ell,
+
+        value=value,
+
+        sigma=sigma,
+
+        covariance=make_covariance(cov=covariance),
+
+        n_bin=tuple(entry["n_bin"]),
+
+        blmin=blmin,
+
+        blmax=blmax,
+
+        weights=weights,
+
+        lmin=int(entry["lmin"]),
+
+        lmax=int(entry["lmax"]),
 
         reference=entry["reference"],
 

@@ -1,0 +1,5 @@
+# SH0ES Cepheid-calibrated local distance-ladder H0.
+# Riess et al. (2022), ApJ 934, L7, arXiv:2112.04510, Table 6 (baseline).
+#
+# [value] [sigma]   H0 in km/s/Mpc
+73.04 1.04

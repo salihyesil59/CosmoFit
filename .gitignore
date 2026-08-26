@@ -20,6 +20,9 @@ env/
 # Claude Code
 .claude/
 
+# Kilo Code
+.kilo/
+
 # macOS
 .DS_Store
 

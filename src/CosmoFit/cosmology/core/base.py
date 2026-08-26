@@ -41,6 +41,17 @@ class Cosmology:
     #: Empty for every built-in model.
     EXTRA_PARAMS: dict = {}
 
+    #: Whether ``rd`` is *computed* from the physical densities
+    #: (:meth:`~cosmology.calculators.sound_horizon.SoundHorizon.rd_computed`)
+    #: rather than read from the free ``rd`` parameter.
+    #:
+    #: Default ``False``, and deliberately so: switching it on
+    #: changes every BAO prediction and turns a fitted nuisance
+    #: parameter into a derived quantity. That is a choice about the
+    #: analysis, not a default. Set it via ``Fitter(compute_rd=True)``,
+    #: or directly on a cosmology instance.
+    compute_rd: bool = False
+
     #: Parameter container class used to build `self.params`.
     #: Overridden automatically for subclasses that set
     #: `EXTRA_PARAMS`.
@@ -153,7 +164,17 @@ class Cosmology:
 
     @property
     def rd(self):
-        return self.params.rd
+        """
+        The sound horizon at the drag epoch [Mpc] that the BAO
+        likelihoods divide by.
+
+        The free ``rd`` parameter by default; the value computed
+        from ``omega_b``, ``omega_cb``, ``N_eff`` and ``m_nu`` when
+        :attr:`compute_rd` is set. See
+        :mod:`cosmology.calculators.sound_horizon`.
+        """
+
+        return self.sound_horizon.rd
 
     @property
     def MB(self):
@@ -174,6 +195,74 @@ class Cosmology:
     @property
     def sigma8(self):
         return self.params.sigma8
+
+    @property
+    def n_s(self):
+        return self.params.n_s
+
+    @property
+    def ln1e10As(self):
+        return self.params.ln1e10As
+
+    @property
+    def tau_reio(self):
+        return self.params.tau_reio
+
+    @property
+    def N_eff(self):
+        return self.params.N_eff
+
+    @property
+    def m_nu(self):
+        return self.params.m_nu
+
+    @property
+    def A_planck(self):
+        return self.params.A_planck
+
+    # ---------------------------------------------------------
+
+    @property
+    def h(self) -> float:
+        """
+        Reduced Hubble constant, ``H0 / 100``.
+        """
+
+        return self.H0 / 100.0
+
+    @property
+    def omega_b_h2(self) -> float:
+        """
+        Physical baryon density, ``Omega_b h^2`` -- the combination
+        BBN and the CMB actually constrain.
+        """
+
+        return self.Omega_b * self.h ** 2
+
+    @property
+    def omega_m_h2(self) -> float:
+        """
+        Physical matter density, ``Omega_m h^2``.
+        """
+
+        return self.Omega_m * self.h ** 2
+
+    @property
+    def omega_cdm_h2(self) -> float:
+        """
+        Physical *cold dark matter* density, ``Omega_c h^2`` --
+        matter less baryons.
+
+        Massive neutrinos are counted inside ``Omega_m`` by every
+        model's low-redshift ``E(z)`` (that is the convention
+        `RecombinationCalculator` and the distance-prior
+        compression both assume), so a Boltzmann code being handed
+        these densities must subtract the neutrino contribution
+        itself rather than adding it on top -- see
+        :class:`~cosmology.boltzmann.CAMBBackend`.
+        """
+
+        return self.omega_m_h2 - self.omega_b_h2
 
     # ---------------------------------------------------------
 
@@ -202,6 +291,41 @@ class Cosmology:
     @property
     def Omega_de0(self):
         return 1.0 - self.Omega_m - self.Omega_k
+
+    # ---------------------------------------------------------
+
+    def Omega_matter(self, z):
+        r"""
+        Matter density at redshift ``z``, in units of today's
+        critical density -- i.e. the ``Omega_m (1+z)^3`` term as it
+        appears inside ``E(z)^2``, *before* dividing by ``E(z)^2``.
+
+        The default is the standard ``(1+z)^3`` dilution, which is
+        correct for every model where matter is conserved: LCDM,
+        wCDM, CPL, JBP, BA, GCG, PEDE, GEDE, LsCDM, DGP,
+        LogarithmicDE, and every dark-energy parametrization.
+
+        It is *not* correct for a model in which matter exchanges
+        energy with something else, and those must override it:
+        :class:`~cosmology.models.rvm.RunningVacuum` (matter
+        scales as ``(1+z)^{3(1-nu)}``) and
+        :class:`~cosmology.models.ide.IDE` (part of the matter
+        budget has been swapped into the dark-energy scaling).
+
+        This exists because
+        :class:`~cosmology.calculators.growth.GrowthCalculator`
+        needs ``Omega_m(a)`` in the source term of the linear
+        growth equation. Reading it off ``Omega_m (1+z)^3`` for
+        every model, as this library previously did, silently
+        returns the wrong growth history for exactly the models
+        whose whole point is a modified matter scaling -- and
+        returns it without any error, since ``E(z)`` was right all
+        along.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        return self.Omega_m * (1.0 + z) ** 3
 
     # ---------------------------------------------------------
 
