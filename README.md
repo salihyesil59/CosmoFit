@@ -91,6 +91,10 @@ The project is designed to make cosmological analyses simple, reproducible, and 
     highest-redshift BAO here outside the CMB). eBOSS released both as grids because
     a Gaussian misrepresents them -- the ELG BAO is a 1.4-sigma detection whose
     likelihood is still rising at the low edge of the table
+  * The **eBOSS DR16 ELG full-shape** analysis of the same galaxies: a 100x100x100
+    grid in `(D_M/r_d, D_H/r_d, f*sigma8)`, so it constrains the **growth rate**
+    alongside the geometry and carries the fsigma8/Alcock-Paczynski degeneracy
+    exactly. Mutually exclusive with the BAO-only ELG entry
   * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
   * CMB, four ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
     works for every model); the **full Planck 2018 TT/TE/EE spectra** (615 `plik_lite`

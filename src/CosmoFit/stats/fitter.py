@@ -47,6 +47,7 @@ from CosmoFit.likelihoods.cc import CCLikelihood
 from CosmoFit.likelihoods.desi import DESILikelihood
 from CosmoFit.likelihoods.sdss_bao import SDSSBAOLikelihood
 from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGLikelihood
+from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGFullShapeLikelihood
 from CosmoFit.likelihoods.eboss_dr16 import EBOSSLyaLikelihood
 from CosmoFit.likelihoods.bao_lowz import BAOLowZLikelihood
 from CosmoFit.likelihoods.pantheon import PantheonLikelihood
@@ -92,6 +93,7 @@ DATASET_REGISTRY = {
     "desi": DESILikelihood,
     "sdss_bao": SDSSBAOLikelihood,
     "eboss_elg": EBOSSELGLikelihood,
+    "eboss_elg_fs": EBOSSELGFullShapeLikelihood,
     "eboss_lya": EBOSSLyaLikelihood,
     "bao_lowz": BAOLowZLikelihood,
     "pantheon": PantheonLikelihood,
@@ -138,6 +140,20 @@ CONFLICTING_DATASETS = {
         "DESI's emission-line galaxy sample succeeds eBOSS's over "
         "much of the same footprint.",
 
+    ("desi", "eboss_elg_fs"):
+        "DESI's emission-line galaxy sample succeeds eBOSS's over "
+        "much of the same footprint.",
+
+    ("eboss_elg", "eboss_elg_fs"):
+        "The same eBOSS DR16 galaxies analysed two ways -- an "
+        "isotropic BAO scale, and the full anisotropic shape with "
+        "the growth rate. Use one or the other, not both.",
+
+    ("fsigma8", "eboss_elg_fs"):
+        "The `fsigma8` compilation includes eBOSS growth-rate "
+        "measurements, which this grid's f*sigma8 axis measures "
+        "again.",
+
 
     ("pantheon", "des_sn5yr"):
         "DES-SN5YR's low-z anchor sample (~11% of it) is also "
@@ -179,6 +195,7 @@ DATASET_LABELS = {
     "desi": "DESI",
     "sdss_bao": "SDSS",
     "eboss_elg": "eBOSS ELG",
+    "eboss_elg_fs": "eBOSS ELG (full shape)",
     "eboss_lya": r"eBOSS Ly$\alpha$",
     "bao_lowz": "6dFGS + MGS",
     "pantheon": "Pantheon+",
