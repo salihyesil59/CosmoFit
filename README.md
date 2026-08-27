@@ -85,6 +85,12 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * BAO (**DESI DR2 2025** or DESI DR1 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO;
     **low-z 6dFGS + SDSS DR7 MGS**) -- the low-z pair is independent of the other two and
     can join either; DESI and SDSS cannot be combined with each other, see the note below
+  * BAO as a **tabulated likelihood surface** rather than a mean and a covariance:
+    **eBOSS DR16 ELG** (`D_V/r_d` at z=0.845, a 399-point curve) and **eBOSS DR16
+    Lyman-alpha** (`(D_M/r_d, D_H/r_d)` at z=2.334, a 50x50 surface, the
+    highest-redshift BAO here outside the CMB). eBOSS released both as grids because
+    a Gaussian misrepresents them -- the ELG BAO is a 1.4-sigma detection whose
+    likelihood is still rising at the low edge of the table
   * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
   * CMB, four ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
     works for every model); the **full Planck 2018 TT/TE/EE spectra** (615 `plik_lite`
@@ -216,6 +222,7 @@ All eight notebooks below are Colab-ready: click a badge to open it directly in 
 | [`cpl_mcmc_tfd42.ipynb`](examples/cpl_mcmc_tfd42.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_tfd42.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
 | [`lscdm_mcmc.ipynb`](examples/lscdm_mcmc.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/lscdm_mcmc.ipynb) | A real research question, end to end: does Akarsu et al.'s **ΛsCDM** — a cosmological constant that switches sign at z† — still relieve the H0 tension against the 2024–2025 data (DESI DR2 BAO + DES-SN5YR + Planck priors + BBN, with `r_d` computed rather than fitted)? Includes a profile likelihood over z†, which locates the answer in a single measurement. |
 | [`s8_tension_cmb.ipynb`](examples/s8_tension_cmb.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/s8_tension_cmb.ipynb) | The **S₈ tension posed from the CMB side**: the complete Planck 2018 CMB computed from scratch (615 TT/TE/EE bandpowers, the tabulated low-ℓ EE likelihood, lensing — 652 points), σ₈ *derived* rather than fitted, confronted with KiDS-1000 and DES Y3, neither of which is in the fit. Includes an out-of-sample check against ACT DR6 lensing, and an explicit demonstration of what a free σ₈ does to the same question. |
+| [`dark_energy_evidence_audit.ipynb`](examples/dark_energy_evidence_audit.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/dark_energy_evidence_audit.ipynb) | **How much of the dark-energy evidence is a choice?** The same CPL-vs-ΛCDM and ΛsCDM-vs-ΛCDM comparison run across 20 combinations of BAO set (none / low-z / DESI DR1 / DESI DR2 / eBOSS DR16), supernova compilation (DES-SN5YR / Pantheon+) and whether `r_d` is computed or fitted. ΛsCDM's improvement needs all three choices to go one way; CPL's is smaller but present in every cell, with w₀ > −1 and w_a < 0 in all twenty. |
 
 [`cpl_mcmc_tfd42.py`](examples/cpl_mcmc_tfd42.py) is a plain-script version of the same analysis --
 run it with `python examples/cpl_mcmc_tfd42.py` for the actual long run (`n_processes` gets its full
