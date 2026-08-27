@@ -88,7 +88,13 @@ from __future__ import annotations
 import numpy as np
 
 from CosmoFit.cosmology.numerics.powers import cube
-from scipy.integrate import simpson
+
+#: ln(10), for the log-substituted quadratures below.
+_LN10 = np.log(10.0)
+from CosmoFit.cosmology.numerics.quadrature import (
+    odd_grid,
+    simpson_uniform,
+)
 
 from CosmoFit.cosmology.core.constants import c as SPEED_OF_LIGHT
 from CosmoFit.cosmology.core.constants import Tcmb
@@ -349,7 +355,7 @@ class RecombinationCalculator:
         return SPEED_OF_LIGHT / np.sqrt(3.0 * (1.0 + Rb))
 
     def sound_horizon(
-        self, z: float | None = None, n_grid: int = 400, decades: float = 8.0,
+        self, z: float | None = None, n_grid: int = 401, decades: float = 8.0,
     ) -> float:
         """
         Comoving sound horizon [Mpc] at redshift ``z``:
@@ -379,9 +385,22 @@ class RecombinationCalculator:
         # convergence by a few hundred points.
         u_upper = 1.0 / (1.0 + z)
 
-        u = np.logspace(
-            np.log10(u_upper) - decades, np.log10(u_upper), n_grid,
+        # Integrated in log10(u), where the grid *is* uniform --
+        # `simpson(y, x=grid)` costs the same whether the grid it is
+        # handed is uniform or not, and that generality was 36 of
+        # this method's 75 microseconds. With du = u ln10 dlog10(u)
+        # the same integral becomes a uniform-grid Simpson.
+        log_u = np.linspace(
+
+            np.log10(u_upper) - decades,
+
+            np.log10(u_upper),
+
+            odd_grid(n_grid),
+
         )
+
+        u = 10.0 ** log_u
 
         zp = 1.0 / u - 1.0
 
@@ -391,13 +410,19 @@ class RecombinationCalculator:
             / u**2
         )
 
-        return float(simpson(integrand, x=u))
+        return simpson_uniform(
+
+            integrand * u * _LN10,
+
+            log_u[1] - log_u[0],
+
+        )
 
     # ---------------------------------------------------------
     # chi_star
     # ---------------------------------------------------------
 
-    def chi_star(self, z_star: float | None = None, n_grid: int = 400) -> float:
+    def chi_star(self, z_star: float | None = None, n_grid: int = 401) -> float:
         """
         Dimensionless comoving distance to ``z_star``,
 
@@ -422,13 +447,15 @@ class RecombinationCalculator:
         # structure is much closer to log-uniform in (1+z').
         x_max = np.log1p(z_star)
 
-        x = np.linspace(0.0, x_max, n_grid)
+        x = np.linspace(0.0, x_max, odd_grid(n_grid))
 
         z = np.expm1(x)
 
         integrand = (1.0 + z) / self.E_cmb(z)
 
-        return float(simpson(integrand, x=x))
+        # `x` is already uniform; passing it as `x=` rather than as a
+        # spacing made SciPy take its general path anyway.
+        return simpson_uniform(integrand, x[1] - x[0])
 
     # ---------------------------------------------------------
     # Comparison-only fitting formula
