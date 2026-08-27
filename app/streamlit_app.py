@@ -41,7 +41,7 @@ from CosmoFit import (
     __version__,
     LCDM, WCDM, CPL, JBP, BA, GCG,
     LogarithmicDE, PEDE, GEDE, LsCDM,
-    IDE, RunningVacuum, Cardassian, DGP,
+    IDE, RunningVacuum, Cardassian, DGP, HDE,
     FQExponential, FRTLinear, FRHuSawicki,
     Fitter,
     model_from_expression,
@@ -83,6 +83,7 @@ BUILTIN_MODELS = {
     "IDE": IDE,
     "RunningVacuum": RunningVacuum,
     "Cardassian": Cardassian,
+    "HDE": HDE,
     "DGP": DGP,
     "FQExponential": FQExponential,
     "FRTLinear": FRTLinear,
@@ -104,6 +105,8 @@ MODEL_GROUPS = [
      ["GCG", "IDE", "RunningVacuum"]),
     ("Modified Friedmann equation (no dark energy)",
      ["Cardassian", "DGP"]),
+    ("Holographic",
+     ["HDE"]),
     ("Modified gravity",
      ["FQExponential", "FRTLinear", "FRHuSawicki"]),
 ]
@@ -263,6 +266,27 @@ MODEL_INFO = {
         params="**n**, **q** — the modified-polytropic exponents",
         reduces="ΛCDM at n = 0, q = 1",
         ref="Freese & Lewis (2002); Wang et al. (2003).",
+    ),
+
+    "HDE": dict(
+        family="Holographic",
+        what="The holographic principle bounds the energy in a region "
+             "by its **boundary area**, giving ρ_DE = 3c²M_p²/L². Li "
+             "(2004) showed the infrared cutoff L has to be the "
+             "**future event horizon** for the universe to accelerate "
+             "at all. This is the only model here whose E(z) has **no "
+             "closed form** — Ω_DE obeys an ODE, solved and splined "
+             "whenever the parameters change. Flat universes only: "
+             "curvature changes the causal structure the holographic "
+             "bound is applied to.",
+        params="**c** — the holographic constant, which fixes w: "
+               "w → −1/3 early and −1/3 − 2/(3c) in the far future, "
+               "so **c < 1 crosses into phantom** and c > 1 stays "
+               "quintessence-like. The crossing is a prediction, not "
+               "a parametrization choice.",
+        reduces="never exactly — w evolves for every c",
+        ref="Li (2004), arXiv:hep-th/0403127; "
+            "Wang, Mörtsell et al. (2017), arXiv:1612.00345 (review).",
     ),
 
     "DGP": dict(
@@ -737,6 +761,7 @@ MODEL_EQUATIONS = {
     "IDE": r"Q = 3\xi H \rho_{DE}, \quad w = w_0",
     "RunningVacuum": r"\Lambda(H) = c_0 + 3\nu H^2",
     "Cardassian": r"H^2 = A\rho + B\rho^{n} \ \ (\text{modified polytropic})",
+    "HDE": r"\rho_{\rm DE} = 3c^2 M_p^2 / L^2, \ \ L = \text{future event horizon}",
     "DGP": r"E(z) = \sqrt{\Omega_{rc} + \Omega_m (1+z)^3} + \sqrt{\Omega_{rc}}",
     "FQExponential": r"f(Q) = Q\, e^{\lambda Q_0/Q},\quad Q=6H^2",
     "FRTLinear": r"f(R,T) = R + 2\lambda T",
@@ -827,6 +852,7 @@ MODEL_STANDARD_PARAMS = {
     "IDE": {"w0"},
     "RunningVacuum": set(),
     "Cardassian": set(),
+    "HDE": set(),
     "DGP": set(),
     "FQExponential": set(),
     "FRTLinear": set(),
