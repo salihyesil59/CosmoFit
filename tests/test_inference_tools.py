@@ -348,3 +348,55 @@ def test_fisher_covariance_inverts_the_matrix():
         np.eye(2),
         atol=1e-8,
     )
+
+
+def test_warm_start_does_not_change_the_profile():
+    """
+    Each point starts from the previous point's solution, because
+    neighbouring points on a profile differ by one small step and
+    their optima are close. That is a saving in iterations, and it
+    must not be a saving in correctness.
+
+    It matters most where profiles are most expensive: against a
+    Boltzmann-code likelihood, `best_fit` falls back to
+    gradient-free Nelder-Mead and each cold point costs several
+    hundred CAMB calls.
+    """
+
+    from CosmoFit.cosmology.models.lscdm import LsCDM
+
+    def profile_with(warm_start):
+
+        fit = Fitter(
+            model=LsCDM,
+            datasets=["cc", "desi", "bao_lowz"],
+            dataset_kwargs={"desi": {"version": "desi2025"}},
+            free_params=["H0", "Omega_m", "Omega_b", "z_dagger"],
+            initial={"H0": 68.0, "Omega_m": 0.315, "Omega_b": 0.0493,
+                     "z_dagger": 2.5},
+            bounds={"z_dagger": (0.5, 100.0)},
+            compute_rd=True,
+        )
+
+        return fit.profile(
+            "z_dagger", [2.2, 2.6, 3.0], warm_start=warm_start,
+        )["chi2"]
+
+    np.testing.assert_allclose(
+        profile_with(True), profile_with(False), rtol=1e-6,
+    )
+
+
+def test_warm_start_can_be_turned_off():
+    """
+    Documented as the escape hatch for a surface with a
+    discontinuity a walk could get trapped on the wrong side of --
+    which `LsCDM`'s `z_dagger` has. The flag has to actually reach
+    the loop.
+    """
+
+    import inspect
+
+    signature = inspect.signature(Fitter.profile)
+
+    assert signature.parameters["warm_start"].default is True

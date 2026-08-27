@@ -1951,7 +1951,8 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def profile(self, name, values, restarts=0, seed=0, progress=False):
+    def profile(self, name, values, restarts=0, seed=0, progress=False,
+                warm_start=True):
         """
         Profile likelihood: ``chi2`` minimized over every *other*
         free parameter, at each fixed value of ``name``.
@@ -1975,6 +1976,26 @@ class Fitter:
             investigating.
         seed : int, optional
         progress : bool, optional
+        warm_start : bool, optional
+            Start each point from the previous point's solution
+            rather than from ``initial``. Neighbouring points on a
+            profile differ by one small step in one parameter, so
+            their optima are close, and the optimizer arrives in a
+            fraction of the iterations.
+
+            It matters most exactly where profiles are most
+            expensive: with a Boltzmann-code likelihood,
+            ``best_fit`` falls back to gradient-free Nelder-Mead
+            because CAMB's numerical noise defeats a finite
+            difference, and that costs several hundred evaluations
+            per point from cold.
+
+            Turn it off to make each point independent -- worth
+            doing if the surface has a discontinuity the walk could
+            get trapped on the wrong side of, which is not
+            hypothetical here: ``LsCDM``'s ``z_dagger`` has one.
+            Ordering the values from the far side, or passing
+            ``restarts``, is the other way.
 
         Returns
         -------
@@ -2006,18 +2027,26 @@ class Fitter:
 
         params = []
 
+        carried = {}
+
         for index, value in enumerate(values):
 
-            if progress:
-                print(f"  {name} = {value:g}", flush=True)
-
-            sub = self._respawn(others, {name: float(value)})
+            sub = self._respawn(others, {name: float(value), **carried})
 
             sub.best_fit(restarts=restarts, seed=seed)
 
             chi2[index] = sub.best_fit_chi2
 
             params.append(sub.best_fit_params)
+
+            if warm_start:
+                carried = dict(sub.best_fit_params)
+
+            if progress:
+                print(
+                    f"  {name} = {value:g}  chi2 = {chi2[index]:.4f}",
+                    flush=True,
+                )
 
         return {
             "name": name,
