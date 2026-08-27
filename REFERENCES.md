@@ -97,6 +97,22 @@ repository.
   omitted from this combination -- see the module docstring in
   `data/loader.py` for why.
 
+### SDSS BAO + full-shape consensus
+
+- **eBOSS Collaboration / Alam et al. (2021)**, Phys. Rev. D 103,
+  083533, Table 3: the consensus BAO **and** full-shape
+  measurements -- D_M/r_d, D_H/r_d and f*sigma8 at z = 0.38, 0.51,
+  0.698 and 1.48, with the covariance between them.
+  [arXiv:2007.08991](https://arxiv.org/abs/2007.08991)
+- Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
+- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
+  [`likelihoods/sdss_bao.py`](src/CosmoFit/likelihoods/sdss_bao.py)
+- **Note:** this supersedes `sdss_bao` + `fsigma8` for these
+  surveys. Those two are built from the same galaxies and are
+  correlated (0.19 to 0.64 between D_M/r_d and f*sigma8 within a
+  redshift bin), which the pair treats as zero; this product
+  measures both jointly. The combination now warns.
+
 ### eBOSS DR16 tabulated BAO (ELG, Lyman-alpha)
 
 The two DR16 tracers released as likelihood *surfaces* rather than a

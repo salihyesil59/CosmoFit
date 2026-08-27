@@ -11,6 +11,7 @@ from .covariance import (
 from .cc import CCLikelihood
 from .desi import DESILikelihood, BAODistanceLikelihood
 from .sdss_bao import SDSSBAOLikelihood
+from .sdss_bao import SDSSFullShapeLikelihood
 from .eboss_dr16 import EBOSSELGLikelihood
 from .eboss_dr16 import EBOSSELGFullShapeLikelihood
 from .eboss_dr16 import EBOSSLyaLikelihood
@@ -45,6 +46,7 @@ __all__ = [
     "BAODistanceLikelihood",
     "DESILikelihood",
     "SDSSBAOLikelihood",
+    "SDSSFullShapeLikelihood",
     "EBOSSELGLikelihood",
     "EBOSSELGFullShapeLikelihood",
     "EBOSSLyaLikelihood",

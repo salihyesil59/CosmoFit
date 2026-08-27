@@ -128,6 +128,7 @@ CHI2_BOUNDS = {
     "cc": 2.0,
     "desi": 2.0,
     "sdss_bao": 2.0,
+    "sdss_fsbao": 2.0,
     "eboss_elg": 2.0,
     # -2 log L from a 100x100x100 grid, three quantities. The
     # released grid is normalized to a maximum probability of 1,

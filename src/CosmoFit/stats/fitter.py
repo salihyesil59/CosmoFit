@@ -46,6 +46,7 @@ from CosmoFit.cosmology.core.parameters import CosmologyParameters
 from CosmoFit.likelihoods.cc import CCLikelihood
 from CosmoFit.likelihoods.desi import DESILikelihood
 from CosmoFit.likelihoods.sdss_bao import SDSSBAOLikelihood
+from CosmoFit.likelihoods.sdss_bao import SDSSFullShapeLikelihood
 from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGLikelihood
 from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGFullShapeLikelihood
 from CosmoFit.likelihoods.eboss_dr16 import EBOSSLyaLikelihood
@@ -92,6 +93,7 @@ DATASET_REGISTRY = {
     "cc": CCLikelihood,
     "desi": DESILikelihood,
     "sdss_bao": SDSSBAOLikelihood,
+    "sdss_fsbao": SDSSFullShapeLikelihood,
     "eboss_elg": EBOSSELGLikelihood,
     "eboss_elg_fs": EBOSSELGFullShapeLikelihood,
     "eboss_lya": EBOSSLyaLikelihood,
@@ -126,6 +128,34 @@ CONFLICTING_DATASETS = {
     ("desi", "sdss_bao"):
         "DESI covers much of the same sky and the same structure "
         "BOSS/eBOSS did; they are not independent.",
+
+    ("desi", "sdss_fsbao"):
+        "DESI covers much of the same sky and the same structure "
+        "BOSS/eBOSS did; they are not independent.",
+
+    ("sdss_bao", "sdss_fsbao"):
+        "The same BOSS/eBOSS galaxies analysed two ways -- the BAO "
+        "peak alone, and the full anisotropic shape with the growth "
+        "rate. `sdss_fsbao` contains these BAO measurements.",
+
+    ("sdss_fsbao", "fsigma8"):
+        "The `fsigma8` compilation includes BOSS and eBOSS growth "
+        "measurements, which `sdss_fsbao` measures again -- this "
+        "time jointly with the geometry.",
+
+    # Not a new dataset's problem, but the same double-counting,
+    # and it has been reachable all along: the BAO-only SDSS
+    # dataset and the growth compilation are built from the same
+    # BOSS/eBOSS galaxies, and combining them treats geometry and
+    # growth from one survey as independent measurements. The
+    # released BAO+FS consensus (`sdss_fsbao`) exists precisely so
+    # they need not be.
+    ("sdss_bao", "fsigma8"):
+        "The `fsigma8` compilation includes BOSS and eBOSS growth "
+        "measurements from the same galaxies `sdss_bao`'s BAO "
+        "comes from, and the two are correlated (0.19 to 0.64 within "
+        "a redshift bin in the released covariance). Use "
+        "`sdss_fsbao`, which measures both jointly.",
 
     ("desi", "eboss_lya"):
         "DESI's Lyman-alpha forest sample is drawn from much of the "
@@ -194,6 +224,7 @@ DATASET_LABELS = {
     "cc": "CC",
     "desi": "DESI",
     "sdss_bao": "SDSS",
+    "sdss_fsbao": "SDSS BAO+FS",
     "eboss_elg": "eBOSS ELG",
     "eboss_elg_fs": "eBOSS ELG (full shape)",
     "eboss_lya": r"eBOSS Ly$\alpha$",
