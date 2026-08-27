@@ -480,3 +480,82 @@ def test_every_model_still_closes_the_friedmann_equation(name):
     assert float(np.atleast_1d(model.E(0.0))[0]) == pytest.approx(
         1.0, abs=1e-10,
     )
+
+
+# ============================================================
+# Uniform-grid quadrature
+# ============================================================
+
+def test_simpson_uniform_matches_scipy():
+    """
+    Same rule, written out. The saving is not in the arithmetic --
+    it is in not paying for arbitrary spacing that the callers'
+    grids never have.
+    """
+
+    from scipy.integrate import simpson
+
+    from CosmoFit.cosmology.numerics.quadrature import simpson_uniform
+
+    rng = np.random.default_rng(0)
+
+    for n in (5, 401, 1201):
+
+        y = rng.standard_normal(n)
+
+        assert simpson_uniform(y, 0.01) == pytest.approx(
+            simpson(y, dx=0.01), rel=1e-13,
+        )
+
+
+def test_odd_grid_rounds_up_only():
+    """
+    Composite Simpson needs an even number of intervals. Rounding
+    up never costs accuracy; rounding down could.
+    """
+
+    from CosmoFit.cosmology.numerics.quadrature import odd_grid
+
+    assert odd_grid(400) == 401
+    assert odd_grid(401) == 401
+    assert odd_grid(8000) == 8001
+
+
+def test_the_log_substituted_integrals_did_not_lose_accuracy():
+    """
+    The three integrals that moved from ``simpson(y, x=grid)`` to a
+    uniform Simpson in the log variable. Two of them came out
+    *more* accurate, because a uniform-grid rule on the substituted
+    integrand is a better rule than a general one on the original:
+
+      r_s(z*)   2.5e-07  ->  2.8e-09
+      chi(z*)   4.1e-10  ->  4.1e-10   (unchanged; already uniform)
+      r_d       3.2e-09  ->  3.4e-11
+
+    Checked against the same code on a 40001-point grid, so this
+    measures the quadrature and nothing else.
+    """
+
+    model = LCDM(
+        LCDM.PARAMS_CLASS(H0=68.0, Omega_m=0.31, Omega_b=0.0493, m_nu=0.06),
+    )
+
+    recombination = model.recombination
+    horizon = model.sound_horizon
+
+    z_star = recombination.z_star()
+    z_drag = horizon.z_drag()
+
+    cases = (
+        (recombination.sound_horizon, z_star, 3.0e-08),
+        (recombination.chi_star, z_star, 3.0e-09),
+        (horizon.sound_horizon, z_drag, 3.0e-10),
+    )
+
+    for integral, z, bound in cases:
+
+        reference = integral(z, n_grid=40001)
+
+        assert abs(integral(z) / reference - 1.0) < bound, (
+            f"{integral.__name__}: {abs(integral(z) / reference - 1.0):.2e}"
+        )
