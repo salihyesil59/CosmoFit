@@ -67,6 +67,13 @@ NEUTRINO_MASS_DENOM = 93.14
 #: modules is not required.
 _UNSUPPORTED = {
 
+    "HDE":
+        "Holographic dark energy's density is set by the future "
+        "event horizon, so its perturbations are non-local in time "
+        "and outside what CAMB's dark-energy modules solve. A "
+        "spectrum would come back looking reasonable and mean "
+        "nothing.",
+
     "FQExponential":
         "f(Q) gravity modifies the field equations themselves; "
         "CAMB's perturbation solver assumes GR.",

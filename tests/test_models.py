@@ -42,7 +42,7 @@ import CosmoFit as C
 ALL_MODELS = [
     "LCDM", "WCDM", "CPL", "JBP", "BA", "LogarithmicDE",
     "PEDE", "GEDE", "LsCDM", "GCG", "IDE", "RunningVacuum",
-    "Cardassian", "DGP", "FQExponential", "FRTLinear",
+    "Cardassian", "DGP", "HDE", "FQExponential", "FRTLinear",
     "FRHuSawicki",
 ]
 
@@ -81,9 +81,26 @@ _NO_CLOSURE = {"FRTLinear"}
 
 _CLOSURE_MODELS = [m for m in ALL_MODELS if m not in _NO_CLOSURE]
 
+#: ``HDE`` is defined by the future event horizon, which is a
+#: statement about causal structure rather than a term in the
+#: Friedmann equation -- curvature changes what the holographic
+#: bound is applied to, so a curved version is a different model.
+#: It refuses ``Omega_k != 0`` outright; see
+#: `test_hde_refuses_curvature`, which checks that rather than
+#: leaving the limitation untested.
+_FLAT_ONLY = {"HDE"}
 
-@pytest.mark.parametrize("name", _CLOSURE_MODELS)
-@pytest.mark.parametrize("Omega_k", [0.0, -0.05, 0.05])
+
+def _closure_cases():
+
+    for name in _CLOSURE_MODELS:
+
+        for Omega_k in (0.0,) if name in _FLAT_ONLY else (0.0, -0.05, 0.05):
+
+            yield name, Omega_k
+
+
+@pytest.mark.parametrize("name,Omega_k", list(_closure_cases()))
 def test_friedmann_closure(name, Omega_k):
     """
     E(z=0) must equal 1 exactly, flat or curved.
@@ -372,3 +389,27 @@ def test_lscdm_discontinuity_survives_the_distance_integrator():
             f"chi({z}) grid={grid} exact={exact}"
 
         )
+
+
+# ============================================================
+# HDE: the flat-only contract
+# ============================================================
+
+def test_hde_refuses_curvature():
+    """
+    Silently approximating would be the bad outcome: the ODE and
+    the event-horizon integral both assume flatness, so a curved
+    run would return numbers that look like a curved holographic
+    model and are not one.
+    """
+
+    with pytest.raises(ValueError, match="flat"):
+
+        build("HDE", Omega_k=0.05).E(0.0)
+
+
+def test_hde_needs_a_positive_c():
+
+    with pytest.raises(ValueError, match="c > 0"):
+
+        build("HDE", c_hde=-0.5).E(0.0)

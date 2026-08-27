@@ -95,6 +95,11 @@ The project is designed to make cosmological analyses simple, reproducible, and 
     grid in `(D_M/r_d, D_H/r_d, f*sigma8)`, so it constrains the **growth rate**
     alongside the geometry and carries the fsigma8/Alcock-Paczynski degeneracy
     exactly. Mutually exclusive with the BAO-only ELG entry
+  * **Holographic dark energy** (Li 2004) -- the one background model here with
+    no closed-form `E(z)`: `Omega_DE` comes from an ODE solved on every parameter
+    change, with the future event horizon as the infrared cutoff. Its single
+    parameter `c` decides whether `w` crosses below -1, as a prediction rather
+    than a parametrization choice
   * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
   * CMB, four ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
     works for every model); the **full Planck 2018 TT/TE/EE spectra** (615 `plik_lite`

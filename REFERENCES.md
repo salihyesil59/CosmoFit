@@ -138,6 +138,24 @@ mean and a covariance, because a Gaussian would misrepresent them.
   `tests/test_eboss_tables.py` checks the assumption rather than
   making it, by recovering the published errors from the product.
 
+### Holographic dark energy (HDE)
+
+- **Li (2004)**, *A Model of Holographic Dark Energy*, Phys. Lett. B
+  603, 1. The paper that identifies the future event horizon as the
+  only infrared cutoff giving an accelerating universe.
+  [arXiv:hep-th/0403127](https://arxiv.org/abs/hep-th/0403127)
+- **Wang, Mortsell, et al. (2017)**, *Holographic Dark Energy*,
+  Phys. Rept. 696, 1 (review).
+  [arXiv:1612.00345](https://arxiv.org/abs/1612.00345)
+- Used by: [`cosmology/models/hde.py`](src/CosmoFit/cosmology/models/hde.py)
+- **Note:** the only background model here without a closed-form
+  `E(z)`; `Omega_DE` is obtained by solving
+  `dOmega/dln a = Omega(1-Omega)(1 + 2 sqrt(Omega)/c)` on each
+  parameter change. Validated against the model's *definition*
+  rather than the ODE -- `tests/test_hde.py` computes the future
+  event horizon by quadrature from the solved `E(z)` and checks
+  `H L = c / sqrt(Omega_DE)`.
+
 ### Pantheon+SH0ES (Type Ia Supernovae)
 
 - **Brout et al. (2022)**, *The Pantheon+ Analysis: Cosmological
