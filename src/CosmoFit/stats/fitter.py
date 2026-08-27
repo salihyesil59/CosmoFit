@@ -256,6 +256,70 @@ _CAMB_CMB_DATASETS = {
 _GROWTH_DATASETS = {"fsigma8", "s8"}
 
 
+def _warn_blind_neutrino_mass(names, free_params, compute_rd) -> None:
+    """
+    Warn when ``m_nu`` is free but nothing in the fit can see it.
+
+    Massive neutrinos change the CMB in two ways a distance ratio
+    cannot express: they smooth the acoustic peaks through lensing,
+    and they shift the early ISW. The **compressed** Planck priors
+    carry neither. Worse, they cannot: their ``z_star`` is a fit in
+    ``(omega_b, omega_cb)`` alone, calibrated by CHW19 against CAMB
+    at the Planck fiducial ``Sum m_nu = 0.06 eV``. Feed it 0.8 eV
+    and it returns the 0.06 eV answer, to every digit.
+
+    So in a compressed-CMB fit ``m_nu`` reaches the likelihood
+    through exactly one route -- the sound horizon, when
+    ``compute_rd`` is set -- where it shifts ``r_d`` with nothing
+    to push back. The sampler finds a large mass, and the number
+    means nothing about neutrinos.
+
+    Measured, on CC + DESI DR2 + low-z BAO + DES-SN5YR + compressed
+    Planck + BBN: the best fit runs to ``Sum m_nu = 0.82 eV`` with
+    ``delta chi2 = 5.9`` against zero, while the published bound
+    from the same data with the *full* CMB is below 0.1 eV.
+
+    Use ``"planck_lite"`` (with ``"planck_lensing"``, which is
+    where most of the sensitivity is) instead: a Boltzmann code
+    computes the spectra at whatever mass it is given.
+    """
+
+    import warnings
+
+    if "m_nu" not in free_params:
+        return
+
+    seen = set(names)
+
+    if seen & _CAMB_CMB_DATASETS:
+        return
+
+    reachable = "the sound horizon" if compute_rd else "nothing at all"
+
+    warnings.warn(
+
+        f"`m_nu` is a free parameter, but this fit has no CMB "
+        f"likelihood that can respond to it -- it reaches "
+        f"{reachable}.\n\n"
+
+        f"The compressed Planck priors are blind to the neutrino "
+        f"mass by construction: their `z_star` is a fitting formula "
+        f"in (omega_b, omega_cb), calibrated at the fiducial "
+        f"Sum m_nu = 0.06 eV, and returns the same z_star at 0.8 eV. "
+        f"The CMB's actual sensitivity is in lensing smoothing and "
+        f"the early ISW, which no distance ratio carries.\n\n"
+
+        f"A posterior for `m_nu` from this combination is not a "
+        f"neutrino-mass measurement. Add 'planck_lite' and "
+        f"'planck_lensing', or fix `m_nu`.",
+
+        UserWarning,
+
+        stacklevel=3,
+
+    )
+
+
 def _warn_inconsistent_amplitude(names, free_params) -> None:
     """
     Warn when a fit carries two unrelated definitions of the same
@@ -770,6 +834,10 @@ class Fitter:
         _warn_conflicting_datasets(self.dataset_names)
 
         _warn_inconsistent_amplitude(self.dataset_names, self.free_params)
+
+        _warn_blind_neutrino_mass(
+            self.dataset_names, self.free_params, self.compute_rd,
+        )
 
         for name in self.dataset_names:
 

@@ -27,6 +27,8 @@ cosmologies that had to differ.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -289,3 +291,124 @@ def test_the_prior_bound_keeps_the_mass_non_negative():
     theta[-1] = -0.1
 
     assert not np.isfinite(fit.logpost(theta))
+
+
+# ============================================================
+# The combination that cannot measure it
+# ============================================================
+
+def test_the_compressed_priors_are_blind_to_the_neutrino_mass():
+    """
+    The fact behind the warning, asserted rather than described.
+
+    CHW19's ``z_star`` is a fitting formula in
+    ``(omega_b, omega_cb)`` alone, calibrated against CAMB at the
+    Planck fiducial ``Sum m_nu = 0.06 eV``. Hand it 0.8 eV and it
+    returns the 0.06 eV answer -- not approximately, identically.
+    ``Omega_r`` is the same story, since CHW19 leave massive
+    neutrinos inside ``Omega_m``.
+
+    So the compressed CMB carries no information about the
+    neutrino mass at all. That is a property of the priors, not a
+    bug here, and it is exactly why a fit using them must not
+    report an ``m_nu`` posterior.
+    """
+
+    values = []
+
+    for mass in (0.0, 0.06, 0.3, 0.8):
+
+        recombination = model(m_nu=mass).recombination
+
+        values.append(
+            (
+                recombination.z_star(),
+                recombination.Omega_r,
+                recombination.sound_horizon(),
+            )
+        )
+
+    for other in values[1:]:
+
+        assert other == values[0]
+
+
+def test_a_free_neutrino_mass_without_a_boltzmann_cmb_warns():
+    """
+    With `compute_rd`, `m_nu` reaches exactly one thing: the sound
+    horizon, where it shifts `r_d` with nothing to push back. The
+    best fit runs to 0.82 eV on CC+DESI+SN+compressed Planck+BBN,
+    against a published bound below 0.1 eV from the same data with
+    the full CMB.
+    """
+
+    with warnings.catch_warnings(record=True) as caught:
+
+        warnings.simplefilter("always")
+
+        Fitter(
+            model=LCDM,
+            datasets=["cc", "desi", "planck", "omega_b"],
+            free_params=["H0", "Omega_m", "Omega_b", "m_nu"],
+            initial={"H0": 68.0, "Omega_m": 0.315, "Omega_b": 0.0493,
+                     "m_nu": 0.06},
+            compute_rd=True,
+        )
+
+    messages = [str(w.message) for w in caught]
+
+    assert any("neutrino mass" in m for m in messages), messages
+
+    assert any("planck_lite" in m for m in messages), messages
+
+
+def test_no_warning_when_the_cmb_can_see_it():
+    """
+    With a Boltzmann-computed CMB the mass changes the spectra --
+    lensing smoothing and the early ISW -- so there is nothing to
+    warn about.
+    """
+
+    pytest.importorskip("camb", reason="CAMB not installed (optional 'cmb' extra)")
+
+    with warnings.catch_warnings(record=True) as caught:
+
+        warnings.simplefilter("always")
+
+        Fitter(
+            model=LCDM,
+            datasets=["planck_lite", "desi"],
+            free_params=["H0", "Omega_m", "Omega_b", "ln1e10As",
+                         "n_s", "tau_reio", "m_nu"],
+            initial={"H0": 67.4, "Omega_m": 0.315, "Omega_b": 0.0493,
+                     "ln1e10As": 3.045, "n_s": 0.9649,
+                     "tau_reio": 0.0544, "m_nu": 0.06},
+            compute_rd=True,
+        )
+
+    assert not any(
+        "neutrino mass" in str(w.message) for w in caught
+    ), [str(w.message) for w in caught]
+
+
+def test_no_warning_when_the_mass_is_fixed():
+    """
+    The combination is perfectly fine with `m_nu` held fixed --
+    which is what every other fit in this library does.
+    """
+
+    with warnings.catch_warnings(record=True) as caught:
+
+        warnings.simplefilter("always")
+
+        Fitter(
+            model=LCDM,
+            datasets=["cc", "desi", "planck", "omega_b"],
+            free_params=["H0", "Omega_m", "Omega_b"],
+            initial={"H0": 68.0, "Omega_m": 0.315, "Omega_b": 0.0493},
+            compute_rd=True,
+        )
+
+    assert not any(
+        "neutrino mass" in str(w.message) for w in caught
+    )
