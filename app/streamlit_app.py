@@ -41,7 +41,7 @@ from CosmoFit import (
     __version__,
     LCDM, WCDM, CPL, JBP, BA, GCG,
     LogarithmicDE, PEDE, GEDE, LsCDM,
-    IDE, RunningVacuum, Cardassian, DGP, HDE,
+    IDE, RunningVacuum, Cardassian, DGP, HDE, ADE, RDE,
     FQExponential, FRTLinear, FRHuSawicki,
     Fitter,
     model_from_expression,
@@ -84,6 +84,8 @@ BUILTIN_MODELS = {
     "RunningVacuum": RunningVacuum,
     "Cardassian": Cardassian,
     "HDE": HDE,
+    "ADE": ADE,
+    "RDE": RDE,
     "DGP": DGP,
     "FQExponential": FQExponential,
     "FRTLinear": FRTLinear,
@@ -106,7 +108,7 @@ MODEL_GROUPS = [
     ("Modified Friedmann equation (no dark energy)",
      ["Cardassian", "DGP"]),
     ("Holographic",
-     ["HDE"]),
+     ["HDE", "ADE", "RDE"]),
     ("Modified gravity",
      ["FQExponential", "FRTLinear", "FRHuSawicki"]),
 ]
@@ -287,6 +289,42 @@ MODEL_INFO = {
         reduces="never exactly — w evolves for every c",
         ref="Li (2004), arXiv:hep-th/0403127; "
             "Wang, Mörtsell et al. (2017), arXiv:1612.00345 (review).",
+    ),
+
+    "ADE": dict(
+        family="Holographic",
+        what="The same holographic idea as HDE with a different "
+             "infrared cutoff: the **conformal age** of the universe, "
+             "which is causal and needs no reference to the future — "
+             "the usual objection to HDE. Its most striking feature "
+             "is that it has **one fewer free parameter than ΛCDM**: "
+             "the early-time condition Ω_DE → n²a²/4 fixes the whole "
+             "background from n, so Ω_m is *derived* rather than "
+             "fitted (n = 2.8 predicts Ω_m = 0.280). Flat only.",
+        params="**n** — the agegraphic constant. It also sets Ω_m, "
+               "so freeing Ω_m alongside it does nothing.",
+        reduces="never — w → −2/3 early and −1 in the far future, and "
+                "**never below −1**: unlike HDE this model cannot be "
+                "phantom at any n",
+        ref="Wei & Cai (2008), arXiv:0708.0884.",
+    ),
+
+    "RDE": dict(
+        family="Holographic",
+        what="Holographic dark energy with the **Ricci scalar** as "
+             "the cutoff — a local curvature scale rather than a "
+             "horizon, so again no reference to the future. Unlike "
+             "the other two this has a closed-form E(z): the dark "
+             "sector is a power law (1+z)^(4−2/γ). Fits want γ "
+             "slightly above 1/2 and, more awkwardly, a low matter "
+             "density around 0.22, which is its main observational "
+             "problem. Flat only.",
+        params="**γ** — sets the power law. Note that part of the "
+               "Ricci density scales like matter, so the coefficient "
+               "of (1+z)³ is (4/3)γ-corrected and larger than Ω_m.",
+        reduces="a constant dark-energy density at γ = 1/2 (ΛCDM, "
+                "with an effective matter density (4/3)Ω_m)",
+        ref="Gao, Chen, Shen & Saridakis (2009), arXiv:0712.1394.",
     ),
 
     "DGP": dict(
@@ -779,6 +817,8 @@ MODEL_EQUATIONS = {
     "RunningVacuum": r"\Lambda(H) = c_0 + 3\nu H^2",
     "Cardassian": r"H^2 = A\rho + B\rho^{n} \ \ (\text{modified polytropic})",
     "HDE": r"\rho_{\rm DE} = 3c^2 M_p^2 / L^2, \ \ L = \text{future event horizon}",
+    "ADE": r"\rho_{\rm DE} = 3n^2 M_p^2 / \eta^2, \ \ \eta = \text{conformal age}",
+    "RDE": r"\rho_{\rm DE} = 3\gamma M_p^2 (\dot H + 2H^2) \ \ (\text{Ricci scalar})",
     "DGP": r"E(z) = \sqrt{\Omega_{rc} + \Omega_m (1+z)^3} + \sqrt{\Omega_{rc}}",
     "FQExponential": r"f(Q) = Q\, e^{\lambda Q_0/Q},\quad Q=6H^2",
     "FRTLinear": r"f(R,T) = R + 2\lambda T",
@@ -870,6 +910,8 @@ MODEL_STANDARD_PARAMS = {
     "RunningVacuum": set(),
     "Cardassian": set(),
     "HDE": set(),
+    "ADE": set(),
+    "RDE": set(),
     "DGP": set(),
     "FQExponential": set(),
     "FRTLinear": set(),

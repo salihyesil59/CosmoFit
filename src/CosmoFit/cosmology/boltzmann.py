@@ -67,6 +67,16 @@ NEUTRINO_MASS_DENOM = 93.14
 #: modules is not required.
 _UNSUPPORTED = {
 
+    "ADE":
+        "Agegraphic dark energy's density is set by the conformal "
+        "age, and its perturbations are outside what CAMB's "
+        "dark-energy modules solve.",
+
+    "RDE":
+        "Ricci dark energy's density is set by the Ricci scalar, "
+        "and its perturbations are outside what CAMB's dark-energy "
+        "modules solve.",
+
     "HDE":
         "Holographic dark energy's density is set by the future "
         "event horizon, so its perturbations are non-local in time "

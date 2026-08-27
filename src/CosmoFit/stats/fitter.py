@@ -256,6 +256,45 @@ _CAMB_CMB_DATASETS = {
 _GROWTH_DATASETS = {"fsigma8", "s8"}
 
 
+def _warn_derived_parameters(model, free_params) -> None:
+    """
+    Warn when a free parameter is one the model computes for
+    itself.
+
+    Some models fix a parameter by construction rather than
+    accepting it: ``ADE`` derives ``Omega_m`` from ``n_ade``,
+    because its early-time condition determines the whole
+    background from that one number. Sampling it produces a
+    posterior for a value nothing reads -- which is to say, the
+    prior back again.
+
+    A model declares these in ``DERIVED_PARAMS``.
+    """
+
+    import warnings
+
+    derived = getattr(model, "DERIVED_PARAMS", frozenset())
+
+    clashing = sorted(set(free_params) & set(derived))
+
+    if not clashing:
+        return
+
+    warnings.warn(
+
+        f"{getattr(model, 'MODEL_NAME', model.__name__)} derives "
+        f"{', '.join(clashing)} rather than accepting it, so "
+        f"freeing it samples a value the model never reads -- the "
+        f"posterior you get back will be its prior. Drop it from "
+        f"`free_params`.",
+
+        UserWarning,
+
+        stacklevel=3,
+
+    )
+
+
 def _warn_blind_neutrino_mass(names, free_params, compute_rd) -> None:
     """
     Warn when ``m_nu`` is free but nothing in the fit can see it.
@@ -834,6 +873,8 @@ class Fitter:
         _warn_conflicting_datasets(self.dataset_names)
 
         _warn_inconsistent_amplitude(self.dataset_names, self.free_params)
+
+        _warn_derived_parameters(self.model_cls, self.free_params)
 
         _warn_blind_neutrino_mass(
             self.dataset_names, self.free_params, self.compute_rd,

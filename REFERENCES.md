@@ -154,6 +154,29 @@ mean and a covariance, because a Gaussian would misrepresent them.
   `tests/test_eboss_tables.py` checks the assumption rather than
   making it, by recovering the published errors from the product.
 
+### Holographic family (ADE, RDE)
+
+Two relatives of HDE, differing only in the infrared cutoff put into
+`rho_DE = 3 c^2 M_p^2 / L^2`.
+
+- **Wei & Cai (2008)**, *A New Model of Agegraphic Dark Energy*,
+  Phys. Lett. B 660, 113 -- the conformal age as cutoff.
+  [arXiv:0708.0884](https://arxiv.org/abs/0708.0884)
+- **Gao, Chen, Shen & Saridakis (2009)**, *Holographic Dark Energy
+  Model from Ricci Scalar Curvature*, Phys. Rev. D 79, 043511.
+  [arXiv:0712.1394](https://arxiv.org/abs/0712.1394)
+- Used by: [`cosmology/models/ade.py`](src/CosmoFit/cosmology/models/ade.py),
+  [`cosmology/models/rde.py`](src/CosmoFit/cosmology/models/rde.py)
+- **Validated against a published constraint.** On cosmic
+  chronometers + DESI DR2 BAO + Pantheon+, RDE reproduces
+  `gamma = 0.538` and `Omega_m0 = 0.217` against the
+  `0.53-0.55` and `0.215-0.219` of
+  [arXiv:2607.09732](https://arxiv.org/abs/2607.09732). ADE's
+  n-to-Omega_m mapping reproduces that paper's pair exactly
+  (n = 2.80 predicts Omega_m = 0.280, their quoted n is 2.78-2.81),
+  while the fit here lands at n = 2.85 -- about 2% above their
+  range, plausibly from dataset details rather than the model.
+
 ### Holographic dark energy (HDE)
 
 - **Li (2004)**, *A Model of Holographic Dark Energy*, Phys. Lett. B

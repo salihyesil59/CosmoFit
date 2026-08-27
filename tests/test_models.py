@@ -42,7 +42,8 @@ import CosmoFit as C
 ALL_MODELS = [
     "LCDM", "WCDM", "CPL", "JBP", "BA", "LogarithmicDE",
     "PEDE", "GEDE", "LsCDM", "GCG", "IDE", "RunningVacuum",
-    "Cardassian", "DGP", "HDE", "FQExponential", "FRTLinear",
+    "Cardassian", "DGP", "HDE", "ADE", "RDE",
+    "FQExponential", "FRTLinear",
     "FRHuSawicki",
 ]
 
@@ -88,7 +89,7 @@ _CLOSURE_MODELS = [m for m in ALL_MODELS if m not in _NO_CLOSURE]
 #: It refuses ``Omega_k != 0`` outright; see
 #: `test_hde_refuses_curvature`, which checks that rather than
 #: leaving the limitation untested.
-_FLAT_ONLY = {"HDE"}
+_FLAT_ONLY = {"HDE", "ADE", "RDE"}
 
 
 def _closure_cases():

@@ -105,6 +105,10 @@ The project is designed to make cosmological analyses simple, reproducible, and 
     change, with the future event horizon as the infrared cutoff. Its single
     parameter `c` decides whether `w` crosses below -1, as a prediction rather
     than a parametrization choice
+  * **Agegraphic** and **Ricci** dark energy, the other two members of the holographic
+    family -- same `rho_DE = 3c^2 M_p^2 / L^2`, different cutoff (conformal age, Ricci
+    scalar). ADE has **one fewer free parameter than LCDM**: its early-time condition
+    fixes `Omega_m` from `n`, so n = 2.8 *predicts* `Omega_m = 0.280`
   * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
   * CMB, four ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
     works for every model); the **full Planck 2018 TT/TE/EE spectra** (615 `plik_lite`
