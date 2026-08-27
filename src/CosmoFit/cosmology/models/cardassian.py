@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -148,7 +150,7 @@ class Cardassian(Cosmology):
 
             +
 
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
 
             * bracket ** (1.0 / self.q_card)
 
@@ -185,7 +187,7 @@ class Cardassian(Cosmology):
 
             +
 
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
 
             * (1.0 / q) * bracket ** (1.0 / q - 1.0)
 
@@ -232,7 +234,7 @@ class Cardassian(Cosmology):
 
             self.E(z) ** 2
 
-            - self.Omega_m * (1.0 + z) ** 3
+            - self.Omega_m * cube(1.0 + z)
 
             - self.Omega_k * (1.0 + z) ** 2
 

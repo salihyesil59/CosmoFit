@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -100,7 +102,7 @@ class CPL(Cosmology):
 
         return np.sqrt(
             self.Omega_m
-            * (1.0 + z) ** 3
+            * cube(1.0 + z)
             +
             self.Omega_k
             * (1.0 + z) ** 2

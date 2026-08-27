@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -114,7 +116,7 @@ class LsCDM(Cosmology):
 
         e2 = (
 
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
 
             +
 

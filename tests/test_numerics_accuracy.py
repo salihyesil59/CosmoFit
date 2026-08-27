@@ -409,3 +409,74 @@ def test_the_reference_loop_agrees_with_both():
 
     np.testing.assert_allclose(D_loop, D_scan, rtol=1e-11)
     np.testing.assert_allclose(P_loop, P_scan, rtol=1e-11)
+
+
+# ============================================================
+# Small integer powers
+# ============================================================
+
+def test_cube_matches_the_power_operator_to_one_ulp():
+    """
+    ``x * x * x`` rounds twice where ``x ** 3`` rounds once, so the
+    two are allowed to differ in the last bit and nowhere else.
+    NumPy does not special-case cubes -- it routes them through the
+    general ``pow`` -- which is why the helper exists.
+    """
+
+    from CosmoFit.cosmology.numerics.powers import cube
+
+    rng = np.random.default_rng(0)
+
+    for scale in (1.0e-8, 1.0, 1.0e3):
+
+        x = rng.uniform(0.5, 2.0, 4096) * scale
+
+        difference = np.abs(cube(x) / x ** 3 - 1.0)
+
+        assert difference.max() <= 3.0 * np.finfo(float).eps
+
+
+def test_reciprocal_powers_match_the_negative_exponents():
+    """
+    The early-universe expansion rate needs 1/a^3 and 1/a^4 over a
+    grid spanning eight decades; both were ``pow`` calls.
+    """
+
+    from CosmoFit.cosmology.numerics.powers import reciprocal_powers
+
+    x = np.logspace(-11.0, 0.0, 4096)
+
+    inverse, inverse_2, inverse_3, inverse_4 = reciprocal_powers(x)
+
+    for computed, exponent in (
+        (inverse, -1), (inverse_2, -2), (inverse_3, -3), (inverse_4, -4),
+    ):
+
+        np.testing.assert_allclose(
+            computed, x ** float(exponent), rtol=1e-14,
+        )
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["LCDM", "WCDM", "CPL", "JBP", "BA", "LogarithmicDE", "PEDE",
+     "GEDE", "LsCDM", "GCG", "IDE", "RunningVacuum", "Cardassian",
+     "DGP", "HDE"],
+)
+def test_every_model_still_closes_the_friedmann_equation(name):
+    """
+    The cube substitution touched seventeen files. ``E(0) = 1`` is
+    the cheapest statement that every one of those edits landed on
+    the right expression -- a cube written where a square belonged
+    would break it immediately.
+    """
+
+    import CosmoFit
+
+    cls = getattr(CosmoFit, name)
+
+    model = cls(cls.PARAMS_CLASS(H0=68.0, Omega_m=0.31, rd=147.1))
+
+    assert float(np.atleast_1d(model.E(0.0))[0]) == pytest.approx(
+        1.0, abs=1e-10,
+    )

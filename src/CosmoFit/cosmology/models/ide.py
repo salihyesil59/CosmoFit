@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -137,7 +139,7 @@ class IDE(Cosmology):
 
         e2 = (
 
-            (self.Omega_m - C) * (1.0 + z) ** 3
+            (self.Omega_m - C) * cube(1.0 + z)
 
             +
 
@@ -247,7 +249,7 @@ class IDE(Cosmology):
 
         return (
 
-            (self.Omega_m - C) * (1.0 + z) ** 3
+            (self.Omega_m - C) * cube(1.0 + z)
 
             +
 

@@ -86,6 +86,8 @@ speedup ~20x per call, with no measurable change to any chi2.
 from __future__ import annotations
 
 import numpy as np
+
+from CosmoFit.cosmology.numerics.powers import cube
 from scipy.integrate import simpson
 
 from CosmoFit.cosmology.core.constants import c as SPEED_OF_LIGHT
@@ -286,7 +288,9 @@ class RecombinationCalculator:
 
         E2 = (
             self.cosmo.E(z) ** 2
-            + self.Omega_r * ((1.0 + z) ** 4 - self._de_evolution(z))
+            + self.Omega_r * (
+                (1.0 + z) * cube(1.0 + z) - self._de_evolution(z)
+            )
         )
 
         return np.sqrt(E2)

@@ -144,6 +144,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import reciprocal_powers
+
 from scipy.integrate import simpson
 from scipy.interpolate import CubicSpline
 
@@ -488,7 +490,9 @@ class SoundHorizon:
 
         a = np.asarray(a, dtype=float)
 
-        relativistic = self.omega_gamma * NU_ENERGY_FACTOR * a ** -4
+        _, _, _, inverse_4 = reciprocal_powers(a)
+
+        relativistic = self.omega_gamma * NU_ENERGY_FACTOR * inverse_4
 
         massless = (
 
@@ -540,13 +544,15 @@ class SoundHorizon:
 
         a = np.asarray(a, dtype=float)
 
+        _, _, inverse_3, inverse_4 = reciprocal_powers(a)
+
         return np.sqrt(
 
-            self.omega_gamma * a ** -4
+            self.omega_gamma * inverse_4
 
             + self.omega_nu_of_a(a)
 
-            + self.omega_cb * a ** -3
+            + self.omega_cb * inverse_3
 
         )
 
