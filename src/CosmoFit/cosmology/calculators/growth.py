@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from scipy.interpolate import CubicHermiteSpline
+from CosmoFit.cosmology.numerics.hermite import hermite_spline
 
 
 #: Scale factor at which the growth ODE's initial conditions are
@@ -216,8 +216,8 @@ class GrowthCalculator:
         # Hermite too rather than falling back to a plain cubic.
         second = -friction[::2] * P + source[::2] * D
 
-        self._D_spline = CubicHermiteSpline(nodes, D, P)
-        self._P_spline = CubicHermiteSpline(nodes, P, second)
+        self._D_spline = hermite_spline(nodes, D, P)
+        self._P_spline = hermite_spline(nodes, P, second)
 
         self._D0 = float(D[-1])
 
