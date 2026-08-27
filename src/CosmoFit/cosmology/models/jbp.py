@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -77,7 +79,7 @@ class JBP(Cosmology):
         z = np.asarray(z, dtype=float)
 
         return np.sqrt(
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
             + self.Omega_k * (1.0 + z) ** 2
             + self.Omega_de0 * self.fde(z)
         )
@@ -97,7 +99,7 @@ class JBP(Cosmology):
         # above -- equivalently 3(1+w0)/(1+z) + 3 wa z/(1+z)^3.
         dlnf_dz = (
             3.0 * (1.0 + self.w0) / (1.0 + z)
-            + 3.0 * self.wa * z / (1.0 + z) ** 3
+            + 3.0 * self.wa * z / cube(1.0 + z)
         )
 
         dE2_dz = (

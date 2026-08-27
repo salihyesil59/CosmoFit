@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from scipy.integrate import solve_ivp
 from scipy.interpolate import CubicSpline
 
@@ -325,7 +327,7 @@ class HDE(Cosmology):
 
         return np.sqrt(
 
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
 
             / (1.0 - self.Omega_de(z))
 

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core.parameters import (
     CosmologyParameters,
     build_params_class,
@@ -383,7 +385,7 @@ class Cosmology:
 
         z = np.asarray(z, dtype=float)
 
-        return self.Omega_m * (1.0 + z) ** 3
+        return self.Omega_m * cube(1.0 + z)
 
     # ---------------------------------------------------------
 

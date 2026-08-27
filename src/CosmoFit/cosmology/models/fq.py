@@ -5,6 +5,8 @@ f(Q) modified gravity (symmetric teleparallel, non-metricity scalar).
 from __future__ import annotations
 
 import numpy as np
+
+from CosmoFit.cosmology.numerics.powers import cube
 from scipy.special import lambertw
 
 from CosmoFit.cosmology.core import Cosmology
@@ -127,7 +129,7 @@ class FQExponential(Cosmology):
 
         z = np.asarray(z, dtype=float)
         lam = self._lam
-        rhs = self.Omega_m * (1.0 + z) ** 3
+        rhs = self.Omega_m * cube(1.0 + z)
 
         # LCDM-like starting point -- this model is close to LCDM
         # by construction, so this is already a good initial guess.
@@ -183,7 +185,7 @@ class FQExponential(Cosmology):
 
         z = np.asarray(z, dtype=float)
 
-        return self.E(z) ** 2 - self.Omega_m * (1.0 + z) ** 3
+        return self.E(z) ** 2 - self.Omega_m * cube(1.0 + z)
 
     # ---------------------------------------------------------
 
