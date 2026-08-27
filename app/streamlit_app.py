@@ -344,7 +344,8 @@ DATASET_LABELS = {
 DATASET_GROUPS = [
     ("📏 Expansion rate", ["cc"]),
     ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz",
-                                "eboss_elg", "eboss_lya"]),
+                                "eboss_elg", "eboss_elg_fs",
+                                "eboss_lya"]),
     ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
     ("🔥 CMB", ["planck", "planck_lite", "planck_lowe",
                 "planck_lensing", "act_lensing"]),
@@ -423,6 +424,21 @@ DATASET_INFO = {
             "would put a thousandth."
         ),
         constrains="D_V at z ≈ 0.85, weakly but non-Gaussianly",
+    ),
+
+    "eboss_elg_fs": dict(
+        observable="(D_M/r_d, D_H/r_d, fσ₈), a 3-D tabulated likelihood",
+        n="3 quantities", z="0.845",
+        what=(
+            "The **same eBOSS ELG galaxies** as above, analysed for "
+            "their full anisotropic shape rather than one isotropic "
+            "BAO scale — so it measures the **growth rate** as well "
+            "as the geometry. A 100×100×100 grid, which is the only "
+            "way to carry the degeneracy between fσ₈ and the "
+            "Alcock–Paczynski distortion honestly. Use this **or** "
+            "`eboss_elg`, never both."
+        ),
+        constrains="σ₈ and the geometry jointly at z ≈ 0.85",
     ),
 
     "eboss_lya": dict(
@@ -826,6 +842,7 @@ DATASET_PARAMS = {
     "sdss_bao": {"rd"},
     "bao_lowz": {"rd"},
     "eboss_elg": {"rd"},
+    "eboss_elg_fs": {"rd", "sigma8"},
     "eboss_lya": {"rd"},
     "planck": {"Omega_b"},
     "planck_lite": {"Omega_b", "n_s", "ln1e10As", "tau_reio",

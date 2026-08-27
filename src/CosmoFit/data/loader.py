@@ -654,6 +654,45 @@ EBOSS_LYA_FILES = {
 }
 
 
+# The ELG sample again, this time as the full-shape analysis: a
+# 100x100x100 grid in (D_M/r_d, D_H/r_d, f*sigma8). Unlike everything
+# else in `data/`, this is shipped in a converted form -- the release
+# is 60 MB of ASCII with 10.3% of its probabilities underflowed to
+# exact zero. `tools/convert_eboss_elg_fs_grid.py` does the
+# conversion, is committed, and documents both lossy steps and the
+# check that the marginals survive them unchanged.
+EBOSS_ELG_FS_FILES = {
+
+    "dr16": {
+
+        "parent": "bao",
+
+        "folder": "sdss",
+
+        "components": (
+
+            {"data": "sdss_DR16_ELG_FSBAO_DMDHfs8grid.npz"},
+
+        ),
+
+        "z_eff": 0.845,
+
+        "observable": ("DM_over_rs", "DH_over_rs", "fsigma8"),
+
+        "reference": (
+            "eBOSS DR16 ELG full-shape (RSD + BAO) -- de Mattia et "
+            "al. (2020), MNRAS 501, 5616, arXiv:2007.09008. "
+            "D_M/r_d = 19.5 +- 1.0, D_H/r_d = 19.6 (-2.1/+2.2), "
+            "f*sigma8 = 0.315 +- 0.095 at z_eff = 0.85, from the "
+            "consensus of the Fourier- and configuration-space "
+            "analyses."
+        ),
+
+    },
+
+}
+
+
 LOWE_FILES = {
 
     "planck2018": {
@@ -823,6 +862,8 @@ _REGISTRIES = {
     "eboss_elg": EBOSS_ELG_FILES,
 
     "eboss_lya": EBOSS_LYA_FILES,
+
+    "eboss_elg_fs": EBOSS_ELG_FS_FILES,
 
     **_PRIOR_REGISTRIES,
 
@@ -2450,6 +2491,58 @@ def load_planck_lowe(
 # Tabulated BAO likelihood surfaces
 # ============================================================
 
+def _load_grid_npz(path: Path, observable: tuple[str, ...]):
+    """
+    Read a pre-converted likelihood grid.
+
+    Stored as ``log_prob`` (the log-likelihood on the grid, float32,
+    floored 200 below its peak) plus one axis array per observable,
+    named after it. See ``tools/convert_eboss_elg_fs_grid.py`` for
+    why this one is shipped converted rather than as released.
+    """
+
+    _check_file_exists(path)
+
+    archive = np.load(path)
+
+    axis_names = {
+        "DM_over_rs": "dm_over_rs",
+        "DH_over_rs": "dh_over_rs",
+        "DV_over_rs": "dv_over_rs",
+        "fsigma8": "fsigma8",
+    }
+
+    missing = [
+        name for name in observable
+        if axis_names.get(name, name) not in archive
+    ]
+
+    if missing:
+
+        raise ValueError(
+            f"'{path}' has no axis for {missing}; it holds "
+            f"{sorted(archive.files)}.",
+        )
+
+    grids = tuple(
+        np.asarray(archive[axis_names.get(name, name)], dtype=float)
+        for name in observable
+    )
+
+    log_prob = np.asarray(archive["log_prob"], dtype=float)
+
+    expected = tuple(len(g) for g in grids)
+
+    if log_prob.shape != expected:
+
+        raise ValueError(
+            f"'{path}': log_prob has shape {log_prob.shape}, but its "
+            f"axes describe {expected}.",
+        )
+
+    return grids, log_prob
+
+
 def load_eboss_table(
     family: str,
     version: str = "dr16",
@@ -2500,7 +2593,26 @@ def load_eboss_table(
 
     for component in entry["components"]:
 
-        raw = _load_txt(dataset_path / component["data"])
+        path = dataset_path / component["data"]
+
+        if path.suffix == ".npz":
+
+            grids, log_prob = _load_grid_npz(path, observable)
+
+            if axes is None:
+                axes, total = grids, log_prob
+            else:
+                for existing, incoming in zip(axes, grids):
+                    if not np.array_equal(existing, incoming):
+                        raise ValueError(
+                            f"{component['data']} is on a different "
+                            f"grid from the components before it.",
+                        )
+                total = total + log_prob
+
+            continue
+
+        raw = _load_txt(path)
 
         raw = np.atleast_2d(np.asarray(raw, dtype=float))
 

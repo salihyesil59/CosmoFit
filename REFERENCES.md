@@ -117,8 +117,21 @@ mean and a covariance, because a Gaussian would misrepresent them.
   with quasars.
   [arXiv:2007.08995](https://arxiv.org/abs/2007.08995)
 - Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
+- **de Mattia et al. (2020)** again, for the ELG **full-shape**
+  (RSD + BAO) grid: D_M/r_d = 19.5 +- 1.0, D_H/r_d = 19.6
+  (-2.1/+2.2), f*sigma8 = 0.315 +- 0.095 at z_eff = 0.85, from the
+  consensus of the Fourier- and configuration-space analyses.
+  [arXiv:2007.09008](https://arxiv.org/abs/2007.09008)
 - Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
   [`likelihoods/eboss_dr16.py`](src/CosmoFit/likelihoods/eboss_dr16.py)
+- **Note on the full-shape grid:** it is the one dataset in this
+  package that is *not* shipped as released. The original is 60 MB
+  of ASCII with 10.3% of its probabilities underflowed to exact
+  zero, which have no logarithm.
+  [`tools/convert_eboss_elg_fs_grid.py`](tools/convert_eboss_elg_fs_grid.py)
+  converts it to a 1.95 MB compressed archive, is committed so the
+  shipped file can be regenerated, and documents both lossy steps
+  along with the check that the marginals survive them unchanged.
 - **Note:** eBOSS quote the Lyman-alpha constraint above from a joint
   fit but ship only the auto and cross surfaces separately, so this
   library multiplies them. That treats them as independent;

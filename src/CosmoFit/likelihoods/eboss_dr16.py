@@ -62,7 +62,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from scipy.interpolate import CubicSpline, RectBivariateSpline
+from scipy.interpolate import (
+    CubicSpline,
+    RectBivariateSpline,
+    RegularGridInterpolator,
+)
 
 from CosmoFit.data.loader import load_eboss_table
 
@@ -151,17 +155,51 @@ class TabulatedBAOLikelihood(BaseLikelihood):
 
             )
 
-        return RectBivariateSpline(
+        if len(data.axes) == 2:
 
-            data.axes[0],
+            return RectBivariateSpline(
 
-            data.axes[1],
+                data.axes[0],
+
+                data.axes[1],
+
+                data.log_prob,
+
+                kx=3,
+
+                ky=3,
+
+            )
+
+        # Three or more axes, and **linear**, which is the one place
+        # this module does not spline.
+        #
+        # The 3-D grid is shipped with its log floored 200 below the
+        # peak, because a tenth of the released probabilities
+        # underflowed to exact zero. That floor is a plateau, and a
+        # cubic through the step at its edge rings: measured on a
+        # 120^3 mesh, the interpolated log reached **+146** against a
+        # node maximum of 0. exp(146) is 1e63, so half a percent of
+        # the volume would have swamped every normalization and put
+        # the marginals at the grid edges -- which is exactly what
+        # the published-value test caught.
+        #
+        # Linear interpolation is bounded by the surrounding nodes
+        # and cannot overshoot. The cost is a piecewise-linear
+        # surface with kinks at the nodes, which is acceptable at
+        # 100 points per axis and is the right trade against being
+        # wrong by sixty orders of magnitude.
+        return RegularGridInterpolator(
+
+            data.axes,
 
             data.log_prob,
 
-            kx=3,
+            method="linear",
 
-            ky=3,
+            bounds_error=False,
+
+            fill_value=None,
 
         )
 
@@ -250,7 +288,7 @@ class TabulatedBAOLikelihood(BaseLikelihood):
 
             result = self._interpolator(clipped[0])
 
-        else:
+        elif len(self.data.axes) == 2:
 
             result = self._interpolator(
 
@@ -261,6 +299,22 @@ class TabulatedBAOLikelihood(BaseLikelihood):
                 grid=False,
 
             )
+
+        else:
+
+            # RegularGridInterpolator wants (n_points, ndim) and
+            # gives back (n_points,), so the caller's own shape --
+            # scalar, vector, or a whole meshgrid -- is restored
+            # afterwards rather than left as whatever it returned.
+            points = np.stack(
+
+                [value.ravel() for value in clipped],
+
+                axis=-1,
+
+            )
+
+            result = self._interpolator(points).reshape(inside.shape)
 
         result = np.where(inside, result, -np.inf)
 
@@ -356,3 +410,37 @@ class EBOSSLyaLikelihood(TabulatedBAOLikelihood):
     FAMILY = "eboss_lya"
 
     LABEL = r"eBOSS-DR16-Lya"
+
+
+class EBOSSELGFullShapeLikelihood(TabulatedBAOLikelihood):
+    """
+    eBOSS DR16 emission-line galaxies, full shape: the joint
+    likelihood of ``(D_M/r_d, D_H/r_d, f sigma_8)`` at
+    ``z_eff = 0.845``, on a 100x100x100 grid.
+
+    The same galaxies as :class:`EBOSSELGLikelihood`, analysed
+    differently. That one compresses the clustering to a single
+    isotropic BAO scale; this one keeps the anisotropy and the
+    growth rate as well, so it constrains the amplitude of structure
+    directly rather than only the geometry.
+
+    Being three-dimensional is the point. ``f sigma_8`` is degenerate
+    with the Alcock-Paczynski distortion, and the grid holds that
+    degeneracy exactly, which two separate error bars could not. It
+    is also why the prediction here uses ``fsigma8(z)`` unrescaled:
+    the geometry the measurement was made against is a *coordinate*
+    of the grid, not a fiducial to correct back to, so applying the
+    AP correction that :class:`~likelihoods.fsigma8.FSigma8Likelihood`
+    needs would count it twice.
+
+    Warning
+    -------
+    Mutually exclusive with ``"eboss_elg"`` -- the same galaxies,
+    twice. Overlaps ``"desi"``, whose ELG sample succeeds this one.
+    It also overlaps ``"fsigma8"``, whose compilation includes eBOSS
+    growth-rate measurements.
+    """
+
+    FAMILY = "eboss_elg_fs"
+
+    LABEL = "eBOSS-DR16-ELG-FS"

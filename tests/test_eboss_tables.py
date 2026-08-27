@@ -546,3 +546,225 @@ def test_lya_is_only_moderately_non_gaussian(lya, cosmology):
     assert cross == pytest.approx(5.0, abs=0.8)
 
     assert cross > combined
+
+
+# ============================================================
+# The full-shape grid: three dimensions, and a growth rate
+# ============================================================
+
+@pytest.fixture(scope="module")
+def elg_fs(cosmology):
+
+    from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGFullShapeLikelihood
+
+    return EBOSSELGFullShapeLikelihood(cosmology)
+
+
+def marginal(likelihood, axis, n=120):
+    """
+    One marginal of a 3-D surface, evaluated through the
+    likelihood's own interpolator, as (grid, normalized weights).
+    """
+
+    axes = [
+        np.linspace(low, high, n)
+        for low, high in likelihood.data.bounds
+    ]
+
+    points = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1)
+
+    probability = np.exp(likelihood.log_likelihood_at(points))
+
+    other = tuple(i for i in range(3) if i != axis)
+
+    weights = probability.sum(axis=other)
+
+    return axes[axis], weights / weights.sum()
+
+
+def percentiles(grid, weights, levels=(0.1587, 0.5, 0.8413)):
+
+    return np.interp(levels, np.cumsum(weights), grid)
+
+
+def test_full_shape_grid_reproduces_the_published_constraints(elg_fs):
+    """
+    de Mattia et al. quote, from the consensus of the Fourier- and
+    configuration-space analyses at z_eff = 0.85:
+
+        D_M/r_d   = 19.5 +- 1.0
+        D_H/r_d   = 19.6 (-2.1/+2.2)
+        f sigma_8 = 0.315 +- 0.095
+
+    Recovered here by marginalizing the released grid, with none of
+    those numbers used as an input.
+
+    The comparison has to be made with *percentile* intervals rather
+    than standard deviations. The released grid keeps a long tail --
+    it runs out to D_M/r_d = 35 -- and the standard deviation of the
+    D_M marginal is 1.40 against the published 1.0, while its
+    16th-to-84th percentile half-width is 1.05. The tail is real and
+    belongs in the likelihood; it just is not what an error bar
+    quoted from an MCMC summarizes.
+    """
+
+    published = [(19.5, 1.0), (19.6, 2.15), (0.315, 0.095)]
+
+    for axis, (centre, sigma) in enumerate(published):
+
+        grid, weights = marginal(elg_fs, axis)
+
+        low, median, high = percentiles(grid, weights)
+
+        assert median == pytest.approx(centre, abs=0.15 * max(sigma, 0.1)), (
+            f"axis {axis}: median {median:.4f} vs published {centre}"
+        )
+
+        half_width = 0.5 * (high - low)
+
+        assert half_width == pytest.approx(sigma, rel=0.15), (
+            f"axis {axis}: half-width {half_width:.4f} vs {sigma}"
+        )
+
+
+def test_the_growth_rate_is_predicted_without_an_AP_correction(elg_fs):
+    """
+    A full-shape grid varies ``D_M/r_d`` and ``D_H/r_d`` alongside
+    ``f sigma_8``, so the geometry it was measured against is a
+    *coordinate* of the grid rather than a fiducial to correct back
+    to. Applying the Alcock-Paczynski rescaling that
+    ``likelihoods/fsigma8.py`` needs would count it twice.
+    """
+
+    prediction = elg_fs.model()
+
+    assert prediction[2] == pytest.approx(
+        elg_fs.cosmology.background.fsigma8(elg_fs.data.z_eff),
+    )
+
+
+def test_the_grid_is_three_dimensional_not_flattened(elg_fs):
+    """
+    A 100x100x100 grid read as 2-D would still interpolate, still
+    return finite numbers, and be wrong everywhere.
+    """
+
+    assert len(elg_fs.data.axes) == 3
+
+    assert elg_fs.data.log_prob.shape == (100, 100, 100)
+
+    assert elg_fs.n_data == 3
+
+
+def test_the_shipped_grid_is_the_converted_one(elg_fs):
+    """
+    This dataset is the only one in the package that is *not* the
+    released file: 60 MB of ASCII, 10.3% of it underflowed to exact
+    zeros that have no logarithm.
+    ``tools/convert_eboss_elg_fs_grid.py` floors the log 200 below
+    its peak and stores float32.
+
+    Both properties are checked here rather than trusted, since a
+    regenerated file that lost either would still load.
+    """
+
+    log_prob = elg_fs.data.log_prob
+
+    assert np.all(np.isfinite(log_prob))
+
+    depth = log_prob.max() - log_prob.min()
+
+    assert depth == pytest.approx(200.0, abs=0.5)
+
+    # A floor at exp(-200) = 1e-87 cannot matter: the floored points
+    # carry no probability at all.
+    floored = log_prob <= log_prob.max() - 199.9
+
+    assert floored.sum() > 0
+
+    assert np.exp(log_prob[floored] - log_prob.max()).sum() < 1e-60
+
+
+def test_off_grid_predictions_are_excluded_in_three_dimensions(elg_fs):
+
+    peak = list(elg_fs.data.peak)
+
+    assert np.isfinite(elg_fs.log_likelihood_at(peak))
+
+    for axis in range(3):
+
+        off = list(peak)
+        off[axis] = elg_fs.data.bounds[axis][1] * 2.0
+
+        assert elg_fs.log_likelihood_at(off) == -np.inf, axis
+
+
+def test_the_two_elg_analyses_are_registered_as_conflicting():
+    """
+    ``eboss_elg`` and ``eboss_elg_fs`` are the same galaxies twice.
+    """
+
+    from CosmoFit.stats.fitter import CONFLICTING_DATASETS
+
+    pairs = {frozenset(pair) for pair in CONFLICTING_DATASETS}
+
+    assert frozenset({"eboss_elg", "eboss_elg_fs"}) in pairs
+    assert frozenset({"fsigma8", "eboss_elg_fs"}) in pairs
+
+
+def test_the_3d_interpolator_cannot_overshoot_its_nodes(elg_fs):
+    """
+    The bug that the published-value check above caught, pinned.
+
+    The 3-D grid ships with its log floored 200 below the peak,
+    because a tenth of the released probabilities underflowed to
+    exact zero. A cubic interpolator rings at the step where that
+    plateau begins: measured on a 120^3 mesh it reached a log of
+    **+146** against a node maximum of 0, and exp(146) = 1e63 swamps
+    every normalization -- the D_M marginal's median came out at
+    35.4, the top of the grid, instead of 19.4.
+
+    Linear interpolation is bounded by the surrounding nodes. This
+    asserts that property directly rather than re-checking the
+    symptom, so any future change of interpolator has to justify
+    itself here.
+    """
+
+    data = elg_fs.data
+
+    axes = [np.linspace(low, high, 60) for low, high in data.bounds]
+
+    points = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1)
+
+    interpolated = elg_fs.log_likelihood_at(points)
+
+    assert interpolated.max() <= data.log_prob.max() + 1e-9
+
+    assert interpolated.min() >= data.log_prob.min() - 1e-9
+
+
+def test_a_full_shape_fit_runs_end_to_end():
+    """
+    The dataset has to reach a Fitter, not just a likelihood --
+    which means `sigma8` is a parameter the grid actually responds
+    to, unlike every other BAO dataset in the library.
+    """
+
+    from CosmoFit import Fitter
+
+    fit = Fitter(
+        model=LCDM,
+        datasets=["cc", "eboss_elg_fs"],
+        free_params=["H0", "Omega_m", "sigma8"],
+        initial={**PLANCK, "sigma8": 0.811},
+    )
+
+    baseline = fit.logpost.chi2(fit.theta0)
+
+    assert np.isfinite(baseline)
+
+    # sigma8 must move it: the f*sigma8 axis is the whole point.
+    theta = fit.theta0.copy()
+    theta[fit.free_params.index("sigma8")] = 0.60
+
+    assert fit.logpost.chi2(theta) != baseline

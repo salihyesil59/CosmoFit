@@ -49,6 +49,15 @@ MODEL_MAP = {
     "rs_over_DV": lambda m, z, rd=None:
         (m.rd if rd is None else rd) / m.distance.DV(z),
 
+    # Growth, for the tabulated full-shape likelihoods. No
+    # Alcock-Paczynski rescaling here, unlike
+    # `likelihoods/fsigma8.py`: a full-shape grid varies D_M/r_d and
+    # D_H/r_d alongside f*sigma8, so the geometry it was measured
+    # against is a coordinate of the grid rather than a fiducial to
+    # correct back to. Applying the correction as well would count
+    # it twice.
+    "fsigma8": lambda m, z, rd=None: m.background.fsigma8(z),
+
 }
 
 

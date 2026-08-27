@@ -129,6 +129,11 @@ CHI2_BOUNDS = {
     "desi": 2.0,
     "sdss_bao": 2.0,
     "eboss_elg": 2.0,
+    # -2 log L from a 100x100x100 grid, three quantities. The
+    # released grid is normalized to a maximum probability of 1,
+    # so this does reach ~0 at the best-fitting point, unlike
+    # "planck_lowe" below.
+    "eboss_elg_fs": 2.0,
     # eBOSS DR16's Lyman-alpha BAO sits ~2 sigma from a Planck-like
     # LCDM -- a real and much-discussed feature of that measurement,
     # not a defect here, and chi2/N ~ 2.4 is what it looks like.

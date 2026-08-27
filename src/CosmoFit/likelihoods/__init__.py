@@ -12,6 +12,7 @@ from .cc import CCLikelihood
 from .desi import DESILikelihood, BAODistanceLikelihood
 from .sdss_bao import SDSSBAOLikelihood
 from .eboss_dr16 import EBOSSELGLikelihood
+from .eboss_dr16 import EBOSSELGFullShapeLikelihood
 from .eboss_dr16 import EBOSSLyaLikelihood
 from .bao_lowz import BAOLowZLikelihood
 from .pantheon import PantheonLikelihood
@@ -45,6 +46,7 @@ __all__ = [
     "DESILikelihood",
     "SDSSBAOLikelihood",
     "EBOSSELGLikelihood",
+    "EBOSSELGFullShapeLikelihood",
     "EBOSSLyaLikelihood",
     "BAOLowZLikelihood",
     "PantheonLikelihood",
