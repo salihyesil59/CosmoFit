@@ -693,6 +693,54 @@ EBOSS_ELG_FS_FILES = {
 }
 
 
+# BOSS DR12 + eBOSS DR16, analysed for the full anisotropic shape
+# rather than the BAO peak alone: (D_M/r_d, D_H/r_d, f*sigma8) per
+# bin, with the covariance *between* geometry and growth. The BAO-only
+# `SDSS_BAO_FILES` above and the `GROWTH_FILES` compilation together
+# cover the same galaxies while treating those as independent, which
+# they are not -- this is the product that does not.
+#
+# The same z = 0.61 omission as `SDSS_BAO_FILES`: the released
+# BAOplus LRG file already excludes it, for the same overlap with
+# the eBOSS DR16 LRG sample.
+SDSS_FSBAO_FILES = {
+
+    "dr16": {
+
+        "parent": "bao",
+
+        "folder": "sdss",
+
+        "components": (
+
+            {
+                "data": "sdss_DR16_BAOplus_LRG_FSBAO_DMDHfs8.dat",
+                "covariance":
+                    "sdss_DR16_BAOplus_LRG_FSBAO_DMDHfs8_covtot.txt",
+            },
+
+            {
+                "data": "sdss_DR16_BAOplus_QSO_FSBAO_DMDHfs8.dat",
+                "covariance":
+                    "sdss_DR16_BAOplus_QSO_FSBAO_DMDHfs8_covtot.txt",
+            },
+
+        ),
+
+        "reference": (
+            "SDSS BAO + full-shape consensus -- eBOSS Collaboration "
+            "/ Alam et al. (2021), Phys. Rev. D 103, 083533, "
+            "arXiv:2007.08991. BOSS DR12 (z = 0.38, 0.51), eBOSS "
+            "DR16 LRG (z = 0.698) and eBOSS DR16 QSO (z = 1.48), "
+            "each giving D_M/r_d, D_H/r_d and f*sigma8 with their "
+            "joint covariance."
+        ),
+
+    },
+
+}
+
+
 LOWE_FILES = {
 
     "planck2018": {
@@ -836,6 +884,8 @@ _REGISTRIES = {
     "desi": DESI_FILES,
 
     "sdss_bao": SDSS_BAO_FILES,
+
+    "sdss_fsbao": SDSS_FSBAO_FILES,
 
     "pantheon": PANTHEON_FILES,
 
@@ -1505,45 +1555,30 @@ def load_desi(
 # BAO (SDSS: BOSS DR12 + eBOSS DR16)
 # ============================================================
 
-def load_sdss_bao(
-    version: str = "dr12+dr16",
+def _load_blockdiag_bao(
+    family: str,
+    version: str,
+    rename: dict[str, str] | None = None,
 ) -> DESIDataset:
     """
-    Load the combined SDSS BAO dataset (BOSS DR12 + eBOSS DR16
-    LRG + eBOSS DR16 QSO), in the same (z, value, observable-type)
-    format DESI uses (see :data:`likelihoods.desi.MODEL_MAP`).
+    Load a set of ``(z, value, observable)`` components into one
+    dataset with a block-diagonal covariance.
 
-    Each component is measured from an independent (non-
-    overlapping-redshift) galaxy/quasar sample, so the combined
-    covariance is block-diagonal: no cross-survey correlation
-    terms, but each component's own internal correlation (e.g.
-    between its DM/rs and DH/rs) is preserved.
+    Each component is measured from an independent, non-overlapping
+    sample, so there are no cross-component terms -- but each
+    component's own internal correlation is preserved, which for a
+    full-shape component means the correlation between its
+    geometry and its growth rate.
 
-    Parameters
-    ----------
-    version : str, optional
-        Dataset version.
-
-    Returns
-    -------
-    DESIDataset
+    ``rename`` maps observable names as they appear in the released
+    files onto the keys of :data:`likelihoods.desi.MODEL_MAP`. Only
+    the full-shape files need it: they write ``f_sigma8`` where the
+    library says ``fsigma8``.
     """
 
-    entry = _validate_version(
+    entry = _validate_version(family, version)
 
-        "sdss_bao",
-
-        version,
-
-    )
-
-    dataset_path = _get_dataset_path(
-
-        "sdss_bao",
-
-        version,
-
-    )
+    dataset_path = _get_dataset_path(family, version)
 
     z_parts = []
     value_parts = []
@@ -1580,12 +1615,22 @@ def load_sdss_bao(
 
             )
 
+        observables = np.asarray(data["f2"], dtype=str)
+
+        if rename:
+
+            observables = np.array(
+
+                [rename.get(name, name) for name in observables],
+
+                dtype=str,
+
+            )
+
         z_parts.append(np.asarray(data["f0"], dtype=float))
         value_parts.append(np.asarray(data["f1"], dtype=float))
-        observable_parts.append(np.asarray(data["f2"], dtype=str))
+        observable_parts.append(observables)
         cov_blocks.append(cov)
-
-    covariance = block_diag(*cov_blocks)
 
     return DESIDataset(
 
@@ -1597,13 +1642,91 @@ def load_sdss_bao(
 
         covariance=make_covariance(
 
-            cov=covariance,
+            cov=block_diag(*cov_blocks),
 
         ),
 
         reference=entry["reference"],
 
     )
+
+
+def load_sdss_bao(
+    version: str = "dr12+dr16",
+) -> DESIDataset:
+    """
+    Load the combined SDSS BAO dataset (BOSS DR12 + eBOSS DR16
+    LRG + eBOSS DR16 QSO), in the same (z, value, observable-type)
+    format DESI uses (see :data:`likelihoods.desi.MODEL_MAP`).
+
+    Each component is measured from an independent (non-
+    overlapping-redshift) galaxy/quasar sample, so the combined
+    covariance is block-diagonal: no cross-survey correlation
+    terms, but each component's own internal correlation (e.g.
+    between its DM/rs and DH/rs) is preserved.
+
+    Parameters
+    ----------
+    version : str, optional
+        Dataset version.
+
+    Returns
+    -------
+    DESIDataset
+    """
+
+    return _load_blockdiag_bao("sdss_bao", version)
+
+
+def load_sdss_fsbao(
+    version: str = "dr16",
+) -> DESIDataset:
+    """
+    Load the SDSS **BAO + full-shape** consensus: ``D_M/r_d``,
+    ``D_H/r_d`` and ``f sigma_8`` per redshift bin, with the
+    covariance between them.
+
+    This is the same galaxies as :func:`load_sdss_bao`, analysed
+    for their full anisotropic clustering rather than the BAO peak
+    alone -- so it adds the growth rate, and, more importantly,
+    the correlation between growth and geometry. Combining
+    ``"sdss_bao"`` with the separate ``"fsigma8"`` compilation
+    instead treats those as independent, which they are not: the
+    released covariance has correlations of 0.19 to 0.64 between
+    ``D_M/r_d`` and ``f sigma_8`` within a bin, strongest for the
+    quasars.
+
+    The released files name the growth observable ``f_sigma8``;
+    it is renamed on load to the library's ``fsigma8``.
+
+    Note that ``f sigma_8`` here is compared with the model's own
+    ``fsigma8(z)`` *without* an Alcock-Paczynski rescaling, unlike
+    :class:`~likelihoods.fsigma8.FSigma8Likelihood`. A full-shape
+    fit varies the geometry alongside the growth rate, so the
+    fiducial it was measured against is already a fitted quantity
+    rather than something to correct back to -- applying the
+    correction as well would count it twice.
+
+    Parameters
+    ----------
+    version : str, optional
+        Dataset version.
+
+    Returns
+    -------
+    DESIDataset
+    """
+
+    return _load_blockdiag_bao(
+
+        "sdss_fsbao",
+
+        version,
+
+        rename={"f_sigma8": "fsigma8"},
+
+    )
+
 
 # ============================================================
 # BAO (low-z: 6dFGS + SDSS DR7 MGS)

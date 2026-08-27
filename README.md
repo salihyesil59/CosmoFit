@@ -85,6 +85,11 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * BAO (**DESI DR2 2025** or DESI DR1 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO;
     **low-z 6dFGS + SDSS DR7 MGS**) -- the low-z pair is independent of the other two and
     can join either; DESI and SDSS cannot be combined with each other, see the note below
+  * The **SDSS BAO + full-shape consensus**: D_M/r_d, D_H/r_d *and* f*sigma8 at
+    z = 0.38, 0.51, 0.698, 1.48 with the covariance between them. The same galaxies
+    as the BAO-only entry above, so use one or the other -- and prefer this one over
+    pairing `sdss_bao` with `fsigma8`, which covers the same galaxies while treating
+    growth and geometry as uncorrelated when they are not
   * BAO as a **tabulated likelihood surface** rather than a mean and a covariance:
     **eBOSS DR16 ELG** (`D_V/r_d` at z=0.845, a 399-point curve) and **eBOSS DR16
     Lyman-alpha** (`(D_M/r_d, D_H/r_d)` at z=2.334, a 50x50 surface, the

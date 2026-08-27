@@ -367,7 +367,7 @@ DATASET_LABELS = {
 #: that impossible to see.
 DATASET_GROUPS = [
     ("📏 Expansion rate", ["cc"]),
-    ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "bao_lowz",
+    ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "sdss_fsbao", "bao_lowz",
                                 "eboss_elg", "eboss_elg_fs",
                                 "eboss_lya"]),
     ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
@@ -433,6 +433,23 @@ DATASET_INFO = {
             "this **can** be added to either."
         ),
         constrains="extends the BAO lever arm to low z",
+    ),
+
+    "sdss_fsbao": dict(
+        observable="D_M/r_d, D_H/r_d and fσ₈ per bin",
+        n="12 points", z="0.38, 0.51, 0.698, 1.48",
+        what=(
+            "The **same BOSS/eBOSS galaxies as `sdss_bao`**, "
+            "analysed for their full anisotropic clustering rather "
+            "than the BAO peak alone. So it measures the growth "
+            "rate too — and, more importantly, the **correlation "
+            "between growth and geometry** (0.19 to 0.64 within a "
+            "bin). Using `sdss_bao` together with the separate "
+            "`fsigma8` compilation covers the same galaxies while "
+            "pretending those are independent; this is the product "
+            "that does not."
+        ),
+        constrains="σ₈ and the distance scale jointly",
     ),
 
     "eboss_elg": dict(
@@ -866,6 +883,7 @@ MODEL_STANDARD_PARAMS = {
 DATASET_PARAMS = {
     "desi": {"rd"},
     "sdss_bao": {"rd"},
+    "sdss_fsbao": {"rd", "sigma8"},
     "bao_lowz": {"rd"},
     "eboss_elg": {"rd"},
     "eboss_elg_fs": {"rd", "sigma8"},
