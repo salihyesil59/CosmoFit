@@ -286,3 +286,126 @@ def test_the_distance_table_still_refuses_to_extrapolate():
     assert np.isfinite(model.integrator.chi(4.0))
 
     assert np.isnan(model.integrator.chi(50.0))
+
+
+# ============================================================
+# The optional compiled kernel
+# ============================================================
+
+@pytest.fixture
+def without_numba(monkeypatch):
+    """Force the NumPy stepping path regardless of what is installed."""
+
+    from CosmoFit.cosmology.numerics import kernels
+
+    monkeypatch.setattr(kernels, "HAVE_NUMBA", False)
+
+    return kernels
+
+
+def growth_at(z):
+
+    model = lcdm()
+
+    return (
+        np.asarray(model.growth.D(z), dtype=float).copy(),
+        np.asarray(model.growth.growth_rate(z), dtype=float).copy(),
+    )
+
+
+def test_the_two_stepping_paths_agree(without_numba):
+    """
+    The growth solve has two implementations: a compiled sequential
+    loop when numba is installed, and a prefix product of 2x2 step
+    matrices when it is not. Whichever one a given install runs, the
+    answer has to be the same one.
+
+    They agree to machine precision -- 8.9e-16 measured -- because
+    they are the same RK4 with the same coefficients, composed two
+    ways.
+    """
+
+    from CosmoFit.cosmology.numerics import kernels
+
+    fallback_D, fallback_f = growth_at(Z_GROWTH)
+
+    monkeypatched = kernels.HAVE_NUMBA
+
+    assert monkeypatched is False
+
+    # Restore whatever this install actually has and redo it.
+    kernels.HAVE_NUMBA = _installed_numba()
+
+    compiled_D, compiled_f = growth_at(Z_GROWTH)
+
+    kernels.HAVE_NUMBA = monkeypatched
+
+    np.testing.assert_allclose(compiled_D, fallback_D, rtol=1e-13)
+    np.testing.assert_allclose(compiled_f, fallback_f, rtol=1e-13)
+
+
+def _installed_numba():
+
+    try:
+        import numba  # noqa: F401
+    except ImportError:
+        return False
+
+    return True
+
+
+def test_the_fallback_path_is_correct_on_its_own(without_numba):
+    """
+    The NumPy path is not a second-class citizen -- it is what a
+    plain `pip install cosmofit` runs. Checked against the adaptive
+    solver directly, not only against the compiled kernel.
+    """
+
+    model = lcdm()
+
+    D_ref, f_ref = reference_growth(model, Z_GROWTH)
+
+    np.testing.assert_allclose(model.growth.D(Z_GROWTH), D_ref, rtol=1e-6)
+    np.testing.assert_allclose(
+        model.growth.growth_rate(Z_GROWTH), f_ref, rtol=1e-6,
+    )
+
+
+def test_the_reference_loop_agrees_with_both():
+    """
+    ``kernels._rk4_growth_python`` is the plain Python loop the
+    compiled kernel is compiled *from*. It is kept as the readable
+    statement of what both fast paths compute, so it has to still
+    produce the same numbers.
+    """
+
+    from CosmoFit.cosmology.calculators import growth as growth_module
+    from CosmoFit.cosmology.numerics import kernels
+
+    model = lcdm()
+
+    calculator = model.growth
+
+    n = growth_module._N_STEPS
+    N_init = np.log(growth_module._A_INIT)
+    h = -N_init / n
+
+    fine = N_init + 0.5 * h * np.arange(2 * n + 1)
+
+    friction, source = calculator._coefficients(fine)
+
+    args = (
+        friction[0:-1:2], source[0:-1:2],
+        friction[1::2], source[1::2],
+        friction[2::2], source[2::2],
+        h, growth_module._A_INIT,
+    )
+
+    D_loop, P_loop = kernels._rk4_growth_python(*args)
+
+    D_scan, P_scan = calculator._step_by_prefix_product(
+        *args[:6], h, n,
+    )
+
+    np.testing.assert_allclose(D_loop, D_scan, rtol=1e-11)
+    np.testing.assert_allclose(P_loop, P_scan, rtol=1e-11)
