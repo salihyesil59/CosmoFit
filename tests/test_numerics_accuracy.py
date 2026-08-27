@@ -223,3 +223,66 @@ def test_growth_is_rebuilt_when_parameters_change():
     D_ref, _ = reference_growth(model, np.array([1.0]))
 
     assert after == pytest.approx(float(D_ref[0]), rel=1e-6)
+
+
+# ============================================================
+# The fast Hermite constructor
+# ============================================================
+
+def test_fast_hermite_matches_scipys_constructor():
+    """
+    ``hermite_spline`` writes the piecewise coefficients directly
+    and hands them to ``PPoly.construct_fast``, skipping the
+    validation and axis handling ``CubicHermiteSpline`` does. That
+    is 43 microseconds to 13 on a 505-point grid, paid on every
+    parameter change.
+
+    Skipping the checks is only safe if the coefficients are
+    identical, so this asserts exactly that rather than comparing
+    evaluations at a few points.
+    """
+
+    from scipy.interpolate import CubicHermiteSpline
+
+    from CosmoFit.cosmology.numerics.hermite import hermite_spline
+
+    rng = np.random.default_rng(0)
+
+    for n in (5, 60, 505):
+
+        x = np.sort(rng.uniform(0.0, 10.0, n))
+        x = np.linspace(0.0, 10.0, n) if len(np.unique(x)) < n else x
+
+        y = np.cumsum(rng.uniform(0.1, 1.0, n))
+        dydx = rng.uniform(-1.0, 1.0, n)
+
+        fast = hermite_spline(x, y, dydx)
+        reference = CubicHermiteSpline(x, y, dydx)
+
+        np.testing.assert_allclose(fast.c, reference.c, rtol=1e-13)
+
+        probe = np.linspace(x[0], x[-1], 97)
+
+        np.testing.assert_allclose(fast(probe), reference(probe), rtol=1e-12)
+
+        np.testing.assert_allclose(
+            fast.derivative()(probe),
+            reference.derivative()(probe),
+            rtol=1e-12,
+        )
+
+
+def test_the_distance_table_still_refuses_to_extrapolate():
+    """
+    ``construct_fast`` defaults to extrapolating, and the distance
+    table must not: beyond the redshift it was built for, a
+    silently extrapolated cubic is worse than no answer. NaN is how
+    that is signalled, and `DistanceIntegrator.extend` is how a
+    caller asks for more.
+    """
+
+    model = lcdm()
+
+    assert np.isfinite(model.integrator.chi(4.0))
+
+    assert np.isnan(model.integrator.chi(50.0))

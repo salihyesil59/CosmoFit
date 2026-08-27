@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from scipy.interpolate import CubicHermiteSpline
+from CosmoFit.cosmology.numerics.hermite import hermite_spline
 
 
 # ============================================================
@@ -160,7 +160,7 @@ class DistanceIntegrator:
         # chosen originally, is not at risk: chi is the integral of
         # a strictly positive function, and the interpolant is
         # built from that function's own positive values.
-        self._chi = CubicHermiteSpline(
+        self._chi = hermite_spline(
 
             self.z_grid,
 
