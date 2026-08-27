@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.32.0"
+version = "0.33.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -101,6 +101,10 @@ dev = [
 
 speed = [
     "numba>=0.60",
+]
+
+evidence = [
+    "dynesty>=2.1",
 ]
 
 # Boltzmann-code backend, needed only by the "planck_lite" dataset

@@ -21,6 +21,7 @@ from .chains import (
 )
 from .fitter import Fitter, DATASET_REGISTRY, DATASET_LABELS, dataset_label
 from . import model_comparison
+from . import evidence
 from . import cpl_diagnostics
 from . import derived
 
@@ -43,6 +44,7 @@ __all__ = [
     "DATASET_LABELS",
     "dataset_label",
     "model_comparison",
+    "evidence",
     "cpl_diagnostics",
     "derived",
 ]

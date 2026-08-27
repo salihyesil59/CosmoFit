@@ -127,6 +127,19 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 
 * Modular likelihood architecture
 * Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
+* **Bayesian evidence by nested sampling** (`fitter.run_nested()`, needs `pip install
+  "cosmofit[evidence]"`): `ln Z` and a proper Bayes factor, for the comparisons a
+  likelihood-ratio test cannot make. `LsCDM` reduces to `LCDM` only as `z_dagger -> infinity`
+  and `DGP` is not nested at all, so Wilks' theorem does not apply to either -- an evidence
+  ratio is defined regardless, and integrates rather than maximizes, so it charges a model
+  for prior volume it does not use. Validated against an analytically integrable Gaussian.
+  Read `stats.evidence`'s note on prior sensitivity before quoting one
+* **Profile likelihood** (`fitter.profile("z_dagger", values)`): `chi2` minimized over every
+  other parameter at each fixed value. The honest tool where Wilks fails, and where a marginal
+  posterior would smooth over structure -- it is how `lscdm_mcmc.ipynb` found a 28-unit cliff
+* **Fisher matrix** (`fitter.fisher()`): parameter errors from the curvature at the best fit,
+  in `~2n^2` evaluations rather than a chain. What `s8_tension_cmb.ipynb` needed when every
+  likelihood call is a CAMB call and a converged chain is thirteen hours
 * Dedicated sampling backend (`stats.sampler`), decoupled from `Fitter` and swappable (custom
   `emcee` moves today, room for other backends later)
 * Multi-core MCMC (`fitter.run_mcmc(n_processes=...)`): evaluates walkers across multiple CPU
