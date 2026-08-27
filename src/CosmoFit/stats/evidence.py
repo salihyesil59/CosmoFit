@@ -42,6 +42,31 @@ having defended both. :func:`bayes_factor` reports the prior
 volumes alongside the ratio so that the dependence is visible
 rather than implicit.
 
+How much it matters, measured on this library's own case. ``LsCDM``
+against ``LCDM`` on CC + DESI DR2 + low-z BAO + DES-SN5YR + Planck
+priors + BBN, changing nothing but the upper edge of the
+``z_dagger`` prior:
+
+=========================  ==========  ================
+``z_dagger`` prior           ``ln B``    label
+=========================  ==========  ================
+``(0.5, 10)``                  +1.158    positive
+``(0.5, 100)``                 +0.494    inconclusive
+=========================  ==========  ================
+
+The same data, the same model, the same fit -- and a different
+verdict, because above the sign-switch cliff the parameter is
+unconstrained and the model is charged for whatever room it was
+given. (The shift is 0.66 rather than the ``ln 10 = 2.30`` a
+completely flat direction would give, because the likelihood does
+decline slowly towards the ``z_dagger -> infinity`` limit.)
+
+For contrast, the frequentist number on the same fit is
+``delta chi2 = 5.40``, which Wilks would read as ~2 sigma and which
+does not apply here at all, ``LCDM`` being on the boundary. Neither
+statistic is wrong; they answer different questions, and only one
+of them has to be told what the prior is.
+
 Optional dependency: ``pip install "cosmofit[evidence]"``.
 """
 
