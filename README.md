@@ -137,6 +137,14 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 * **Profile likelihood** (`fitter.profile("z_dagger", values)`): `chi2` minimized over every
   other parameter at each fixed value. The honest tool where Wilks fails, and where a marginal
   posterior would smooth over structure -- it is how `lscdm_mcmc.ipynb` found a 28-unit cliff
+* **Tension statistics** (`stats.tension`): the `np.hypot` this repo used to write by hand,
+  named and with its assumptions stated -- plus the alternatives for when they fail.
+  `sample_tension` works from posterior samples with no Gaussian assumption;
+  `gaussian_tension_nd` because a tension in a plane is not the larger of its projections
+  (two posteriors can sit 0.35 sigma apart in each parameter and 1.74 sigma apart jointly);
+  and `suspiciousness`, which divides out the prior dependence a Bayes factor carries.
+  Checked against the published Hubble (4.85 sigma) and S8 (2.67 sigma) tensions, and
+  against the analytic parameter-difference chi2
 * **Fisher matrix** (`fitter.fisher()`): parameter errors from the curvature at the best fit,
   in `~2n^2` evaluations rather than a chain. What `s8_tension_cmb.ipynb` needed when every
   likelihood call is a CAMB call and a converged chain is thirteen hours
