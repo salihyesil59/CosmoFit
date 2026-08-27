@@ -56,6 +56,8 @@ from .ide import IDE
 from .rvm import RunningVacuum
 from .cardassian import Cardassian
 from .hde import HDE
+from .ade import ADE
+from .rde import RDE
 from .dgp import DGP
 from .fq import FQExponential
 from .frt import FRTLinear
@@ -76,6 +78,8 @@ __all__ = [
     "RunningVacuum",
     "Cardassian",
     "HDE",
+    "ADE",
+    "RDE",
     "DGP",
     "FQExponential",
     "FRTLinear",
