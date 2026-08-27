@@ -164,6 +164,15 @@ mean and a covariance, because a Gaussian would misrepresent them.
   Phys. Rept. 696, 1 (review).
   [arXiv:1612.00345](https://arxiv.org/abs/1612.00345)
 - Used by: [`cosmology/models/hde.py`](src/CosmoFit/cosmology/models/hde.py)
+- **Validated against a published constraint** as well as against
+  its own definition: on cosmic chronometers + DESI DR2 BAO +
+  Pantheon+ (late-time only, no CMB) this reproduces
+  c = 1.00, Omega_m0 = 0.272, H0 = 67.9 against the
+  c ~ 1, Omega_m0 ~ 0.270-0.272, H0 ~ 67.3-68.0 of
+  [arXiv:2607.09732](https://arxiv.org/abs/2607.09732), and
+  reproduces that paper's split -- supernovae pull c above unity
+  (1.14), BAO pushes it below (0.92) -- with none of those numbers
+  used as an input.
 - **Note:** the only background model here without a closed-form
   `E(z)`; `Omega_DE` is obtained by solving
   `dOmega/dln a = Omega(1-Omega)(1 + 2 sqrt(Omega)/c)` on each

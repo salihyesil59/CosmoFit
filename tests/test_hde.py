@@ -62,7 +62,7 @@ def test_the_solution_satisfies_the_holographic_definition(c_hde):
     z = 1.0 / a - 1.0
 
     E = np.atleast_1d(model.E(z))
-    omega = np.atleast_1d(model.Omega_de(z))
+    omega = np.atleast_1d(model.omega_de_fraction(z))
 
     cumulative = cumulative_trapezoid(1.0 / (a ** 2 * E), a, initial=0.0)
     tail = cumulative[-1] - cumulative
@@ -113,7 +113,7 @@ def test_the_definition_check_would_notice_a_wrong_ode():
         x = np.linspace(np.log(0.05), np.log(1.0e4), 200_000)
         a = np.exp(x)
         E = np.atleast_1d(model.E(1.0 / a - 1.0))
-        omega = np.atleast_1d(model.Omega_de(1.0 / a - 1.0))
+        omega = np.atleast_1d(model.omega_de_fraction(1.0 / a - 1.0))
 
         cumulative = cumulative_trapezoid(1.0 / (a ** 2 * E), a, initial=0.0)
         tail = cumulative[-1] - cumulative
@@ -168,7 +168,7 @@ def test_dark_energy_approaches_the_proportional_to_a_limit():
     z = np.array([1.0e2, 1.0e3, 1.0e4, 1.0e5, 1.0e6])
     a = 1.0 / (1.0 + z)
 
-    ratio = np.atleast_1d(model.Omega_de(z)) / a
+    ratio = np.atleast_1d(model.omega_de_fraction(z)) / a
 
     departures = np.abs(np.diff(ratio) / ratio[:-1])
 
@@ -287,3 +287,182 @@ def test_camb_refuses_it():
     assert not supported
 
     assert "event horizon" in reason
+
+
+# ============================================================
+# The Omega_de convention
+# ============================================================
+
+def test_Omega_de_follows_the_library_convention():
+    """
+    Every model here returns ``rho_DE(z) / rho_crit(0)`` from
+    ``Omega_de`` -- the term as it appears inside ``E(z)^2``, which
+    is what the recombination module divides by ``Omega_de0`` to
+    get the dark-energy evolution factor.
+
+    HDE's ODE integrates a *different* quantity,
+    ``rho_DE(z) / rho_crit(z)``, and the two agree at ``z = 0`` and
+    nowhere else -- which is why returning the wrong one was quiet.
+    It shipped that way in v0.30.0: ``Omega_de(0.5)`` came out
+    0.59 times the right value, and 4e-10 times it at
+    recombination.
+
+    Checked here against the continuity equation, which reaches the
+    same density by a route the ODE is not involved in:
+
+        rho_DE(z) / rho_DE(0) = exp(3 Int_0^z (1 + w) / (1 + z') dz')
+    """
+
+    from scipy.integrate import quad
+
+    model = build(c_hde=0.73)
+
+    def continuity(z):
+
+        integrand = lambda zz: (
+            1.0 + float(np.atleast_1d(model.w_de(zz))[0])
+        ) / (1.0 + zz)
+
+        return np.exp(
+            3.0 * quad(integrand, 0.0, z, epsabs=1e-12, epsrel=1e-12)[0]
+        )
+
+    for z in (0.0, 0.5, 1.0, 3.0, 10.0):
+
+        computed = float(np.atleast_1d(model.Omega_de(z))[0])
+
+        expected = model.Omega_de0 * continuity(z)
+
+        assert computed == pytest.approx(expected, rel=1e-8), z
+
+
+def test_the_two_density_measures_are_not_confused():
+    """
+    ``omega_de_fraction`` is the density *parameter*; ``Omega_de``
+    is the density in units of today's critical density. They
+    differ by ``E(z)^2`` -- and coincide at z = 0, which is the
+    trap.
+    """
+
+    model = build()
+
+    assert float(np.atleast_1d(model.omega_de_fraction(0.0))[0]) == (
+        pytest.approx(float(np.atleast_1d(model.Omega_de(0.0))[0]))
+    )
+
+    for z in (0.5, 2.0, 10.0):
+
+        fraction = float(np.atleast_1d(model.omega_de_fraction(z))[0])
+        density = float(np.atleast_1d(model.Omega_de(z))[0])
+
+        assert density == pytest.approx(
+            fraction * float(np.atleast_1d(model.E(z))[0]) ** 2,
+        )
+
+        assert density != pytest.approx(fraction, rel=1e-3)
+
+
+def test_the_density_parameter_still_sums_to_one():
+    """
+    Flat universe: the matter and dark-energy *parameters* add to
+    one at every redshift. This is the statement that
+    ``omega_de_fraction`` is the parameter and not the density.
+    """
+
+    model = build()
+
+    z = np.array([0.0, 0.5, 2.0, 10.0, 100.0])
+
+    E2 = np.atleast_1d(model.E(z)) ** 2
+
+    matter = model.Omega_m * (1.0 + z) ** 3 / E2
+
+    np.testing.assert_allclose(
+        matter + np.atleast_1d(model.omega_de_fraction(z)),
+        1.0,
+        rtol=1e-10,
+    )
+
+
+# ============================================================
+# Against a published constraint
+# ============================================================
+
+def test_reproduces_the_published_late_time_constraint():
+    """
+    Every dataset and most models in this library are checked
+    against a number someone else published. HDE was checked
+    against its own *definition* -- which is the right test for an
+    ODE model, and not the same thing.
+
+    So: the late-time combination of arXiv:2607.09732, which
+    constrains three holographic models with cosmic chronometers,
+    DESI DR2 BAO and Type Ia supernovae and reports, for the
+    BAO-included combinations,
+
+        c ~ 1,  Omega_m0 ~ 0.270-0.272,  H0 ~ 67.3-68.0
+
+    None of those is used as an input here. No CMB and no BBN, as
+    in the paper -- which is why ``r_d`` is a free parameter rather
+    than computed: nothing in this combination calibrates it.
+    """
+
+    from CosmoFit import Fitter
+
+    fit = Fitter(
+        model=HDE,
+        datasets=["cc", "desi", "pantheon"],
+        dataset_kwargs={"desi": {"version": "desi2025"}},
+        free_params=["H0", "Omega_m", "rd", "c_hde"],
+        initial={"H0": 68.0, "Omega_m": 0.28, "rd": 147.1, "c_hde": 1.0},
+    )
+
+    fit.best_fit()
+
+    parameters = fit.best_fit_params
+
+    assert parameters["c_hde"] == pytest.approx(1.0, abs=0.05)
+
+    assert 0.265 < parameters["Omega_m"] < 0.277
+
+    assert 67.0 < parameters["H0"] < 68.5
+
+
+def test_supernovae_and_bao_pull_c_in_opposite_directions():
+    """
+    The other published statement about this model, and a sharper
+    one than a central value: supernovae pull ``c`` above unity
+    while BAO pushes it below.
+
+    ``c = 1`` is where the far-future equation of state reaches
+    exactly -1, so which side of it the data sits on is the
+    difference between a phantom and a quintessence-like fate --
+    the reason the split is worth reproducing rather than
+    averaging over.
+    """
+
+    from CosmoFit import Fitter
+
+    def best_c(datasets, free, initial):
+
+        fit = Fitter(
+            model=HDE, datasets=datasets,
+            dataset_kwargs={"desi": {"version": "desi2025"}},
+            free_params=free, initial=initial,
+        )
+
+        fit.best_fit()
+
+        return fit.best_fit_params["c_hde"]
+
+    supernovae = best_c(
+        ["cc", "pantheon"], ["H0", "Omega_m", "c_hde"],
+        {"H0": 68.0, "Omega_m": 0.28, "c_hde": 1.0, "rd": 147.1},
+    )
+
+    bao = best_c(
+        ["cc", "desi"], ["H0", "Omega_m", "rd", "c_hde"],
+        {"H0": 68.0, "Omega_m": 0.28, "rd": 147.1, "c_hde": 1.0},
+    )
+
+    assert supernovae > 1.0 > bao, (supernovae, bao)
