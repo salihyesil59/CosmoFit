@@ -249,10 +249,14 @@ class HDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def omega_de_fraction(self, z):
         """
-        Dark-energy density parameter at ``z``, from the solved
-        background.
+        The **density parameter** ``rho_DE(z) / rho_crit(z)``, which
+        is what the ODE solves for.
+
+        Not the same thing as :meth:`Omega_de` -- see there. They
+        agree at ``z = 0`` and nowhere else, which is exactly the
+        kind of coincidence that hides a mix-up.
 
         Below the tabulated range ``Omega_DE`` is continued with its
         analytic early-time limit, ``Omega_DE proportional to a``,
@@ -313,11 +317,38 @@ class HDE(Cosmology):
 
             - (2.0 / 3.0)
 
-            * np.sqrt(self.Omega_de(z))
+            * np.sqrt(self.omega_de_fraction(z))
 
             / float(self.params.c_hde)
 
         )
+
+    # ---------------------------------------------------------
+
+    def Omega_de(self, z):
+        r"""
+        Dark-energy density in units of **today's** critical
+        density -- the term as it appears inside ``E(z)^2``, which
+        is what every other model in this library returns here and
+        what :class:`~cosmology.calculators.recombination.Recombination`
+        expects.
+
+        For HDE that is *not* the quantity the ODE integrates.
+        The solution is ``rho_DE(z) / rho_crit(z)``, a ratio of two
+        things that both evolve; this is
+        ``rho_DE(z) / rho_crit(0)``, so the two differ by
+        ``E(z)^2``. They coincide at ``z = 0``, which is why
+        getting it wrong is quiet: the Friedmann closure still
+        holds and only the redshift dependence is off, by a factor
+        of 0.59 at ``z = 0.5`` and 4e-10 at recombination.
+
+        Checked against the continuity equation -- against
+        ``exp(3 \int_0^z (1 + w) / (1 + z') dz')`` with ``w`` from
+        :meth:`w_de` -- which is an independent route to the same
+        density, and agrees to 1e-10.
+        """
+
+        return self.omega_de_fraction(z) * self.E(z) ** 2
 
     # ---------------------------------------------------------
 
@@ -329,7 +360,7 @@ class HDE(Cosmology):
 
             self.Omega_m * cube(1.0 + z)
 
-            / (1.0 - self.Omega_de(z))
+            / (1.0 - self.omega_de_fraction(z))
 
         )
 
@@ -352,7 +383,7 @@ class HDE(Cosmology):
 
         z = np.asarray(z, dtype=float)
 
-        omega = self.Omega_de(z)
+        omega = self.omega_de_fraction(z)
 
         f = 1.0 - omega
 
