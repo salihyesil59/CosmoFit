@@ -807,6 +807,7 @@ class Fitter:
 
         self.sampler = None
         self.burnin = 0
+        self.nested = None
         self.best_fit_result = None
 
         #: The :class:`~stats.chains.ChainFile` this fit's chain
@@ -1800,6 +1801,275 @@ class Fitter:
     # ============================================================
     # Best fit
     # ============================================================
+
+    # ============================================================
+    # Evidence, profiles and curvature
+    # ============================================================
+
+    def _respawn(self, free_params, overrides=None):
+        """
+        An equivalent fitter with a different set of free
+        parameters -- same model, same data, same everything else.
+
+        Used by :meth:`profile`, which has to re-fit with one
+        parameter held fixed. Built from the stored construction
+        arguments rather than by mutating this fitter, so the
+        original is left exactly as the caller had it.
+        """
+
+        initial = dict(self._initial_all)
+
+        initial.update(overrides or {})
+
+        return type(self)(
+            model=self.model_cls,
+            datasets=list(self.dataset_names),
+            free_params=list(free_params),
+            initial=initial,
+            bounds=self.bounds,
+            dataset_kwargs=self.dataset_kwargs or None,
+            compute_rd=self.compute_rd,
+            derive_sigma8=self.derive_sigma8,
+        )
+
+    # ------------------------------------------------------------
+
+    def run_nested(self, n_live=500, dlogz=0.05, seed=42,
+                   progress=True, **kwargs):
+        """
+        Integrate the posterior by nested sampling, giving the
+        Bayesian evidence ``ln Z`` as well as samples.
+
+        Needs ``dynesty``: ``pip install "cosmofit[evidence]"``.
+
+        This is the tool for the comparisons where a
+        likelihood-ratio test is not defined -- ``LsCDM`` against
+        ``LCDM``, which is reached only as ``z_dagger -> infinity``,
+        or ``DGP``, which is not nested at all. See
+        :mod:`stats.evidence`, and read its note on prior
+        sensitivity before quoting a Bayes factor.
+
+        Parameters
+        ----------
+        n_live : int, optional
+            Live points; the accuracy knob. The evidence error
+            scales roughly as ``sqrt(information / n_live)``.
+        dlogz : float, optional
+            Stopping criterion on the remaining evidence.
+        seed : int, optional
+        progress : bool, optional
+        **kwargs
+            Forwarded to ``dynesty.NestedSampler``.
+
+        Returns
+        -------
+        stats.nested.NestedResult
+        """
+
+        from CosmoFit.stats.nested import run_nested as _run
+
+        self.nested = _run(
+            self.logpost,
+            self.prior,
+            self.free_params,
+            n_live=n_live,
+            dlogz=dlogz,
+            seed=seed,
+            progress=progress,
+            **kwargs,
+        )
+
+        return self.nested
+
+    # ------------------------------------------------------------
+
+    def profile(self, name, values, restarts=0, seed=0, progress=False):
+        """
+        Profile likelihood: ``chi2`` minimized over every *other*
+        free parameter, at each fixed value of ``name``.
+
+        The honest tool when Wilks' theorem does not apply. It is
+        also how a boundary-limited parameter should be reported --
+        ``examples/lscdm_mcmc.ipynb`` found a 28-unit cliff in
+        ``z_dagger`` this way, which a marginal posterior smoothed
+        over.
+
+        Parameters
+        ----------
+        name : str
+            A free parameter of this fitter.
+        values : array_like
+            Values to fix it at.
+        restarts : int, optional
+            Passed to :meth:`best_fit` at each point. Worth setting
+            where the surface has more than one basin -- which is
+            exactly the situation a profile is usually
+            investigating.
+        seed : int, optional
+        progress : bool, optional
+
+        Returns
+        -------
+        dict
+            ``values``, ``chi2``, ``delta_chi2`` (from the profile
+            minimum), and ``params`` -- the re-optimized values of
+            the other parameters at each point.
+        """
+
+        if name not in self.free_params:
+
+            raise ValueError(
+                f"'{name}' is not a free parameter of this fitter "
+                f"({self.free_params}); there is nothing to profile."
+            )
+
+        others = [p for p in self.free_params if p != name]
+
+        if not others:
+
+            raise ValueError(
+                f"Profiling '{name}' needs at least one other free "
+                f"parameter to minimize over."
+            )
+
+        values = np.atleast_1d(np.asarray(values, dtype=float))
+
+        chi2 = np.empty(len(values))
+
+        params = []
+
+        for index, value in enumerate(values):
+
+            if progress:
+                print(f"  {name} = {value:g}", flush=True)
+
+            sub = self._respawn(others, {name: float(value)})
+
+            sub.best_fit(restarts=restarts, seed=seed)
+
+            chi2[index] = sub.best_fit_chi2
+
+            params.append(sub.best_fit_params)
+
+        return {
+            "name": name,
+            "values": values,
+            "chi2": chi2,
+            "delta_chi2": chi2 - chi2.min(),
+            "params": params,
+        }
+
+    # ------------------------------------------------------------
+
+    def fisher(self, steps=None, theta=None):
+        """
+        Fisher matrix: the curvature of ``chi2`` at the best fit,
+        ``F_ij = (1/2) d2 chi2 / d theta_i d theta_j``.
+
+        Central differences throughout -- a forward difference
+        would inherit a first-derivative error, and at a minimum
+        the first derivative is what is supposed to vanish.
+
+        Cheap where an MCMC is not: ``~2 n^2`` likelihood
+        evaluations. That is the whole reason it exists here --
+        ``examples/s8_tension_cmb.ipynb`` needed parameter errors
+        from a fit whose every evaluation is a CAMB call, where a
+        converged chain is about thirteen hours.
+
+        It is a *Gaussian approximation to the posterior*, good for
+        Planck's near-elliptical LCDM contours and poor for a
+        parameter against a prior edge or a posterior with a
+        plateau. Check it against something before trusting it.
+
+        Parameters
+        ----------
+        steps : array_like, optional
+            Finite-difference step per parameter. Defaults to
+            1e-3 of each prior width, which is small enough for the
+            quadratic approximation and large enough not to be
+            eaten by an analytic likelihood's own noise. **Set it
+            by hand for a Boltzmann-code likelihood**, where the
+            noise floor is much higher -- roughly a third of each
+            parameter's expected uncertainty.
+        theta : array_like, optional
+            Point to expand about. Defaults to the best fit, which
+            must therefore have been found.
+
+        Returns
+        -------
+        dict
+            ``matrix``, its inverse as ``covariance``, ``errors``
+            (the square roots of the diagonal), ``theta`` and
+            ``steps``.
+        """
+
+        if theta is None:
+
+            if self.best_fit_result is None:
+
+                raise RuntimeError(
+                    "fisher() expands about the best fit; call "
+                    "best_fit() first, or pass theta= explicitly."
+                )
+
+            theta = np.array(
+                [self.best_fit_params[k] for k in self.free_params],
+                dtype=float,
+            )
+
+        theta = np.asarray(theta, dtype=float)
+
+        if steps is None:
+            steps = 1.0e-3 * self._prior_width()
+
+        steps = np.broadcast_to(
+            np.asarray(steps, dtype=float), theta.shape,
+        ).copy()
+
+        n = len(theta)
+
+        chi2 = self.logpost.chi2
+
+        centre = chi2(theta)
+
+        matrix = np.zeros((n, n))
+
+        for i in range(n):
+
+            shift = np.zeros(n)
+            shift[i] = steps[i]
+
+            matrix[i, i] = (
+                chi2(theta + shift) - 2.0 * centre + chi2(theta - shift)
+            ) / steps[i] ** 2 / 2.0
+
+        for i in range(n):
+            for j in range(i + 1, n):
+
+                si, sj = np.zeros(n), np.zeros(n)
+                si[i], sj[j] = steps[i], steps[j]
+
+                mixed = (
+                    chi2(theta + si + sj) - chi2(theta + si - sj)
+                    - chi2(theta - si + sj) + chi2(theta - si - sj)
+                )
+
+                matrix[i, j] = matrix[j, i] = (
+                    mixed / (4.0 * steps[i] * steps[j]) / 2.0
+                )
+
+        covariance = np.linalg.inv(matrix)
+
+        return {
+            "matrix": matrix,
+            "covariance": covariance,
+            "errors": np.sqrt(np.diag(covariance)),
+            "theta": theta,
+            "steps": steps,
+            "free_params": list(self.free_params),
+        }
+
+    # ------------------------------------------------------------
 
     def best_fit(self, x0=None, bounds=None, eps=None,
                  method="L-BFGS-B", restarts=0, seed=None):

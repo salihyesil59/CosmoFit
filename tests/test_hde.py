@@ -264,7 +264,10 @@ def test_it_fits():
         initial={"H0": 68.0, "Omega_m": 0.30, "c_hde": 0.8, "rd": 147.1},
     )
 
-    fit.best_fit(restarts=4, seed=0)
+    # One start is enough on this combination; the surface has a
+    # single minimum, which `test_supernovae_and_bao_pull_c...`
+    # exercises independently.
+    fit.best_fit()
 
     assert np.isfinite(fit.best_fit_chi2)
 
