@@ -166,6 +166,23 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   session with no configuration to retype
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
   extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
+* **Models from an action** (`CosmoFit.theory`, `pip install -e ".[theory]"`): give a
+  gravitational action on an FLRW metric and the library does the variational calculus --
+  reduces it to a point-like Lagrangian, varies the lapse for the Friedmann constraint,
+  solves or integrates it, and hands back an ordinary model every dataset already works on
+
+  * **Undeformed gravity in three sectors** -- `R`, `T` (torsion), `Q` (non-metricity);
+    the sign conventions are fixed by requiring each to reproduce General Relativity
+    exactly, and the tests assert it rather than trusting the convention
+  * **`f(T)` / `f(Q)`** -- solved pointwise, transcendental constraints included: the
+    exponential `f(Q)` model's Lambert-`W` Friedmann equation is rederived from the action
+  * **Quintessence and k-essence**, any `L(X, phi)` and any number of fields -- integrated
+    forwards from `z_init`, with `E(0) = 1` as a shooting condition. Validated against
+    *both* Copeland-Liddle-Wands attractors to five decimals
+  * **Scalar-tensor `F(phi) R`** -- the field sets the strength of gravity, bringing the
+    `3 H dF/dt` term into the Friedmann equation and a moving `G_eff/G_N` into the growth
+  * **A general `f(R)`** -- fourth-order, reduced by promoting `R` to an independent
+    variable held to its geometric value by a Lagrange multiplier
 * Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, configure
   one or more models (built-in or your own), edit free parameters, and run the MCMC fit(s) + plots
   with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
@@ -257,7 +274,7 @@ setup.
 |---|---|
 | **[01 · Getting started](examples/01-getting-started)** | [`quickstart`](examples/01-getting-started/quickstart.ipynb) — nothing to a real MCMC posterior in a couple of minutes; [`dataset_zoo`](examples/01-getting-started/dataset_zoo.ipynb) — all 21 datasets, the three non-Gaussian ones, and the sixteen pairs not to combine; [`cmb_from_scratch`](examples/01-getting-started/cmb_from_scratch.ipynb) — the CMB computed rather than compressed, and what that costs. |
 | **[02 · Models](examples/02-models)** | [`model_zoo_comparison`](examples/02-models/model_zoo_comparison.ipynb) — six dark-energy parametrizations head to head; [`modified_gravity_growth`](examples/02-models/modified_gravity_growth.ipynb) — f(Q)/f(R,T)/f(R) with `mu(a,k)` and growth data; [`holographic_family`](examples/02-models/holographic_family.ipynb) — HDE/ADE/RDE against published constraints. |
-| **[03 · Building models](examples/03-building-models)** | [`custom_models`](examples/03-building-models/custom_models.ipynb) — three routes to your own `E(z)`; [`models_from_an_action`](examples/03-building-models/models_from_an_action.ipynb) — give an *action* and let the library derive `E(z)`; [`scalar_field_models`](examples/03-building-models/scalar_field_models.ipynb) — quintessence and k-essence, integrated. |
+| **[03 · Building models](examples/03-building-models)** | [`custom_models`](examples/03-building-models/custom_models.ipynb) — three routes to your own `E(z)`; [`models_from_an_action`](examples/03-building-models/models_from_an_action.ipynb) — give an *action* and let the library derive `E(z)`; [`scalar_field_models`](examples/03-building-models/scalar_field_models.ipynb) — quintessence, k-essence and scalar-tensor gravity, integrated. |
 | **[04 · Inference](examples/04-inference)** | [`evidence_and_model_selection`](examples/04-inference/evidence_and_model_selection.ipynb) — AIC/BIC, likelihood-ratio, and Bayesian evidence; [`profile_likelihood_and_fisher`](examples/04-inference/profile_likelihood_and_fisher.ipynb) — three ways to an error bar; [`tension_statistics`](examples/04-inference/tension_statistics.ipynb) — four definitions of "they disagree at 4σ". |
 | **[05 · Case studies](examples/05-case-studies)** | [`cpl_mcmc_analysis`](examples/05-case-studies/cpl_mcmc_analysis.ipynb) and [`cpl_mcmc_tfd42`](examples/05-case-studies/cpl_mcmc_tfd42.ipynb) — the CPL deep dive and its publication-scale variant; [`lscdm_mcmc`](examples/05-case-studies/lscdm_mcmc.ipynb) — does ΛsCDM still relieve the H₀ tension?; [`s8_tension_cmb`](examples/05-case-studies/s8_tension_cmb.ipynb) — the S₈ tension from a from-scratch Planck spectrum; [`dark_energy_evidence_audit`](examples/05-case-studies/dark_energy_evidence_audit.ipynb) — how much of the dark-energy evidence is a choice, across 20 combinations. |
 
@@ -509,7 +526,7 @@ This works for any model CosmoFit knows about, built-in or [custom](#custom-mode
 ## Custom Models
 
 Testing a model that isn't in the literature -- and isn't one of
-CosmoFit's six built-ins -- doesn't require touching the library's
+CosmoFit's twenty built-ins -- doesn't require touching the library's
 internals. `define_model` builds a usable model from a single
 `E(z)` function (that alone is enough to fit against every dataset
 and produce every plot except `w_of_z()`/`deceleration()`); any new
@@ -1856,45 +1873,51 @@ The package structure may continue to evolve before the first stable **v1.0.0** 
 
 ## Roadmap
 
+Most of what this section used to list has been built. What is left:
+
 ### Datasets
 
-* **eBOSS DR16 ELG and Lyman-alpha BAO** -- released as tabulated
-  (non-Gaussian) likelihood grids rather than mean+covariance, so
-  they need a grid-interpolating likelihood the library does not
-  have yet.
-* **DESI DR1/DR2 full-shape** (`fsigma8` + BAO jointly, with their
-  cross-covariance) -- more constraining than BAO alone, and the
-  natural companion to the growth machinery already here.
-* **Planck lensing** and **ACT DR6** -- more CMB, and an
-  independent one.
-* **Planck low-l (Commander/SimAll)** -- at l < 30 the C_l
-  distribution is not Gaussian, so this needs a different
-  likelihood form, not another bandpower vector. Until then the
-  `"tau"` prior stands in for it.
+* **Strong-lensing time delays** (TDCOSMO / H0LiCOW) -- the one genuinely
+  independent probe of `H0` still missing, and the third leg of the H0
+  tension alongside the CMB and the distance ladder. Its per-lens
+  likelihoods are skewed log-normals, which the tabulated machinery
+  already here would handle.
+* **DESI DR1/DR2 full-shape** -- deliberately *not* planned. DESI publish
+  MCMC chains and the inputs to their modelling pipeline, but no
+  compressed Gaussian summary, so using it means implementing an EFT
+  model with its own nuisance parameters. That is outside a
+  background-plus-linear-growth library, and it is not cheaply
+  validatable. See the `2d59fe7` commit message.
 
 ### Physics
 
-* **Massive neutrinos and `N_eff` in each model's low-redshift
-  `E(z)`.** Both parameters now reach the Boltzmann backend and the
-  sound horizon, and both are treated exactly there -- but the
-  models' own `E(z)` still counts massive neutrinos inside
-  `Omega_m` as pure matter, which is right below z ~ 100 and
-  increasingly wrong above it.
-* **`Sum m_nu` as a fitted parameter.** Everything needed is in
-  place; what is missing is the growth-suppression signature that
-  actually constrains it.
-* **Holographic dark energy**, which needs a per-step ODE solve
-  rather than a closed form.
+* **Massive neutrinos and `N_eff` in each model's low-redshift `E(z)`.**
+  Both parameters reach the Boltzmann backend and the sound horizon, and
+  are treated exactly there -- but the models' own `E(z)` still counts
+  massive neutrinos inside `Omega_m` as pure matter, which is right below
+  z ~ 100 and increasingly wrong above it.
+* **`Sum m_nu` as a fitted parameter.** Everything needed is in place;
+  what is missing is enough growth-suppression signal to constrain it.
+  The compressed Planck priors cannot supply it -- they are blind to
+  `m_nu` by construction, and `Fitter` says so.
+* **`f(R)` growth.** The background is solved from the action, but `mu`
+  there is scale-dependent -- a Compton wavelength enters -- so it is
+  refused rather than given a scale-free answer. `FRHuSawicki` carries
+  the standard form if that is what you need.
+
+### Performance
+
+* **Batched log-posterior** (`emcee`'s `vectorize=True`): evaluating every
+  walker in one call rather than one at a time. The one structural lever
+  left -- worth perhaps 2-4x, and the only one that helps inside a
+  Jupyter kernel, where `n_processes` does not. It needs a batch axis
+  through every calculator, so it is a real refactor rather than a flag.
 
 ### v1.0.0
 
 * Stable public API
 * Complete documentation
 * Test coverage across the whole library, not only the newest parts
-* Continuous integration
-* Production-ready release
-
----
 
 ## References
 

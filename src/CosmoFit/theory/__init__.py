@@ -59,6 +59,22 @@ which happens automatically:
 ...     },
 ... ).build("Starobinsky")
 
+The gravitational sector may couple to a field, which is
+scalar-tensor gravity rather than a field on top of General
+Relativity -- and changes how structure grows as well as how the
+universe expands:
+
+>>> scalar_tensor = Action(
+...     "(1 + xi*phi**2)*R",
+...     fields={"phi": "X - V0"},
+...     params={
+...         "xi": {"default": 0.02, "bounds": (-0.5, 0.5)},
+...         "V0": {"default": 2.1, "bounds": (0.05, 20.0)},
+...     },
+...     closure="V0",
+...     growth="quasi_static",     # G_eff/G_N is not 1 here
+... ).build("ScalarTensor")
+
 See :mod:`~theory.minisuperspace` for the reduction itself,
 :mod:`~theory.curvature` for the Lagrange-multiplier route a
 general ``f(R)`` takes and why it integrates *backwards*,
