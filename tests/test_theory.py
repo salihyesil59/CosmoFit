@@ -127,19 +127,39 @@ def test_undeformed_action_gives_general_relativity(geometry):
     assert ratio == 1
 
 
-def test_general_fr_is_refused_not_approximated():
+def test_the_plain_reduction_refuses_a_nonlinear_second_derivative():
     """
-    A general ``f(R)`` gives fourth-order field equations, which
-    the integration-by-parts reduction cannot handle. It has to
-    refuse: silently dropping a term that is not a total
-    derivative would return a different theory's ``E(z)`` with no
-    sign that anything happened.
+    Integrating ``addot`` away by parts is legitimate only while
+    the Lagrangian is linear in it; otherwise the discarded term is
+    not a total derivative and dropping it returns a different
+    theory with no sign that anything happened.
+
+    A general ``f(R)`` is exactly that case, and is *not* refused
+    -- ``Action`` routes it to the Lagrange-multiplier reduction of
+    ``theory.curvature`` instead, which is tested in
+    ``tests/test_theory_curvature.py``. So this checks the guard
+    where it still applies: called directly, on a Lagrangian
+    nothing has prepared.
     """
 
+    action = Action("R + A0*R**2", params={"A0": {"default": 0.1}})
+
+    assert action.is_fourth_order
+
+    ms = Minisuperspace()
+
+    scalar = sympy.Symbol("R")
+    A0 = sympy.Symbol("A0")
+
+    # The naive Lagrangian, with R left as shorthand for its
+    # geometric value -- which is what the multiplier exists to
+    # avoid.
+    L = gravity_lagrangian(
+        ms, "metric", scalar + A0 * scalar**2, scalar,
+    )
+
     with pytest.raises(ValueError, match="nonlinear"):
-        Action(
-            "R + A0*R**2", params={"A0": {"default": 0.1}},
-        ).build("Starobinsky")
+        reduce_order(L, ms)
 
 
 def test_scalar_field_equations_are_correct():

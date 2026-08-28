@@ -632,12 +632,6 @@ fixed here by requiring that an undeformed `f` reproduce General
 Relativity exactly, and the test suite asserts that in all three
 sectors rather than trusting the convention.
 
-* A general `f(R)` is **refused**, not approximated. It gives
-  fourth-order field equations, so the integration by parts that
-  removes `addot` would be discarding something that is not a
-  total derivative -- a different theory, silently. Actions linear
-  in `R` (GR, non-minimal `F(phi) R`) and any `f(T)` or `f(Q)`
-  reduce correctly.
 * An action that does not satisfy `E(0) = 1` is **refused**. It
   would predict every distance wrong by a constant factor without
   looking broken. `closure=` names the parameter that condition
@@ -646,6 +640,50 @@ sectors rather than trusting the convention.
 * `growth="quasi_static"` is **opt-in**. `mu = 1/f'` is a
   statement about perturbations, which a background action does
   not by itself determine.
+
+### A general `f(R)`
+
+Fourth-order, and it gets its own reduction — applied
+automatically, with nothing to ask for:
+
+```python
+model = Action(
+    "R - 2*Lam + alpha_fr*R**2",
+    params={"Lam":      {"default": 2.1, "bounds": (0.0, 6.0)},
+            "alpha_fr": {"default": 1e-3, "bounds": (1e-6, 1.0)}},
+).build("Starobinsky")
+```
+
+The ordinary reduction removes the `addot` in the Einstein–Hilbert
+term by integrating by parts, which is legitimate only while the
+Lagrangian is *linear* in it. For a general `f(R)` it is not — the
+term that would be dropped is not a total derivative. Promoting `R`
+to an **independent variable**, held to its geometric value by a
+Lagrange multiplier, gives
+
+```
+L = (1/2) N a^3 [ f(R) - f'(R) R + f'(R) R_geom ]
+```
+
+which is linear in `addot` again, at the cost of one extra dynamical
+variable. That variable is the theory's fourth order made visible,
+and it appears as a parameter: **`R_0`**, the Ricci scalar today —
+an initial condition General Relativity does not have. There is no
+`closure` here, because `E(0) = 1` holds by construction.
+
+**Checked three ways.** The derived Friedmann constraint equals the
+textbook `3 f_R H² = (f_R R − f)/2 − 3H d(f_R)/dt + rho`
+symbolically. `alpha -> 0` reproduces ΛCDM, and does so smoothly:
+over `z <= 5` the departure falls 6.4e-01 → 1.8e-01 → 4.2e-03 as
+`alpha` goes 1e-1 → 1e-3 → 1e-5. And the accuracy measure is the
+**third** equation of
+motion, from varying `a` — the one the integration never uses,
+which holds by the Bianchi identity and comes out at 1e-15.
+
+Unlike a scalar field, this integrates **backwards** from today, and
+the difference is measured rather than assumed: a `1e-8` kick to
+`R_0` moves `E(z)` by less than that out to `z = 1100`, where a
+scalar field would have run away.
 
 ### Scalar fields
 

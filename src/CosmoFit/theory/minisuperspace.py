@@ -29,9 +29,11 @@ total time derivative -- legitimate exactly when ``L`` is *linear*
 in ``addot``, which holds for General Relativity, a non-minimally
 coupled ``F(phi) R``, and every ``f(T)`` / ``f(Q)`` (whose scalars
 contain no ``addot`` at all). It fails for a general ``f(R)``,
-which is genuinely fourth-order and needs a Lagrange multiplier
-instead; :func:`reduce_order` raises rather than silently
-discarding a term that is not a total derivative.
+which is genuinely fourth-order; :func:`reduce_order` raises
+rather than silently discarding a term that is not a total
+derivative, and :mod:`~theory.curvature` handles that case by
+making ``R`` an independent variable first -- after which the
+reduction here applies again unchanged.
 
 Units
 -----
@@ -93,9 +95,16 @@ class Minisuperspace:
     fields : sequence of str, optional
         Names of scalar fields living on this background. Each
         becomes a ``sympy.Function`` of ``t``.
+
+    curvature : bool, optional
+        Carry the Ricci scalar as an *independent* dynamical
+        variable ``R(t)`` rather than as shorthand for a
+        combination of ``a`` and its derivatives. That is what
+        makes a general ``f(R)`` reducible -- see
+        :mod:`~theory.curvature`.
     """
 
-    def __init__(self, fields=()):
+    def __init__(self, fields=(), curvature: bool = False):
 
         self.t = sp.Symbol("t", real=True)
 
@@ -109,13 +118,20 @@ class Minisuperspace:
             for name in fields
         }
 
+        self.R = sp.Function("R", real=True)(self.t) if curvature else None
+
     # ---------------------------------------------------------
 
     @property
     def coordinates(self):
-        """The dynamical coordinates: ``a`` and every field."""
+        """
+        The dynamical coordinates: ``a``, every field, and the
+        curvature variable where there is one.
+        """
 
-        return (self.a, *self.fields.values())
+        extra = () if self.R is None else (self.R,)
+
+        return (self.a, *self.fields.values(), *extra)
 
     # ---------------------------------------------------------
 
@@ -315,13 +331,16 @@ def reduce_order(L: sp.Expr, ms: Minisuperspace) -> sp.Expr:
         if sp.simplify(sp.diff(L, qddot, 2)) != 0:
             raise ValueError(
                 f"The Lagrangian is nonlinear in {qddot}, so it "
-                f"cannot be reduced to second order by parts. "
-                f"This is the general f(R) case (fourth-order "
-                f"field equations), which needs a Lagrange-"
-                f"multiplier treatment this module does not "
-                f"implement yet. A Lagrangian linear in R -- "
-                f"General Relativity, or a non-minimal F(phi) R "
-                f"-- works, as does any f(T) or f(Q)."
+                f"cannot be reduced to second order by parts -- "
+                f"the term that would be dropped is not a total "
+                f"derivative.\n\n"
+                f"A general f(R) reaches this and is handled: "
+                f"`theory.curvature` promotes R to an independent "
+                f"variable held to its geometric value by a "
+                f"Lagrange multiplier, which makes the Lagrangian "
+                f"linear in addot again, and `Action` routes there "
+                f"automatically. Seeing this message means "
+                f"something else produced the nonlinearity."
             )
 
         A = sp.diff(L, qddot)
