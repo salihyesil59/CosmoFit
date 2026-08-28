@@ -193,10 +193,16 @@ def test_scalar_field_equations_are_correct():
     ) == 1
 
 
-def test_building_a_model_with_fields_is_refused():
+def test_building_a_field_model_needs_a_closure_parameter():
     """
-    Fields reduce correctly but are not yet integrated; the
-    difference has to be visible.
+    A field action's state is set at ``z_init`` and integrated
+    forwards, so nothing makes ``H(0)`` come out as ``H0`` on its
+    own -- one parameter has to be solved for by requiring it.
+    Building without naming that parameter has to fail rather
+    than quietly return a model whose distances are all off by a
+    constant factor.
+
+    Integration itself lives in ``tests/test_theory_fields.py``.
     """
 
     action = Action(
@@ -205,7 +211,7 @@ def test_building_a_model_with_fields_is_refused():
         params={"V0": {"default": 1.0}},
     )
 
-    with pytest.raises(NotImplementedError, match="scalar fields"):
+    with pytest.raises(ValueError, match="closure"):
         action.build("Quintessence")
 
 

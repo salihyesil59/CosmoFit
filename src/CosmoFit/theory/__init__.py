@@ -35,10 +35,25 @@ already knows how to use.
 ... )
 >>> fit.best_fit()
 
+An action can also carry dynamical scalar fields, in which case
+the expansion history is integrated rather than solved pointwise:
+
+>>> quintessence = Action(
+...     "R",
+...     fields={"phi": "X - V0*exp(-lam*phi)"},
+...     params={
+...         "V0": {"default": 2.1, "bounds": (0.05, 50.0)},
+...         "lam": {"default": 0.5, "bounds": (0.0, 1.7)},
+...     },
+...     closure="V0",
+... ).build("ExponentialQuintessence")
+
 See :mod:`~theory.minisuperspace` for the reduction itself and
 what it can and cannot do (a general ``f(R)`` is fourth-order and
-is refused rather than approximated), and :mod:`~theory.solve` for
-how a transcendental constraint is solved on the physical branch.
+is refused rather than approximated), :mod:`~theory.solve` for how
+a transcendental constraint is solved on the physical branch, and
+:mod:`~theory.fields` for why a field's initial conditions are set
+early rather than today.
 """
 
 try:
