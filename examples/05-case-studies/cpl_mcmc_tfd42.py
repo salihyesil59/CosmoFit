@@ -22,18 +22,18 @@ core even at ``n_processes=1``.
 
 Usage
 -----
-    python examples/cpl_mcmc_tfd42.py
+    python examples/05-case-studies/cpl_mcmc_tfd42.py
 
 Output
 ------
 Everything below is printed to stdout as it runs (redirect to a file
-if you want it saved: ``python examples/cpl_mcmc_tfd42.py | tee
+if you want it saved: ``python examples/05-case-studies/cpl_mcmc_tfd42.py | tee
 cpl_mcmc_tfd42.log``). Every figure is saved as an SVG into
-``examples/cpl_mcmc_tfd42_figures/`` (created if it doesn't exist)
+``examples/05-case-studies/cpl_mcmc_tfd42_figures/`` (created if it doesn't exist)
 instead of being displayed -- there's no notebook cell to render them
 inline in. Open them afterwards in a browser or image viewer.
 
-Both chains are saved to ``examples/cpl_mcmc_tfd42_chains/`` as they
+Both chains are saved to ``examples/05-case-studies/cpl_mcmc_tfd42_chains/`` as they
 are sampled, and reused on a re-run -- so running this script a
 second time (after adding a figure, or after interrupting it) skips
 straight past the MCMC to the analysis. Delete that directory to

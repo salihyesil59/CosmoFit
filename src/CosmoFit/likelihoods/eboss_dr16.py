@@ -26,7 +26,7 @@ misrepresent the measurement:
 The second is the one worth having. At ``z = 2.334`` this is the
 highest-redshift BAO measurement in the library outside the CMB, and
 it is independent of DESI's -- which matters directly for
-``examples/lscdm_mcmc.ipynb``, where the constraint on the LsCDM
+``examples/05-case-studies/lscdm_mcmc.ipynb``, where the constraint on the LsCDM
 sign-switch redshift turned on a profile-likelihood cliff straddling
 DESI's own Lyman-alpha bin at ``z = 2.33``.
 

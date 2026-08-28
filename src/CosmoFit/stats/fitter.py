@@ -2000,7 +2000,7 @@ class Fitter:
 
         The honest tool when Wilks' theorem does not apply. It is
         also how a boundary-limited parameter should be reported --
-        ``examples/lscdm_mcmc.ipynb`` found a 28-unit cliff in
+        ``examples/05-case-studies/lscdm_mcmc.ipynb`` found a 28-unit cliff in
         ``z_dagger`` this way, which a marginal posterior smoothed
         over.
 
@@ -2110,7 +2110,7 @@ class Fitter:
 
         Cheap where an MCMC is not: ``~2 n^2`` likelihood
         evaluations. That is the whole reason it exists here --
-        ``examples/s8_tension_cmb.ipynb`` needed parameter errors
+        ``examples/05-case-studies/s8_tension_cmb.ipynb`` needed parameter errors
         from a fit whose every evaluation is a CAMB call, where a
         converged chain is about thirteen hours.
 
