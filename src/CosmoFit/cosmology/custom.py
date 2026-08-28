@@ -275,7 +275,20 @@ def _compile_expression(expr: str, var_names: tuple[str, ...] = ("z",)):
         namespace.update(params)
         namespace.update(zip(var_names, values))
 
-        return eval(code, {"__builtins__": {}}, namespace)
+        # `errstate` is not about tidiness. A sampler or an
+        # optimizer restart will land on parameter values where a
+        # perfectly reasonable expression goes invalid -- a
+        # negative square root, an overflow -- and the fitter
+        # already handles that: `E(z)` comes back non-finite, the
+        # chi-squared does too, and the point is rejected.
+        #
+        # What it cannot survive is numpy *reporting* it. Emitting
+        # a RuntimeWarning runs `warnings.warn`, which needs the
+        # builtins that were deliberately removed here, and the
+        # ordinary invalid value then arrives as a bewildering
+        # `KeyError: '__import__'` from inside `eval`.
+        with np.errstate(all="ignore"):
+            return eval(code, {"__builtins__": {}}, namespace)
 
     return f
 

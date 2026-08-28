@@ -414,3 +414,95 @@ def test_hde_needs_a_positive_c():
     with pytest.raises(ValueError, match="c > 0"):
 
         build("HDE", c_hde=-0.5).E(0.0)
+
+
+# ============================================================
+# What a hand-written subclass owes the library
+# ============================================================
+
+def test_a_subclass_without_dEdz_says_so():
+    """
+    ``dEdz`` is required of a direct ``Cosmology`` subclass, and
+    from the moment it is constructed -- the distance integrator
+    interpolates ``1/E(z)`` with a Hermite spline built from that
+    derivative, which is what makes it exact to fourth order
+    rather than second.
+
+    That requirement arrived with the switch to Hermite splines
+    and is easy to trip over, because the failure happens in
+    ``__init__`` rather than at the call that needs it. So the
+    error has to name the method and say why it is not simply
+    finite-differenced for you -- ``define_model`` does exactly
+    that, and the message points there.
+    """
+
+    class NoDerivative(C.Cosmology):
+
+        def E(self, z):
+            z = np.asarray(z, dtype=float)
+            return np.sqrt(
+                self.Omega_m * (1.0 + z) ** 3 + 1.0 - self.Omega_m
+            )
+
+    with pytest.raises(NotImplementedError) as raised:
+        NoDerivative(NoDerivative.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
+
+    message = str(raised.value)
+
+    assert "dEdz" in message
+    assert "define_model" in message
+
+
+def test_define_model_supplies_the_derivative_a_subclass_must_write():
+    """
+    The counterpart: the same model built through
+    ``define_model`` works without one, because a central
+    difference is installed for it.
+    """
+
+    model = C.define_model(
+        "NoDerivative",
+        E=lambda p, z: np.sqrt(
+            p["Omega_m"] * (1.0 + z) ** 3 + 1.0 - p["Omega_m"]
+        ),
+    )
+
+    cosmology = model(model.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
+
+    z = np.array([0.2, 1.0, 2.5])
+    h = 1.0e-5
+
+    numerical = (cosmology.E(z + h) - cosmology.E(z - h)) / (2.0 * h)
+
+    assert np.allclose(cosmology.dEdz(z), numerical, rtol=1e-6, atol=0)
+
+
+def test_an_invalid_value_in_an_expression_model_is_just_a_nan():
+    """
+    A model written as an expression string is evaluated with
+    builtins removed. A sampler or an optimizer restart will land
+    where such an expression goes invalid -- a negative square
+    root, an overflow -- and that is fine: ``E(z)`` comes back
+    non-finite, the chi-squared does too, and the point is
+    rejected.
+
+    What is not fine is numpy *reporting* it. Emitting a
+    RuntimeWarning runs ``warnings.warn``, which needs the
+    builtins that were deliberately removed, so the ordinary
+    invalid value used to surface as ``KeyError: '__import__'``
+    raised from inside ``eval`` -- during ``Fitter.best_fit``,
+    nowhere near the expression that caused it.
+    """
+
+    model = C.model_from_expression(
+        "Negative",
+        E="sqrt(1 + beta*z)",
+        extra_params={"beta": {"default": 0.0, "bounds": (-1.0, 1.0)}},
+    )
+
+    cosmology = model(model.PARAMS_CLASS(H0=70.0, Omega_m=0.3, beta=-0.9))
+
+    values = cosmology.E(np.array([0.5, 2.0, 5.0]))
+
+    assert np.isfinite(values[0])
+    assert np.all(np.isnan(values[1:]))
