@@ -694,6 +694,54 @@ not silently overstated either.
 
 ---
 
+### Deriving a model from its action
+
+`CosmoFit.theory` takes a gravitational action on an FLRW metric and
+derives `E(z)` from it, rather than being handed one. The reduction
+itself is the standard minisuperspace construction -- write the
+metric with an explicit lapse, substitute it into the action, and
+vary -- and needs no citation. What follows is what it is *checked*
+against, and the one place it imports a result rather than deriving
+one.
+
+- **Copeland, Liddle & Wands (1998)**, *Exponential potentials and
+  cosmological scaling solutions*, Phys. Rev. D 57, 4686.
+  [arXiv:gr-qc/9711068](https://arxiv.org/abs/gr-qc/9711068)
+- **Validation, not implementation.** Their late-time attractors for
+  an exponential potential depend on the slope `lambda` alone, so
+  there is nothing to tune and nothing of theirs used as an input.
+  On a matter background both are reproduced from the action to five
+  decimals: the field-dominated branch (`lambda^2 < 3`, `w =
+  -1 + lambda^2/3`, `Omega_phi = 1`) and the scaling branch
+  (`lambda^2 > 3`, `w = 0`, `Omega_phi = 3/lambda^2` -- 0.75006
+  against 0.75 at `lambda = 2`).
+- Checked by: [`tests/test_theory_fields.py`](tests/test_theory_fields.py)
+
+- **Boisseau, Esposito-Farese, Polarski & Starobinsky (2000)**,
+  *Reconstruction of a scalar-tensor theory of gravity in an
+  accelerating universe*, Phys. Rev. Lett. 85, 2236.
+  [arXiv:gr-qc/0001066](https://arxiv.org/abs/gr-qc/0001066)
+- Their sub-horizon quasi-static coupling,
+  `G_eff = (1/8 pi F)(2F + 4 F_phi^2)/(2F + 3 F_phi^2)`, is what
+  `Action(growth="quasi_static")` reports as `mu` for a
+  non-minimally coupled action. This is an *additional* statement
+  about perturbations that a background action does not by itself
+  determine, which is why it is opt-in -- and why `Fitter` warns
+  when growth data meet such a model with `mu` still 1.
+- Used by: [`theory/action.py`](src/CosmoFit/theory/action.py)
+
+- **Bengochea & Ferraro (2009)**, *Dark torsion as the cosmic
+  speed-up*, Phys. Rev. D 79, 124019.
+  [arXiv:0812.1205](https://arxiv.org/abs/0812.1205)
+- The power-law `f(T) = T + alpha (-T)^b` used as the worked example
+  of a model this library does *not* otherwise carry: written as an
+  action, fitted to CC + DESI, and consistent with `b = 0` --
+  i.e. with Lambda-CDM -- as published constraints on it are.
+- Used by:
+  [`examples/03-building-models/models_from_an_action.ipynb`](examples/03-building-models/models_from_an_action.ipynb)
+
+---
+
 ## Methodology
 
 ### Photon-decoupling redshift z\* fitting formula

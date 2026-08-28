@@ -31,7 +31,7 @@ New here? Start with
 |---|---|
 | [`custom_models.ipynb`](03-building-models/custom_models.ipynb) | Three routes to a model that isn't in the library: an `E(z)` **string**, an `E(z)` **function**, or a `Cosmology` subclass. Plus `mu(a,k)` for modified gravity. |
 | [`models_from_an_action.ipynb`](03-building-models/models_from_an_action.ipynb) | Skip deriving `E(z)` by hand: give an **action** and let `CosmoFit.theory` do the variational calculus. Rederives ΛCDM and f(Q) exactly, fits a new f(T) model, and shows the three things it refuses to approximate. |
-| [`scalar_field_models.ipynb`](03-building-models/scalar_field_models.ipynb) | Quintessence and k-essence from the action, where the history must be **integrated**. Validated against both Copeland–Liddle–Wands attractors, and explains why the field's initial conditions go early rather than today. |
+| [`scalar_field_models.ipynb`](03-building-models/scalar_field_models.ipynb) | Quintessence, k-essence and **scalar-tensor gravity** from the action, where the history must be **integrated**. Validated against both Copeland–Liddle–Wands attractors; explains why the field's initial conditions go early rather than today, and why a field coupled to curvature changes the growth of structure as well as the expansion. |
 
 ## 04 · Inference
 
