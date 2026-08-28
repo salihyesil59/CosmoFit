@@ -243,7 +243,14 @@ class Action:
         Scalar fields, mapping name -> Lagrangian density written
         in terms of the field and its kinetic scalar ``X``
         (``"X - V0*exp(-lam*phi)"`` for exponential quintessence,
-        or any other ``L(X, phi)`` for k-essence).
+        or any other ``L(X, phi)`` for k-essence). More than one is
+        fine; each gets its own equation of motion.
+
+        A field's name is also in scope in ``gravity``, which is
+        how scalar-tensor gravity is written --
+        ``"(1 + xi*phi**2)*R"`` couples the field to curvature
+        rather than adding it on top of General Relativity, and
+        brings the ``3 H dF/dt`` term into the Friedmann equation.
 
         A field's expansion history is *integrated* rather than
         solved pointwise -- see :mod:`~theory.fields` -- and it
@@ -448,6 +455,23 @@ class Action:
                 fluid.parameter, sp.Symbol(fluid.parameter)
             )
 
+        # A field's own name, so the gravitational sector can
+        # couple to it: `F(phi) R` is scalar-tensor gravity, not a
+        # scalar on top of General Relativity, and writing it is
+        # the only way to say so.
+        for name in self.fields:
+
+            if name in GEOMETRY_SCALAR.values():
+                raise ValueError(
+                    f"A field cannot be called {name!r}: that is "
+                    f"the geometry scalar of the "
+                    f"{[g for g, s in GEOMETRY_SCALAR.items() if s == name][0]}"
+                    f" sector, and the two would be the same symbol "
+                    f"in every expression. Rename the field."
+                )
+
+            namespace[name] = sp.Symbol(name)
+
         scalar_name = GEOMETRY_SCALAR[self.geometry]
 
         namespace[scalar_name] = self.scalar
@@ -504,8 +528,20 @@ class Action:
 
         ms = Minisuperspace(tuple(self.fields))
 
+        # A field appearing in the gravitational sector arrives as
+        # a plain symbol, and has to become the function of time
+        # this minisuperspace carries before anything is varied --
+        # for the same reason `field_lagrangian` does it: left as a
+        # symbol, F(phi) would differentiate to zero and the
+        # non-minimal coupling would silently disappear while the
+        # constraint still looked reasonable.
+        gravity = self.gravity.subs(
+            {sp.Symbol(name): field for name, field in ms.fields.items()},
+            simultaneous=True,
+        )
+
         L = gravity_lagrangian(
-            ms, self.geometry, self.gravity, self.scalar,
+            ms, self.geometry, gravity, self.scalar,
         )
 
         L += fluid_lagrangian(

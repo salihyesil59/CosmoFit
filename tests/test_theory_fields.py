@@ -31,7 +31,7 @@ from CosmoFit import Fitter
 from CosmoFit.cosmology.models import LCDM
 
 
-pytest.importorskip("sympy")
+sympy = pytest.importorskip("sympy")
 
 from CosmoFit.theory import Action  # noqa: E402
 
@@ -367,3 +367,176 @@ def test_a_quintessence_model_fits_real_data():
 
     assert result.fun <= reference.fun + 1e-6
     assert reference.fun - result.fun < 2.0
+
+
+# ============================================================
+# Gravity that couples to the field
+# ============================================================
+
+def non_minimal(xi=0.02):
+    """
+    ``f = (1 + xi phi^2) R`` -- scalar-tensor gravity, where the
+    field sets the strength of gravity rather than sitting on top
+    of it. ``xi = 0`` is General Relativity.
+    """
+
+    return Action(
+        "(1 + xi*phi**2)*R",
+        fields={"phi": "X - V0"},
+        params={
+            "xi": {"default": xi, "bounds": (-0.5, 0.5)},
+            "V0": {"default": 2.1, "bounds": (0.05, 20.0)},
+        },
+        closure="V0",
+    ).build("NonMinimal")
+
+
+def test_the_gravitational_sector_can_couple_to_a_field():
+    """
+    ``F(phi) R`` is scalar-tensor gravity, and writing it needs the
+    field's name to be in scope where the *gravity* expression is
+    parsed -- which it was not, so the whole model class could not
+    be expressed even though the reduction handles it and the
+    documentation said so.
+    """
+
+    action = Action(
+        "(1 + xi*phi**2)*R",
+        fields={"phi": "X - V0"},
+        params={"xi": {"default": 0.02}, "V0": {"default": 2.1}},
+        closure="V0",
+    )
+
+    assert sympy.Symbol("phi") in action.gravity.free_symbols
+
+    # Linear in R, so it stays on the ordinary reduction rather
+    # than being diverted to the fourth-order one.
+    assert not action.is_fourth_order
+
+
+def test_the_non_minimal_constraint_is_the_textbook_one():
+    """
+    Scalar-tensor gravity's Friedmann equation is
+
+        3 F H^2 + 3 H dF/dt = rho,
+
+    with ``F`` the coefficient of ``R/2``. The ``3 H dF/dt`` term is
+    the whole content of the coupling, and it is also the term
+    that vanishes if the field reaches the gravitational sector as
+    a plain symbol rather than a function of time -- leaving a
+    constraint that still looks entirely reasonable and describes
+    a rescaled General Relativity instead.
+    """
+
+    from CosmoFit.theory.minisuperspace import friedmann_constraint
+
+    action = Action(
+        "(1 + xi*phi**2)*R",
+        fields={"phi": "X - V0"},
+        params={"xi": {"default": 0.02}, "V0": {"default": 2.1}},
+        closure="V0",
+    )
+
+    ms, L = action.lagrangian()
+
+    constraint = friedmann_constraint(L, ms)
+
+    phi, a, t = ms.fields["phi"], ms.a, ms.t
+    H = sympy.diff(a, t) / a
+
+    xi, V0 = sympy.Symbol("xi"), sympy.Symbol("V0")
+    Omega_m = sympy.Symbol("Omega_m")
+
+    F = 2 * (1 + xi * phi**2)
+
+    density = sympy.diff(phi, t) ** 2 / 2 + V0 + 3 * Omega_m / a**3
+
+    textbook = 3 * F * H**2 / 2 + 3 * H * sympy.diff(F, t) / 2 - density
+
+    ratio = sympy.simplify(
+        sympy.cancel(constraint.subs(ms.k, 0) / (a**3 * textbook))
+    )
+
+    assert ratio == 1
+
+    # The coupling term is there at all: the constraint depends on
+    # the field's velocity, which a frozen F(phi) could not
+    # produce. `free_symbols` would not show this -- a derivative
+    # is not a symbol -- so ask the expression directly.
+    assert constraint.has(sympy.Derivative(phi, t))
+
+
+def test_switching_the_coupling_off_gives_lcdm():
+
+    derived = make(non_minimal(xi=0.0), H0=70.0, Omega_m=0.3, phi_i=1.0)
+    direct = LCDM(LCDM.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
+
+    assert np.allclose(derived.E(Z), direct.E(Z), rtol=1e-9, atol=0)
+
+    assert derived.closure_value() == pytest.approx(
+        3.0 * direct.Omega_de0, rel=1e-8,
+    )
+
+
+@pytest.mark.parametrize("xi", [0.02, -0.02])
+def test_the_coupling_changes_the_history(xi):
+    """
+    And by an amount that depends on its sign -- a model where the
+    field never reached the gravitational sector would give the
+    same answer for both.
+    """
+
+    derived = make(non_minimal(xi=xi), H0=70.0, Omega_m=0.3, phi_i=1.0)
+    direct = LCDM(LCDM.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
+
+    departure = np.max(np.abs(derived.E(Z) / direct.E(Z) - 1.0))
+
+    assert departure > 1e-4
+    assert derived.history(Z).drift < 1e-10
+    assert float(derived.E(0.0)) == pytest.approx(1.0, abs=1e-9)
+
+
+# ============================================================
+# More than one field
+# ============================================================
+
+def test_two_fields_reduce_and_integrate():
+    """
+    Each field gets its own equation of motion and its own pair of
+    initial conditions, and the closure condition still has one
+    parameter to solve for.
+    """
+
+    action = Action(
+        "R",
+        fields={
+            "phi": "X - V1*exp(-l1*phi)",
+            "psi": "X - V2*exp(-l2*psi)",
+        },
+        params={
+            "V1": {"default": 1.0, "bounds": (0.01, 20.0)},
+            "V2": {"default": 1.1, "bounds": (0.01, 20.0)},
+            "l1": {"default": 0.5},
+            "l2": {"default": 1.0},
+        },
+        closure="V1",
+    )
+
+    assert set(action.field_equations()) == {"phi", "psi"}
+
+    model = action.build("TwoField")
+
+    assert {"phi_i", "dphi_i", "psi_i", "dpsi_i"} <= set(model.EXTRA_PARAMS)
+
+    derived = make(
+        model, H0=70.0, Omega_m=0.3,
+        V2=1.1, l1=0.5, l2=1.0,
+        phi_i=0.0, dphi_i=0.0, psi_i=0.0, dpsi_i=0.0,
+    )
+
+    assert float(derived.E(0.0)) == pytest.approx(1.0, abs=1e-9)
+    assert derived.history(Z).drift < 1e-10
+
+    # Both potentials are contributing: dropping one would change
+    # what the closure has to solve for.
+    assert derived.closure_value() > 1.0

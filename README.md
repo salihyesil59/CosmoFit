@@ -700,6 +700,25 @@ model = Action(
 ).build("ExponentialQuintessence")
 ```
 
+More than one field is fine, and a field's name is also in scope in
+`gravity` -- which is how **scalar-tensor gravity** is written:
+
+```python
+Action(
+    "(1 + xi*phi**2)*R",                       # F(phi) R, not R + phi
+    fields={"phi": "X - V0"},
+    params={"xi": {"default": 0.02, "bounds": (-0.5, 0.5)},
+            "V0": {"default": 2.1, "bounds": (0.05, 20.0)}},
+    closure="V0",
+)
+```
+
+That is a different theory from a field sitting on top of General
+Relativity: the field sets the strength of gravity, and the
+Friedmann equation gains the `3 H dF/dt` term. The derivation
+reproduces `3 F H^2 + 3 H dF/dt = rho` symbolically, and `xi = 0`
+returns ΛCDM to 1e-9.
+
 Each field adds two parameters, `phi_i` and `dphi_i` -- its value
 and `dphi/dN` at `z_init` (default 3000, and the earliest
 redshift the model can be evaluated at).
