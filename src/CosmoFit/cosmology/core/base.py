@@ -390,17 +390,43 @@ class Cosmology:
     # ---------------------------------------------------------
 
     def E(self, z):
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(self).__name__} does not define E(z), the "
+            f"dimensionless Hubble rate. Every model needs it: it "
+            f"is what every distance, likelihood and plot is built "
+            f"from. See cosmology.custom.define_model for the "
+            f"minimal-code way to supply one."
+        )
 
     # ---------------------------------------------------------
 
     def dEdz(self, z):
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(self).__name__} does not define dEdz(z).\n\n"
+            f"A model written by subclassing `Cosmology` directly "
+            f"has to, and from the moment it is constructed: the "
+            f"distance integrator interpolates 1/E(z) with a "
+            f"Hermite spline built from this derivative, which is "
+            f"what makes it exact to fourth order rather than "
+            f"second. A finite difference would quietly cost about "
+            f"four orders of magnitude of accuracy in every "
+            f"distance, so it is not substituted silently.\n\n"
+            f"Either write it out -- it is one line of calculus "
+            f"beside E(z), and every built-in model does -- or use "
+            f"cosmology.custom.define_model, which installs a "
+            f"central-difference fallback for exactly the cases "
+            f"where deriving it by hand is not worth it."
+        )
 
     # ---------------------------------------------------------
 
     def Omega_de(self, z):
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(self).__name__} does not define Omega_de(z), "
+            f"the dark-energy density in units of today's critical "
+            f"density. Only `background.Omega_de()` and the plots "
+            f"built on it need this -- fitting does not."
+        )
 
     # ---------------------------------------------------------
 
