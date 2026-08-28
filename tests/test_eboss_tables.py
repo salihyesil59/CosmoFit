@@ -768,3 +768,57 @@ def test_a_full_shape_fit_runs_end_to_end():
     theta[fit.free_params.index("sigma8")] = 0.60
 
     assert fit.logpost.chi2(theta) != baseline
+
+
+def test_a_scalar_query_returns_a_scalar(lya, elg):
+    """
+    The surfaces are interpolated on whatever shape the caller
+    passes -- a whole meshgrid for a contour plot, a single point
+    for a chi-squared -- and the single-point case has to come back
+    as a number.
+
+    It stopped doing so on the two-dimensional surface. SciPy 1.18
+    changed ``RectBivariateSpline.ev`` to return a length-1 array
+    where a scalar query previously gave a 0-d one, and
+    ``log_likelihood`` then raised ``TypeError`` from its ``float()``
+    -- so with a new enough SciPy the Lyman-alpha dataset could not
+    be evaluated at all, in a fit or anywhere else. The
+    three-dimensional branch already restored the caller's shape;
+    the two-dimensional one now does too.
+
+    Checked on both surfaces, since the point is the contract
+    rather than the one that broke.
+    """
+
+    for likelihood in (lya, elg):
+
+        value = likelihood.log_likelihood_at(likelihood.model())
+
+        assert isinstance(value, float)
+        assert np.isfinite(value)
+
+        assert isinstance(likelihood.chi2(), float)
+
+
+def test_array_queries_keep_their_shape(lya):
+    """
+    The counterpart: the shape a contour plot asks for is the shape
+    it gets back, for a vector and for a meshgrid alike.
+    """
+
+    peak = np.asarray(lya.data.peak, dtype=float)
+
+    line = peak + np.stack(
+        [np.linspace(-1.0, 1.0, 7), np.zeros(7)], axis=-1,
+    )
+
+    assert lya.log_likelihood_at(line).shape == (7,)
+
+    dm, dh = np.meshgrid(
+        peak[0] + np.linspace(-1.0, 1.0, 5),
+        peak[1] + np.linspace(-0.2, 0.2, 3),
+    )
+
+    grid = np.stack([dm, dh], axis=-1)
+
+    assert lya.log_likelihood_at(grid).shape == (3, 5)

@@ -14,7 +14,7 @@ New here? Start with
 | | |
 |---|---|
 | [`quickstart.ipynb`](01-getting-started/quickstart.ipynb) | The shortest path from nothing to a real MCMC posterior: flat ΛCDM on CC + DESI, a couple of minutes end to end. |
-| [`dataset_zoo.ipynb`](01-getting-started/dataset_zoo.ipynb) | A tour of the built-in datasets, each plotted on its own, plus which combinations to avoid and why. |
+| [`dataset_zoo.ipynb`](01-getting-started/dataset_zoo.ipynb) | All **21** datasets against one fixed fiducial cosmology — including the three that ship a likelihood *surface* rather than a mean, and the sixteen pairs that must not be combined. |
 
 ## 02 · Models
 
