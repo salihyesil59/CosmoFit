@@ -290,6 +290,15 @@ class TabulatedBAOLikelihood(BaseLikelihood):
 
         elif len(self.data.axes) == 2:
 
+            # `.reshape` for the same reason the 3-D branch below
+            # needs one: the interpolator is free to return its own
+            # shape, and does. SciPy 1.18 changed
+            # `RectBivariateSpline.ev` to give a length-1 array
+            # where a scalar query used to give a 0-d one, which
+            # made `float(log_likelihood())` -- every chi2 this
+            # dataset contributes -- raise instead of returning a
+            # number. Restoring the caller's shape here makes the
+            # branch independent of that choice.
             result = self._interpolator(
 
                 clipped[0],
@@ -299,6 +308,8 @@ class TabulatedBAOLikelihood(BaseLikelihood):
                 grid=False,
 
             )
+
+            result = np.asarray(result).reshape(inside.shape)
 
         else:
 
