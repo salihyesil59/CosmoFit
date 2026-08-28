@@ -248,14 +248,14 @@ is a convenience layer over them, not a replacement.
 
 ## Example Notebooks
 
-Fourteen notebooks under [`examples/`](examples/), organised by what you are
+Seventeen notebooks under [`examples/`](examples/), organised by what you are
 trying to do — see [`examples/README.md`](examples/README.md) for the full
 index. All are Colab-ready: click a badge and *Runtime → Run all*, no local
 setup.
 
 | | |
 |---|---|
-| **[01 · Getting started](examples/01-getting-started)** | [`quickstart`](examples/01-getting-started/quickstart.ipynb) — nothing to a real MCMC posterior in a couple of minutes; [`dataset_zoo`](examples/01-getting-started/dataset_zoo.ipynb) — all 21 datasets, the three non-Gaussian ones, and the sixteen pairs not to combine. |
+| **[01 · Getting started](examples/01-getting-started)** | [`quickstart`](examples/01-getting-started/quickstart.ipynb) — nothing to a real MCMC posterior in a couple of minutes; [`dataset_zoo`](examples/01-getting-started/dataset_zoo.ipynb) — all 21 datasets, the three non-Gaussian ones, and the sixteen pairs not to combine; [`cmb_from_scratch`](examples/01-getting-started/cmb_from_scratch.ipynb) — the CMB computed rather than compressed, and what that costs. |
 | **[02 · Models](examples/02-models)** | [`model_zoo_comparison`](examples/02-models/model_zoo_comparison.ipynb) — six dark-energy parametrizations head to head; [`modified_gravity_growth`](examples/02-models/modified_gravity_growth.ipynb) — f(Q)/f(R,T)/f(R) with `mu(a,k)` and growth data; [`holographic_family`](examples/02-models/holographic_family.ipynb) — HDE/ADE/RDE against published constraints. |
 | **[03 · Building models](examples/03-building-models)** | [`custom_models`](examples/03-building-models/custom_models.ipynb) — three routes to your own `E(z)`; [`models_from_an_action`](examples/03-building-models/models_from_an_action.ipynb) — give an *action* and let the library derive `E(z)`; [`scalar_field_models`](examples/03-building-models/scalar_field_models.ipynb) — quintessence and k-essence, integrated. |
 | **[04 · Inference](examples/04-inference)** | [`evidence_and_model_selection`](examples/04-inference/evidence_and_model_selection.ipynb) — AIC/BIC, likelihood-ratio, and Bayesian evidence; [`profile_likelihood_and_fisher`](examples/04-inference/profile_likelihood_and_fisher.ipynb) — three ways to an error bar; [`tension_statistics`](examples/04-inference/tension_statistics.ipynb) — four definitions of "they disagree at 4σ". |

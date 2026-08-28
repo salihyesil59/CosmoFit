@@ -15,6 +15,7 @@ New here? Start with
 |---|---|
 | [`quickstart.ipynb`](01-getting-started/quickstart.ipynb) | The shortest path from nothing to a real MCMC posterior: flat ΛCDM on CC + DESI, a couple of minutes end to end. |
 | [`dataset_zoo.ipynb`](01-getting-started/dataset_zoo.ipynb) | All **21** datasets against one fixed fiducial cosmology — including the three that ship a likelihood *surface* rather than a mean, and the sixteen pairs that must not be combined. |
+| [`cmb_from_scratch.ipynb`](01-getting-started/cmb_from_scratch.ipynb) | The CMB **computed** rather than compressed: 613 TT/TE/EE bandpowers against a CAMB spectrum. What it costs (three orders of magnitude), the `tau`–amplitude degeneracy that makes a low-ℓ prior compulsory, and a fit that reproduces Planck 2018 inside 0.7σ — with Fisher error bars in a minute instead of an MCMC in days. |
 
 ## 02 · Models
 
@@ -70,7 +71,7 @@ in their setup cell:
 |---|---|---|
 | `theory` | `models_from_an_action`, `scalar_field_models` | `sympy`, for deriving Friedmann equations |
 | `evidence` | `evidence_and_model_selection`, `tension_statistics` | `dynesty`, for nested sampling |
-| `cmb` | `s8_tension_cmb` | `camb`, for the from-scratch CMB spectrum |
+| `cmb` | `cmb_from_scratch`, `s8_tension_cmb` | `camb`, for the from-scratch CMB spectrum |
 
 ```bash
 pip install -e ".[theory,evidence,cmb]"
