@@ -573,6 +573,111 @@ class MyModel(Cosmology):
 
 ---
 
+## Models From an Action
+
+`define_model` still asks for `E(z)`, which means somebody has
+already done the variational calculus by hand. `CosmoFit.theory`
+takes the other end: give it a gravitational action on an FLRW
+metric and it derives `E(z)` itself.
+
+The method is the standard minisuperspace one. FLRW is written
+with an explicit lapse `N(t)`, the action is reduced to a
+point-like Lagrangian in `a`, `adot` and `N`, and varying the
+lapse produces the Friedmann *constraint* -- the lapse is a
+non-dynamical gauge degree of freedom, which is exactly why its
+variation gives a constraint rather than an evolution equation.
+Setting `N = 1` afterwards recovers the familiar form. Writing
+`N = 1` from the start would lose the equation altogether.
+
+```python
+from CosmoFit import Fitter
+from CosmoFit.theory import Action
+
+# Power-law f(T) gravity (Bengochea & Ferraro 2009).
+model = Action(
+    "T + A0*(-T)**b",
+    geometry="teleparallel",
+    params={
+        "A0": {"default": -4.2, "bounds": (-30.0, 0.0)},
+        "b": {"default": 0.0, "bounds": (-2.0, 0.9), "label": r"$b$"},
+    },
+    closure="A0",           # fixed by E(0) = 1, not fit
+    growth="quasi_static",  # mu = 1/f', for fsigma8/s8
+).build("PowerLawFT")
+
+fit = Fitter(
+    model=model,
+    datasets=["cc", "desi"],
+    free_params=["H0", "Omega_m", "b", "rd"],
+    initial={"H0": 70.0, "Omega_m": 0.3, "b": 0.0, "rd": 147.0},
+)
+fit.best_fit()
+```
+
+What comes back is an ordinary `Cosmology` subclass. Every
+dataset, likelihood, sampler and plot in the library works on it
+unchanged.
+
+`Action.constraint()` returns the derived Friedmann equation
+symbolically, if the derivation is what you wanted rather than the
+fit.
+
+### What it checks, and what it refuses
+
+The three geometry scalars carry different signs across the
+literature, and picking one wrongly inverts every modification
+built on it while leaving nothing downstream to complain. They are
+fixed here by requiring that an undeformed `f` reproduce General
+Relativity exactly, and the test suite asserts that in all three
+sectors rather than trusting the convention.
+
+* A general `f(R)` is **refused**, not approximated. It gives
+  fourth-order field equations, so the integration by parts that
+  removes `addot` would be discarding something that is not a
+  total derivative -- a different theory, silently. Actions linear
+  in `R` (GR, non-minimal `F(phi) R`) and any `f(T)` or `f(Q)`
+  reduce correctly.
+* An action that does not satisfy `E(0) = 1` is **refused**. It
+  would predict every distance wrong by a constant factor without
+  looking broken. `closure=` names the parameter that condition
+  fixes -- in Lambda-CDM, `"R - 2*Lam"` with `closure="Lam"` is
+  what makes `Lam = 3 (1 - Omega_m - Omega_k)`.
+* `growth="quasi_static"` is **opt-in**. `mu = 1/f'` is a
+  statement about perturbations, which a background action does
+  not by itself determine.
+
+Scalar fields (quintessence, k-essence) reduce correctly -- their
+Klein-Gordon equations come out of `Action.field_equations()` --
+but `build()` does not yet integrate the coupled system, and says
+so.
+
+### Validation
+
+Because this derives what the rest of the library has typed in by
+hand, it can be checked against it:
+
+| action | reproduces | agreement |
+|---|---|---|
+| `R - 2*Lam` | `LCDM`, curvature included | `E(z)`, `dE/dz` to 1e-16 |
+| `Q*exp(lam*Q0/Q)` | `FQExponential` | constraint identical; `lam`, `E(z)`, `mu` to 1e-13 |
+| `T + A0*(-T)**b`, `b = 0` | `LCDM`, via a different sector | `E(z)` to 1e-13 |
+
+The `f(Q)` case is the demanding one. Its constraint is
+transcendental -- the hand-written model inverts a Lambert `W` to
+solve it -- so the derivation has to produce
+`(E^2 - 2 lam) exp(lam/E^2) = Omega_m (1+z)^3` from the action
+alone, and the solver has to land on the same branch `W_0` picks
+rather than on any root of that equation.
+
+Installed as an extra, since nothing else in the library needs
+sympy:
+
+```bash
+pip install "cosmofit[theory]"
+```
+
+---
+
 ## Graphical Interface
 
 For datasets/models/parameters by clicking rather than coding, a

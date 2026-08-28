@@ -45,7 +45,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,cmb,gui,speed,evidence]"
+          pip install -e ".[dev,cmb,gui,speed,evidence,theory]"
 
       - name: Show what is installed
         run: |
@@ -54,6 +54,7 @@ jobs:
           python -c "import streamlit; print('streamlit', streamlit.__version__)"
           python -c "import numba; print('numba', numba.__version__)"
           python -c "import dynesty; print('dynesty', dynesty.__version__)"
+          python -c "import sympy; print('sympy', sympy.__version__)"
 
       - name: Tests
         run: pytest -q --durations=10
@@ -86,10 +87,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: CAMB and Streamlit must be absent
+      - name: Optional backends must be absent
         run: |
           python - <<'EOF'
-          for name in ("camb", "streamlit", "numba", "dynesty"):
+          for name in ("camb", "streamlit", "numba", "dynesty", "sympy"):
               try:
                   __import__(name)
               except ImportError:
