@@ -48,12 +48,23 @@ the expansion history is integrated rather than solved pointwise:
 ...     closure="V0",
 ... ).build("ExponentialQuintessence")
 
-See :mod:`~theory.minisuperspace` for the reduction itself and
-what it can and cannot do (a general ``f(R)`` is fourth-order and
-is refused rather than approximated), :mod:`~theory.solve` for how
-a transcendental constraint is solved on the physical branch, and
-:mod:`~theory.fields` for why a field's initial conditions are set
-early rather than today.
+A general ``f(R)`` is fourth-order and needs its own reduction,
+which happens automatically:
+
+>>> starobinsky = Action(
+...     "R - 2*Lam + alpha_fr*R**2",
+...     params={
+...         "Lam": {"default": 2.1, "bounds": (0.0, 6.0)},
+...         "alpha_fr": {"default": 1e-3, "bounds": (1e-6, 1.0)},
+...     },
+... ).build("Starobinsky")
+
+See :mod:`~theory.minisuperspace` for the reduction itself,
+:mod:`~theory.curvature` for the Lagrange-multiplier route a
+general ``f(R)`` takes and why it integrates *backwards*,
+:mod:`~theory.solve` for how a transcendental constraint is solved
+on the physical branch, and :mod:`~theory.fields` for why a
+field's initial conditions are set early rather than today.
 """
 
 try:
@@ -71,6 +82,8 @@ except ModuleNotFoundError as _exc:  # pragma: no cover
 
 from CosmoFit.theory.action import Action, Fluid, STANDARD_FLUIDS
 
+from CosmoFit.theory.curvature import is_higher_order
+
 from CosmoFit.theory.minisuperspace import (
     GEOMETRIES,
     Minisuperspace,
@@ -83,6 +96,7 @@ __all__ = [
     "Action",
     "Fluid",
     "STANDARD_FLUIDS",
+    "is_higher_order",
     "GEOMETRIES",
     "Minisuperspace",
     "field_equations",

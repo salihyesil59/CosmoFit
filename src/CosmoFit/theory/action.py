@@ -47,6 +47,12 @@ import sympy as sp
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
+from CosmoFit.theory.curvature import (
+    build_system as build_curvature_system,
+    integrate as integrate_curvature,
+    is_higher_order,
+)
+
 from CosmoFit.theory.fields import expansion_today, integrate
 
 from CosmoFit.theory.solve import (
@@ -317,6 +323,29 @@ class Action:
 
         self.gravity = _sympify(gravity, self._namespace)
 
+        # A general f(R) is fourth-order: R stops being shorthand for
+        # a combination of `a` and its derivatives and becomes a
+        # variable in its own right, with its own value today. That
+        # is a degree of freedom the theory has and General
+        # Relativity does not, so it is a real parameter -- declared
+        # here because it is not optional, and overridable because
+        # its default is only a guess.
+        #
+        # 9.3 is the Lambda-CDM value at Omega_m = 0.3, in units of
+        # H0^2: R = 6 (2 H^2 + Hdot) = 6 (2 - 3 Omega_m / 2) H0^2.
+        if self.is_fourth_order:
+
+            self.params.setdefault(
+                "R_0",
+                {
+                    "default": 9.3,
+                    "bounds": (0.0, 40.0),
+                    "label": r"$R_0/H_0^2$",
+                },
+            )
+
+            self._namespace = self._build_namespace()
+
         self._field_lagrangians = {
             name: (
                 _sympify(
@@ -333,6 +362,8 @@ class Action:
         }
 
         self._check_closure_name()
+
+        self._curvature = None
 
         self._constraint = None
         self._system = None
@@ -637,6 +668,9 @@ class Action:
         if self.fields:
             return self._build_with_fields(name, label)
 
+        if self.is_fourth_order:
+            return self._build_fourth_order(name, label)
+
         C, E2, z = self.constraint()
 
         args = self.solver_arguments(C.free_symbols - {E2, z})
@@ -701,6 +735,72 @@ class Action:
             self._system = build_system(self)
 
         return self._system
+
+    # ---------------------------------------------------------
+
+    def curvature_system(self):
+        """
+        The compiled equations of motion of a general ``f(R)``
+        action. Cached: assembling it means a symbolic solve.
+        """
+
+        if self._curvature is None:
+            self._curvature = build_curvature_system(self)
+
+        return self._curvature
+
+    # ---------------------------------------------------------
+
+    def _build_fourth_order(self, name: str, label: str | None) -> type:
+        """
+        Compile a general ``f(R)`` action, whose expansion history
+        has to be integrated -- see :mod:`~theory.curvature`.
+        """
+
+        if self.growth != "gr":
+            raise NotImplementedError(
+                "growth='quasi_static' is the sub-horizon limit of "
+                "the teleparallel sectors. f(R) gravity's mu is "
+                "scale-dependent -- a Compton wavelength enters -- "
+                "so it is refused here rather than given a "
+                "scale-free answer. FRHuSawicki carries the "
+                "standard f(R) mu(a, k) if that is what you need."
+            )
+
+        if self.closure is not None:
+            raise ValueError(
+                f"closure={self.closure!r} was given, but a general "
+                f"f(R) action needs no closure condition: H = 1 at "
+                f"a = 1 holds by construction, because the history "
+                f"is integrated outwards from there. The freedom "
+                f"that a closure would have fixed is carried by "
+                f"R_0, the Ricci scalar today, which is a "
+                f"parameter."
+            )
+
+        system, args = self.curvature_system()
+
+        extra = dict(self.params)
+
+        attrs = {
+            "MODEL_NAME": name,
+            "MODEL_LABEL": label,
+            "EXTRA_PARAMS": extra,
+            "ACTION": self,
+            "_ARGS": tuple(s.name for s in args),
+            "_SYSTEM": system,
+            "_FLUIDS": self.fluids,
+            "E": _make_curvature_E(),
+            "dEdz": _make_curvature_dEdz(),
+            "Omega_de": _make_Omega_de(),
+            "w": _make_w(),
+        }
+
+        model = type(name, (_CurvatureModel,), attrs)
+
+        self._verify(model)
+
+        return model
 
     # ---------------------------------------------------------
 
@@ -777,6 +877,24 @@ class Action:
         self._verify(model)
 
         return model
+
+    # ---------------------------------------------------------
+
+    @property
+    def is_fourth_order(self) -> bool:
+        """
+        Whether this action is a general ``f(R)`` -- nonlinear in
+        the Ricci scalar, and so fourth-order in the metric.
+
+        Those need the Lagrange-multiplier reduction of
+        :mod:`~theory.curvature`; everything else goes through the
+        ordinary one.
+        """
+
+        return (
+            self.geometry == "metric"
+            and is_higher_order(self.gravity, self.scalar)
+        )
 
     # ---------------------------------------------------------
 
@@ -898,10 +1016,11 @@ class Action:
                 "growth='quasi_static' is implemented for the "
                 "teleparallel and symmetric-teleparallel sectors, "
                 "where mu = 1/f' is a settled sub-horizon result. "
-                "In the metric sector it is f(R) gravity, whose "
-                "mu is scale-dependent (a Compton wavelength "
-                "enters) -- and whose action this module cannot "
-                "reduce in the first place."
+                "In the metric sector it is f(R) gravity, whose mu "
+                "is scale-dependent -- a Compton wavelength enters "
+                "-- so a scale-free answer would be wrong rather "
+                "than approximate. FRHuSawicki carries the "
+                "standard f(R) mu(a, k) if that is what you need."
             )
 
         E2 = sp.Symbol("E2", positive=True)
@@ -1739,3 +1858,126 @@ class _ShootingClosure:
             f"model -- narrow the prior bounds, or move the "
             f"parameter's default nearer the intended branch."
         )
+
+
+# ============================================================
+# The generated model, fourth-order
+# ============================================================
+
+class _CurvatureModel(Cosmology):
+    """
+    Base of every class :meth:`Action.build` produces for a general
+    ``f(R)``.
+
+    The state is ``(H, R)`` over ``N = ln a``, integrated outwards
+    from ``a = 1`` -- where ``H = 1`` by the definition of ``H0``,
+    so nothing has to be shot for. See :mod:`~theory.curvature` for
+    why backwards is safe here and is not in
+    :mod:`~theory.fields`.
+    """
+
+    ACTION = None
+
+    _ARGS = ()
+    _SYSTEM = None
+    _FLUIDS = ()
+
+    # ---------------------------------------------------------
+
+    def _E2(self, z):
+        return self.E(z) ** 2
+
+    # ---------------------------------------------------------
+
+    def history(self, z=0.0):
+        """
+        The solved background covering ``z``. Its ``drift`` is how
+        far the Friedmann constraint moved along the solution,
+        which the integration never imposes after the initial
+        conditions -- an independent measure of the error.
+        """
+
+        N = -np.log1p(np.asarray(z, dtype=float))
+
+        return self._history_for(float(np.min(N)), float(np.max(N)))
+
+    # ---------------------------------------------------------
+
+    def ricci(self, z=0.0):
+        """
+        The Ricci scalar in units of ``H0^2``, along the solution.
+        """
+
+        N = -np.log1p(np.asarray(z, dtype=float))
+
+        return self._history_for(
+            float(np.min(N)), float(np.max(N)),
+        ).state(N)[1]
+
+    # ---------------------------------------------------------
+
+    def _history_for(self, N_lo: float, N_hi: float):
+
+        values = self.params.as_dict()
+
+        args = tuple(float(values[name]) for name in self._ARGS)
+
+        key = (args, float(values["R_0"]))
+
+        cache = getattr(self, "_history_cache", None)
+
+        if cache is not None and cache[0] == key:
+
+            if cache[1].covers(N_lo, N_hi):
+                return cache[1]
+
+            N_lo = min(N_lo, cache[1].N_lo)
+            N_hi = max(N_hi, cache[1].N_hi)
+
+        history = integrate_curvature(
+            self._SYSTEM, args, float(values["R_0"]), N_lo, N_hi,
+        )
+
+        self._history_cache = (key, history)
+
+        return history
+
+
+# ------------------------------------------------------------
+
+def _make_curvature_E():
+
+    def E(self, z):
+
+        N = -np.log1p(np.asarray(z, dtype=float))
+
+        return self._history_for(
+            float(np.min(N)), float(np.max(N)),
+        ).H(N)
+
+    E.__doc__ = (
+        "Dimensionless Hubble rate, interpolated from this f(R) "
+        "model's integrated background (see ``ACTION``)."
+    )
+
+    return E
+
+
+def _make_curvature_dEdz():
+
+    def dEdz(self, z):
+
+        z = np.asarray(z, dtype=float)
+
+        N = -np.log1p(z)
+
+        history = self._history_for(float(np.min(N)), float(np.max(N)))
+
+        return -history.dH_dN(N) / (1.0 + z)
+
+    dEdz.__doc__ = (
+        "Derivative of E(z), from the same equations of motion "
+        "that produced the background -- not finite-differenced."
+    )
+
+    return dEdz
