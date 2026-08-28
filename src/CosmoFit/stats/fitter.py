@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
 from CosmoFit.likelihoods.cc import CCLikelihood
@@ -255,6 +256,11 @@ _CAMB_CMB_DATASETS = {
 #: growth machinery.
 _GROWTH_DATASETS = {"fsigma8", "s8"}
 
+#: Datasets that actually solve the linear growth equation, and so
+#: read the model's ``mu(a, k)``. ``"s8"`` is not among them: it
+#: compares the free ``sigma8`` directly and never integrates.
+_GROWTH_CALCULATOR_DATASETS = {"fsigma8", "eboss_elg_fs"}
+
 
 def _warn_derived_parameters(model, free_params) -> None:
     """
@@ -356,6 +362,53 @@ def _warn_blind_neutrino_mass(names, free_params, compute_rd) -> None:
 
         stacklevel=3,
 
+    )
+
+
+def _warn_ungrounded_coupling(model, names) -> None:
+    """
+    Warn when growth data meet a scalar-tensor model whose ``mu``
+    is still 1.
+
+    In scalar-tensor gravity the field sets the strength of
+    gravity, so ``G_eff/G_N`` is not 1 and does not stay put -- it
+    moves as the field rolls. A background action does not by
+    itself determine that, which is why
+    ``Action(growth="quasi_static")`` is opt-in, and why the
+    default leaves ``mu = 1``.
+
+    That default is right for a minimally coupled field, where the
+    scalar really is dark energy sitting on top of General
+    Relativity. It is *wrong* here, and wrong silently: the fit
+    runs, the growth chi-squared is finite, and the answer is
+    General Relativity's growth attached to a modified background.
+    Nothing downstream can tell.
+    """
+
+    import warnings
+
+    if not getattr(model, "_NON_MINIMAL", False):
+        return
+
+    if getattr(model, "mu", None) is not Cosmology.mu:
+        return
+
+    growth = sorted(set(names) & _GROWTH_CALCULATOR_DATASETS)
+
+    if not growth:
+        return
+
+    warnings.warn(
+        f"{model.plain_name()} couples its field to the curvature "
+        f"-- scalar-tensor gravity -- but reports mu = 1, so "
+        f"{growth} would be fit with General Relativity's growth "
+        f"on top of a modified background.\n\n"
+        f"In this theory G_eff/G_N is neither 1 nor constant: it "
+        f"moves as the field rolls. Rebuild the action with "
+        f"growth='quasi_static' for the sub-horizon result, or "
+        f"drop the growth data.",
+        UserWarning,
+        stacklevel=3,
     )
 
 
@@ -875,6 +928,8 @@ class Fitter:
         _warn_inconsistent_amplitude(self.dataset_names, self.free_params)
 
         _warn_derived_parameters(self.model_cls, self.free_params)
+
+        _warn_ungrounded_coupling(self.model_cls, self.dataset_names)
 
         _warn_blind_neutrino_mass(
             self.dataset_names, self.free_params, self.compute_rd,

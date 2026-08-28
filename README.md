@@ -719,6 +719,19 @@ Friedmann equation gains the `3 H dF/dt` term. The derivation
 reproduces `3 F H^2 + 3 H dF/dt = rho` symbolically, and `xi = 0`
 returns ΛCDM to 1e-9.
 
+It also changes how structure grows, and that is easy to get
+silently wrong. `growth="quasi_static"` gives the scalar-tensor
+`mu = G_eff/G_N` of Boisseau, Esposito-Farèse, Polarski &
+Starobinsky (2000), evaluated on the field's own solution so that
+it moves as the field rolls. Left at the default `"gr"`, `mu` is 1
+-- correct for a *minimally* coupled field, and wrong here -- so
+`Fitter` warns if such a model meets growth data.
+
+One more thing to know: a field's history starts at `z_init`
+(default 3000), and the growth ODE starts at `z = 9999`. Fitting
+`fsigma8` therefore needs `Action(z_init=20000)` or similar, and
+saying so is now an error rather than an infinite chi-squared.
+
 Each field adds two parameters, `phi_i` and `dphi_i` -- its value
 and `dphi/dN` at `z_init` (default 3000, and the earliest
 redshift the model can be evaluated at).
