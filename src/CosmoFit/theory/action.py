@@ -47,6 +47,8 @@ import sympy as sp
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
+from CosmoFit.theory.fields import expansion_today, integrate
+
 from CosmoFit.theory.solve import (
     closed_form,
     compile_constraint,
@@ -234,10 +236,21 @@ class Action:
     fields : dict, optional
         Scalar fields, mapping name -> Lagrangian density written
         in terms of the field and its kinetic scalar ``X``
-        (``"X - V0*exp(-lam*phi)"`` for exponential quintessence).
-        The symbolic reduction handles these -- see
-        :meth:`field_equations` -- but :meth:`build` does not yet
-        solve the resulting coupled ODE system, and says so.
+        (``"X - V0*exp(-lam*phi)"`` for exponential quintessence,
+        or any other ``L(X, phi)`` for k-essence).
+
+        A field's expansion history is *integrated* rather than
+        solved pointwise -- see :mod:`~theory.fields` -- and it
+        adds two parameters, ``<name>_i`` and ``d<name>_i``, its
+        value and ``dphi/dN`` at ``z_init``. Because those are
+        given early rather than today, ``E(0) = 1`` becomes a
+        shooting condition, so ``closure`` is required.
+
+    z_init : float, optional
+        Redshift at which a field's initial conditions are set,
+        and the earliest redshift the resulting model can be
+        evaluated at. Default 3000, which covers recombination.
+        Ignored by an action with no fields.
     """
 
     def __init__(
@@ -250,12 +263,14 @@ class Action:
         closure: str | None = None,
         growth: str = "gr",
         fields: dict | None = None,
+        z_init: float = 3000.0,
     ):
 
         self.params = dict(params or {})
         self.fields = dict(fields or {})
         self.closure = closure
         self.growth = growth
+        self.z_init = float(z_init)
 
         self.fluids = tuple(
             STANDARD_FLUIDS[f] if isinstance(f, str) else f
@@ -267,6 +282,19 @@ class Action:
                 f"growth must be 'gr' or 'quasi_static', "
                 f"got {growth!r}."
             )
+
+        # Each dynamical field needs its state at z_init: the
+        # field value and dphi/dN there. Declared automatically,
+        # because they are not optional -- a field with no initial
+        # condition is not a model -- but overridable, since a
+        # default and prior bounds for them are exactly what a
+        # user may want to set. The default dphi_i = 0 is a frozen
+        # field, which is what Hubble friction does to one at
+        # early times and how a thawing model is normally posed.
+        for name in self.fields:
+
+            self.params.setdefault(f"{name}_i", {"default": 0.0})
+            self.params.setdefault(f"d{name}_i", {"default": 0.0})
 
         # The closure parameter is not fit -- it is solved for --
         # so requiring it to be declared like a free parameter
@@ -307,6 +335,7 @@ class Action:
         self._check_closure_name()
 
         self._constraint = None
+        self._system = None
 
     # ---------------------------------------------------------
 
@@ -425,6 +454,17 @@ class Action:
     # Symbolic layer
     # ---------------------------------------------------------
 
+    @property
+    def field_lagrangians(self) -> dict:
+        """
+        Each field's Lagrangian density, as
+        ``{name: (expression, X_symbol)}``.
+        """
+
+        return dict(self._field_lagrangians)
+
+    # ---------------------------------------------------------
+
     def lagrangian(self) -> tuple[Minisuperspace, sp.Expr]:
         """
         The reduced point-like Lagrangian of this action, together
@@ -495,9 +535,9 @@ class Action:
         Equation of motion for each scalar field in this action
         (each vanishing on-shell), in the gauge ``N = 1``.
 
-        Provided for inspection: the symbolic reduction handles
-        fields, while :meth:`build` does not yet integrate the
-        coupled system they produce.
+        Provided for inspection -- :meth:`build` integrates this
+        system rather than returning it, so this is the way to see
+        what was actually derived.
         """
 
         ms, L = self.lagrangian()
@@ -520,6 +560,18 @@ class Action:
         satisfies it identically (nothing to do), or fixes one
         parameter in terms of the others.
         """
+
+        if self.fields:
+            raise NotImplementedError(
+                "An action with dynamical fields has no algebraic "
+                "closure equation. Its field state is set at "
+                "z_init and the history integrated forwards, so "
+                "E(0) = 1 is a shooting condition on the closure "
+                "parameter rather than something that can be "
+                "written down and solved -- see CosmoFit.theory."
+                "fields for why the state is not set at a = 1 "
+                "instead."
+            )
 
         C, E2, z = self.constraint()
 
@@ -575,28 +627,19 @@ class Action:
             LaTeX name for figures, as in
             :func:`cosmology.custom.define_model`.
 
-        Raises
-        ------
-        NotImplementedError
-            If the action carries scalar fields. Their equations
-            of motion are derived correctly (see
-            :meth:`field_equations`) but not yet integrated.
+        An action carrying dynamical scalar fields is integrated
+        rather than solved pointwise -- see
+        :mod:`~theory.fields` -- and gains two parameters per
+        field, ``<name>0`` and ``d<name>0``, its value and
+        ``dphi/dN`` at ``a = 1``.
         """
 
         if self.fields:
-            raise NotImplementedError(
-                "Actions with scalar fields reduce correctly -- "
-                "see Action.field_equations() -- but building a "
-                "model from one needs the coupled field/Friedmann "
-                "system integrated, which is not implemented yet. "
-                "Actions built only from the geometry scalar and "
-                "perfect fluids (f(T), f(Q), GR with a "
-                "cosmological constant) do build."
-            )
+            return self._build_with_fields(name, label)
 
         C, E2, z = self.constraint()
 
-        args = self._solver_arguments(C, E2, z)
+        args = self.solver_arguments(C.free_symbols - {E2, z})
 
         functions = compile_constraint(C, E2, z, args)
 
@@ -624,6 +667,7 @@ class Action:
             "E": _make_E(),
             "dEdz": _make_dEdz(),
             "Omega_de": _make_Omega_de(),
+            "w": _make_w(),
         }
 
         if self.closure in CosmologyParameters.names():
@@ -640,16 +684,120 @@ class Action:
 
     # ---------------------------------------------------------
 
-    def _solver_arguments(self, C, E2, z) -> tuple:
+    def field_system(self):
         """
-        The parameter symbols the compiled constraint needs, in a
+        The compiled equations of motion of this action, for the
+        case where it carries dynamical fields.
+
+        Returns ``(system, args)`` -- see
+        :func:`theory.fields.build_system`. Cached: assembling it
+        means solving a linear system symbolically.
+        """
+
+        if self._system is None:
+
+            from CosmoFit.theory.fields import build_system
+
+            self._system = build_system(self)
+
+        return self._system
+
+    # ---------------------------------------------------------
+
+    def _build_with_fields(self, name: str, label: str | None) -> type:
+        """
+        Compile an action with dynamical scalar fields, whose
+        expansion history has to be integrated.
+        """
+
+        if self.growth != "gr":
+            raise NotImplementedError(
+                "growth='quasi_static' describes the sub-horizon "
+                "limit of a modified gravitational sector. A "
+                "scalar field clusters in its own right, and its "
+                "mu is not 1/f' -- so this combination is refused "
+                "rather than given the wrong answer."
+            )
+
+        system, args = self.field_system()
+
+        arg_names = tuple(s.name for s in args)
+        field_names = tuple(self.fields)
+
+        if self.closure is None:
+            raise ValueError(
+                "An action with dynamical fields needs "
+                "closure=<parameter name>. Its field state is set "
+                "at z_init and the expansion history integrated "
+                "forwards, so nothing makes H(0) come out as H0 "
+                "on its own -- one parameter has to be solved for "
+                "by requiring it. For quintessence that is "
+                "normally the potential's overall scale."
+            )
+
+        closure = _ShootingClosure(
+            system=system,
+            arg_names=arg_names,
+            field_names=field_names,
+            parameter=self.closure,
+            start=float(
+                self.params.get(self.closure, {}).get("default", 1.0)
+            ),
+            a_i=1.0 / (1.0 + self.z_init),
+        )
+
+        extra = {
+            key: spec for key, spec in self.params.items()
+            if key != self.closure
+        }
+
+        attrs = {
+            "MODEL_NAME": name,
+            "MODEL_LABEL": label,
+            "EXTRA_PARAMS": extra,
+            "ACTION": self,
+            "_ARGS": tuple(s.name for s in args),
+            "_SYSTEM": system,
+            "_CLOSURE": closure,
+            "_FLUIDS": self.fluids,
+            "_FIELDS": field_names,
+            "_A_INIT": 1.0 / (1.0 + self.z_init),
+            "_Z_INIT": self.z_init,
+            "E": _make_field_E(),
+            "dEdz": _make_field_dEdz(),
+            "Omega_de": _make_field_Omega_de(),
+            "w": _make_field_w(),
+        }
+
+        if self.closure in CosmologyParameters.names():
+            attrs["DERIVED_PARAMS"] = frozenset({self.closure})
+
+        model = type(name, (_FieldModel,), attrs)
+
+        self._verify(model)
+
+        return model
+
+    # ---------------------------------------------------------
+
+    @property
+    def namespace(self) -> dict:
+        """
+        Every symbol a user expression of this action may mention.
+        """
+
+        return dict(self._namespace)
+
+    # ---------------------------------------------------------
+
+    def solver_arguments(self, symbols) -> tuple:
+        """
+        The parameter symbols a compiled expression needs, in a
         fixed order -- and a check that every one of them is
         actually a parameter the generated model will carry.
         """
 
-        free = sorted(
-            (C.free_symbols - {E2, z}), key=lambda s: s.name,
-        )
+        free = sorted(symbols, key=lambda s: s.name)
 
         known = set(CosmologyParameters.names()) | set(self.params)
 
@@ -680,7 +828,17 @@ class Action:
 
         symbol = self._namespace[self.closure]
 
-        others = tuple(s for s in args if s != symbol)
+        # Taken from the closure equation rather than from the
+        # constraint's own arguments: a field action's closure
+        # condition also involves that field's state today, which
+        # the constraint (written in state variables) does not
+        # carry as a parameter.
+        others = tuple(
+            sorted(
+                self.closure_equation().free_symbols - {symbol},
+                key=lambda s: s.name,
+            )
+        )
 
         start = float(
             self.params.get(self.closure, {}).get("default", 0.0)
@@ -1092,3 +1250,492 @@ def _make_mu(compiled):
     )
 
     return mu
+
+
+# ============================================================
+# The generated model, with fields
+# ============================================================
+
+class _FieldModel(Cosmology):
+    """
+    Base of every class :meth:`Action.build` produces for an
+    action carrying dynamical scalar fields.
+
+    The difference from :class:`_ActionModel` is that ``E(z)``
+    cannot be solved redshift by redshift: the field has its own
+    equation of motion, so the whole history is integrated at once
+    and interpolated. That makes the *parameters* the unit of work
+    rather than the redshift grid -- one integration serves every
+    ``E(z)`` call until a parameter moves.
+    """
+
+    ACTION = None
+
+    _ARGS = ()
+    _SYSTEM = None
+    _CLOSURE = None
+    _FLUIDS = ()
+    _FIELDS = ()
+
+    # ---------------------------------------------------------
+
+    def _resolved_params(self) -> dict:
+        """
+        Current parameters, with the one fixed by ``E(0) = 1``
+        replaced by its solved value.
+        """
+
+        values = dict(self.params.as_dict())
+
+        closure = self._CLOSURE
+
+        if closure is None:
+            return values
+
+        key = tuple(float(values[name]) for name in closure.names)
+
+        cached = getattr(self, "_closure_cache", None)
+
+        if cached is None or cached[0] != key:
+            cached = (key, closure.value(values))
+            self._closure_cache = cached
+
+        values[closure.parameter] = cached[1]
+
+        return values
+
+    # ---------------------------------------------------------
+
+    def closure_value(self) -> float:
+        """
+        The value of the parameter fixed by ``E(0) = 1`` at the
+        current parameters.
+        """
+
+        if self._CLOSURE is None:
+            raise AttributeError(
+                f"{type(self).__name__} was built from an action "
+                f"that satisfies E(0) = 1 identically, so no "
+                f"parameter is fixed by it."
+            )
+
+        return self._resolved_params()[self._CLOSURE.parameter]
+
+    # ---------------------------------------------------------
+
+    def history(self, z=0.0):
+        """
+        The solved expansion history covering ``z``, integrating
+        it if the cached one does not reach that far.
+
+        Exposed because its ``drift`` -- how far the Friedmann
+        constraint moved along the solution, which the integration
+        never imposes after the initial conditions -- is the
+        honest measure of how well this model is solved.
+        """
+
+        N = -np.log1p(np.asarray(z, dtype=float))
+
+        return self._history_for(float(np.min(N)), float(np.max(N)))
+
+    # ---------------------------------------------------------
+
+    def _E2(self, z):
+        """``E(z)^2``, to match :class:`_ActionModel`'s interface."""
+
+        return self.E(z) ** 2
+
+    # ---------------------------------------------------------
+
+    def _field_density(self, z):
+        """
+        ``(rho, p)`` of the field sector at ``z``, in the units of
+        :mod:`~theory.minisuperspace` (where a fluid with density
+        parameter ``Omega`` has ``rho_0 = 3 Omega``).
+        """
+
+        N = -np.log1p(np.asarray(z, dtype=float))
+
+        history = self._history_for(float(np.min(N)), float(np.max(N)))
+
+        values = self._resolved_params()
+
+        args = tuple(float(values[name]) for name in self._ARGS)
+
+        state = history.state(N)
+
+        a = np.exp(N)
+
+        return (
+            np.asarray(self._SYSTEM.rho(a, *state, *args), dtype=float),
+            np.asarray(
+                self._SYSTEM.pressure(a, *state, *args), dtype=float,
+            ),
+        )
+
+    # ---------------------------------------------------------
+
+    def _history_for(self, N_lo: float, N_hi: float):
+
+        values = self._resolved_params()
+
+        args = tuple(float(values[name]) for name in self._ARGS)
+
+        fields = tuple(
+            float(values[f"{name}_i"]) for name in self._FIELDS
+        )
+        velocities = tuple(
+            float(values[f"d{name}_i"]) for name in self._FIELDS
+        )
+
+        if N_lo < np.log(self._A_INIT) - 1.0e-12:
+            raise ValueError(
+                f"E(z) was asked for at z = "
+                f"{np.expm1(-N_lo):.4g}, beyond this model's "
+                f"initial redshift z_init = {self._Z_INIT:.4g}. "
+                f"There is no history before the field's state is "
+                f"given, and extrapolating one would be inventing "
+                f"the early universe rather than solving for it. "
+                f"Build the model with a larger "
+                f"Action(z_init=...)."
+            )
+
+        key = (args, fields, velocities)
+
+        cached = getattr(self, "_history_cache", None)
+
+        if cached is not None and cached[0] == key:
+
+            if cached[1].covers(N_lo, N_hi):
+                return cached[1]
+
+            # Same parameters, further into the future: integrate
+            # the union, so a sequence of widening requests does
+            # not keep discarding work.
+            N_hi = max(N_hi, cached[1].N_hi)
+
+        history = integrate(
+            self._SYSTEM, args, fields, velocities, self._A_INIT, N_hi,
+        )
+
+        self._history_cache = (key, history)
+
+        return history
+
+
+# ------------------------------------------------------------
+
+def _make_w():
+
+    def w(self, z):
+
+        z = np.asarray(z, dtype=float)
+
+        E = self.E(z)
+
+        rho = self.Omega_de(z)
+
+        drho = (
+            2.0 * E * self.dEdz(z)
+            - 3.0 * self.Omega_m * (1.0 + z) ** 2
+            - 2.0 * self.Omega_k * (1.0 + z)
+        )
+
+        for fluid in self._FLUIDS:
+
+            if fluid.parameter == "Omega_m":
+                continue
+
+            drho = drho - getattr(self, fluid.parameter) * (
+                3.0 * (1.0 + fluid.w)
+            ) * (1.0 + z) ** (3.0 * (1.0 + fluid.w) - 1.0)
+
+        return -1.0 + (1.0 + z) * drho / (3.0 * rho)
+
+    w.__doc__ = (
+        "Effective dark-energy equation of state.\n\n"
+        "Read off the background: w = -1 + (1+z) "
+        "dln(rho_de)/dz / 3, which is what conservation of the "
+        "effective dark-energy density means. That is the only "
+        "definition available for a modified gravitational "
+        "sector, where there is no dark-energy fluid to take a "
+        "pressure of -- and it is exactly how such a model is "
+        "compared against a dark-energy one.\n\n"
+        "It loses precision once matter dominates, because "
+        "rho_de is then a small difference of large numbers "
+        "(2.4e9 minus 2.4e9 to get 0.7, at z = 2000). Trust it "
+        "where dark energy is a comparable share of the budget, "
+        "which is everywhere it means anything. An action with "
+        "scalar fields does not use this: there the density and "
+        "pressure come straight from the Lagrangian."
+    )
+
+    return w
+
+
+def _make_field_Omega_de():
+
+    def Omega_de(self, z):
+
+        return self._field_density(z)[0] / 3.0
+
+    Omega_de.__doc__ = (
+        "Dark-energy density in units of today's critical "
+        "density, read off the field's own Lagrangian rather "
+        "than by subtracting the fluids from E(z)^2.\n\n"
+        "The subtraction is what the fieldless models here do, "
+        "and it is fine while dark energy is a comparable "
+        "fraction of the budget. It stops being fine early: at "
+        "z = 2000 it is 2.4e9 minus 2.4e9 to get 0.7, which "
+        "throws away nine digits. There is nothing to cancel in "
+        "rho = 2 X L_X - L."
+    )
+
+    return Omega_de
+
+
+def _make_field_w():
+
+    def w(self, z):
+
+        rho, pressure = self._field_density(z)
+
+        return pressure / rho
+
+    w.__doc__ = (
+        "Dark-energy equation of state, ``p/rho`` with both taken "
+        "from the field's Lagrangian: the pressure of any "
+        "``L(X, phi)`` is ``L`` itself and the density is "
+        "``2 X L_X - L``. Exact at every redshift, where reading "
+        "it off the background instead loses precision as soon "
+        "as matter dominates."
+    )
+
+    return w
+
+
+def _make_field_E():
+
+    def E(self, z):
+
+        N = -np.log1p(np.asarray(z, dtype=float))
+
+        history = self._history_for(float(np.min(N)), float(np.max(N)))
+
+        return history.H(N)
+
+    E.__doc__ = (
+        "Dimensionless Hubble rate, interpolated from this "
+        "model's integrated expansion history (see ``ACTION``)."
+    )
+
+    return E
+
+
+def _make_field_dEdz():
+
+    def dEdz(self, z):
+
+        z = np.asarray(z, dtype=float)
+
+        N = -np.log1p(z)
+
+        history = self._history_for(float(np.min(N)), float(np.max(N)))
+
+        # E is H in these units and N = -ln(1+z), so the chain rule
+        # is one factor: dE/dz = (dH/dN) (dN/dz) = -(dH/dN)/(1+z).
+        return -history.dH_dN(N) / (1.0 + z)
+
+    dEdz.__doc__ = (
+        "Derivative of E(z), from the same equations of motion "
+        "that produced the history -- not finite-differenced."
+    )
+
+    return dEdz
+
+
+# ------------------------------------------------------------
+
+class _ShootingClosure:
+    """
+    Solves ``E(0) = 1`` for an action with dynamical fields.
+
+    For a fieldless action that condition is the Friedmann
+    constraint at ``a = 1``, and :class:`_ClosureSolver` either
+    inverts it or runs Newton on it. Here there is no such
+    equation: the field's state is given at ``z_init`` and the
+    history integrated forwards, so ``H(0)`` is only known after
+    integrating. This drives it to 1 with a secant iteration, each
+    step costing one integration up to the present.
+
+    Which root it finds is set by the closure parameter's declared
+    default, the same convention :class:`_ClosureSolver` uses for
+    a transcendental condition.
+    """
+
+    #: Relative accuracy required of H(0) = 1. Well inside the
+    #: integrator's own error, and reached in a handful of steps
+    #: because H(0) responds smoothly and monotonically to a
+    #: potential scale.
+    TOLERANCE = 1.0e-12
+
+    MAX_STEPS = 60
+
+    #: How many times a secant step is halved back towards the
+    #: last working point before the solve is abandoned.
+    BACKTRACKS = 40
+
+    def __init__(self, system, arg_names, field_names, parameter, start, a_i):
+
+        self.system = system
+        self.arg_names = arg_names
+        self.field_names = field_names
+        self.parameter = parameter
+        self.start = start
+        self.a_i = a_i
+
+        #: Last solved value and the secant slope dx/df that
+        #: found it, used to seed the next solve. A fit moves the
+        #: parameters a little at a time, so the previous answer
+        #: is usually within one step -- and carrying the slope
+        #: too makes that first step a real one rather than a
+        #: blind offset used only to get a second point. The same
+        #: warm start `Fitter.profile` uses. Only ever a seed: the
+        #: residual is checked every time, so a stale one costs
+        #: iterations and never accuracy.
+        self._seed = None
+        self._slope = None
+
+        #: Every parameter H(0) depends on -- what a cached value
+        #: has to be keyed on.
+        self.names = tuple(
+            sorted(
+                (
+                    set(arg_names)
+                    | {f"{n}_i" for n in field_names}
+                    | {f"d{n}_i" for n in field_names}
+                )
+                - {parameter}
+            )
+        )
+
+    # ---------------------------------------------------------
+
+    def _residual(self, x: float, params: dict) -> float:
+
+        trial = dict(params)
+        trial[self.parameter] = x
+
+        values = tuple(float(trial[name]) for name in self.arg_names)
+
+        fields = [float(trial[f"{n}_i"]) for n in self.field_names]
+        velocities = [float(trial[f"d{n}_i"]) for n in self.field_names]
+
+        return expansion_today(
+            self.system, values, fields, velocities, self.a_i,
+        ) - 1.0
+
+    # ---------------------------------------------------------
+
+    def _remember(self, x0: float, f0: float, x1: float, f1: float) -> None:
+        """Keep the converged value and the local slope dx/df."""
+
+        self._seed = x1
+
+        if f1 != f0 and np.isfinite(x1 - x0):
+            self._slope = (x1 - x0) / (f1 - f0)
+
+    # ---------------------------------------------------------
+
+    def _stepped_residual(self, x_from: float, x_to: float, params: dict):
+        """
+        The residual at ``x_to``, backtracking towards ``x_from``
+        if the integration cannot survive there.
+
+        A secant step can overshoot into parameter values where
+        this model has no expansion history at all -- a scalar
+        field runs away and the integrator stalls. That is a real
+        boundary rather than a failure, so the step is halved back
+        towards the last point that worked instead of giving up on
+        the solve.
+        """
+
+        for _ in range(self.BACKTRACKS):
+
+            try:
+                return x_to, self._residual(x_to, params)
+
+            except (RuntimeError, FloatingPointError, ValueError):
+                x_to = 0.5 * (x_to + x_from)
+
+        raise RuntimeError(
+            f"Solving E(0) = 1 for {self.parameter!r} left the "
+            f"region where this action has an expansion history "
+            f"at all, and backtracking did not recover. The model "
+            f"may not reach the requested Omega_m from these "
+            f"initial conditions -- for exponential quintessence "
+            f"that happens once the potential is steep enough "
+            f"that the scaling attractor fixes the dark-energy "
+            f"fraction below it."
+        )
+
+    # ---------------------------------------------------------
+
+    def value(self, params: dict) -> float:
+
+        x0 = float(
+            self._seed
+            if self._seed is not None
+            else params.get(self.parameter, self.start)
+        )
+
+        x0, f0 = self._stepped_residual(
+            float(params.get(self.parameter, self.start)), x0, params,
+        )
+
+        if abs(f0) <= self.TOLERANCE:
+            self._seed = x0
+            return x0
+
+        first = (x0, f0)
+
+        # The second point for the secant. With a remembered
+        # slope this is already a Newton step; without one it is
+        # an offset big enough to move H(0) measurably and small
+        # enough not to leave the branch.
+        guess = (
+            x0 - f0 * self._slope
+            if self._slope is not None
+            else x0 * 1.01 + 1.0e-3
+        )
+
+        if not np.isfinite(guess) or guess == x0:
+            guess = x0 * 1.01 + 1.0e-3
+
+        x1, f1 = self._stepped_residual(x0, guess, params)
+
+        for _ in range(self.MAX_STEPS):
+
+            if f1 == f0:
+                break
+
+            x2 = x1 - f1 * (x1 - x0) / (f1 - f0)
+
+            if not np.isfinite(x2):
+                break
+
+            x0, f0 = x1, f1
+            x1, f1 = self._stepped_residual(x0, x2, params)
+
+            if abs(f1) <= self.TOLERANCE:
+                self._remember(x0, f0, x1, f1)
+                return x1
+
+        raise RuntimeError(
+            f"Could not solve E(0) = 1 for {self.parameter!r} at "
+            f"these parameter values: H(0) came out "
+            f"{f1 + 1.0:.6g} rather than 1. The requested "
+            f"expansion history may not be reachable from this "
+            f"model -- narrow the prior bounds, or move the "
+            f"parameter's default nearer the intended branch."
+        )

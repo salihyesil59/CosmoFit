@@ -646,10 +646,71 @@ sectors rather than trusting the convention.
   statement about perturbations, which a background action does
   not by itself determine.
 
-Scalar fields (quintessence, k-essence) reduce correctly -- their
-Klein-Gordon equations come out of `Action.field_equations()` --
-but `build()` does not yet integrate the coupled system, and says
-so.
+### Scalar fields
+
+An action can carry dynamical fields, in which case the expansion
+history is integrated rather than solved pointwise:
+
+```python
+model = Action(
+    "R",
+    fields={"phi": "X - V0*exp(-lam*phi)"},   # any L(X, phi)
+    params={"V0":  {"default": 2.1, "bounds": (0.05, 50.0)},
+            "lam": {"default": 0.5, "bounds": (0.0, 1.7)}},
+    closure="V0",
+).build("ExponentialQuintessence")
+```
+
+Each field adds two parameters, `phi_i` and `dphi_i` -- its value
+and `dphi/dN` at `z_init` (default 3000, and the earliest
+redshift the model can be evaluated at).
+
+**They are set early, not today, and that is the whole design.**
+Setting them at `a = 1` would make `E(0) = 1` algebraic and skip
+the shooting entirely. It is also wrong: integrating backwards
+from a field at rest today, the Hubble friction that damps the
+field forwards becomes anti-friction, the generic past solution
+is kinetic-dominated, and `rho_phi` grows as `a^-6`. For
+exponential quintessence normalized to today's dark-energy
+density that gives `E(2.5) = 9.3` where ΛCDM gives 3.7. Nothing
+fails -- it is the correct past of those initial conditions, and
+those initial conditions are not a universe.
+
+So the state is given where a quintessence model actually gives
+it, early and typically frozen, and `E(0) = 1` becomes a shooting
+condition on `closure`. Forwards is also the numerically stable
+direction.
+
+Validated against Copeland, Liddle & Wands (1998), whose
+late-time attractors are exact functions of the slope alone. On a
+matter background there are two, selected by `lambda^2` against 3:
+
+| | `w` | predicted | `Omega_phi` | predicted |
+|---|---|---|---|---|
+| λ = 0.5 | −0.916667 | −0.916667 | 1.00000 | 1 |
+| λ = 1.0 | −0.666667 | −0.666667 | 1.00000 | 1 |
+| λ = 1.9 | −0.000035 | 0 | 0.83097 | 0.83102 |
+| λ = 2.0 | +0.000035 | 0 | 0.75006 | 0.75000 |
+
+The first two are the field-dominated attractor
+(`w = -1 + lambda^2/3`); the last two are the scaling attractor,
+where the field tracks matter at a fixed fraction `3/lambda^2` --
+which is why a steep potential cannot accelerate. Ask such a
+model for more dark energy than its attractor allows and `H(0)`
+saturates below 1 with no potential scale reaching it; that
+arrives as a statement about the model rather than as a stalled
+integrator.
+
+A constant potential pins the other end: it reproduces `LCDM` to
+1e-10 in `E(z)`, with `w = -1` and `Omega_de` constant to machine
+precision at every redshift.
+
+Cost is about 37 ms per parameter set -- a shooting solve plus an
+integration, against ~150 µs for a closed-form model. `w` and
+`Omega_de` are read off the field's own Lagrangian
+(`p = L`, `rho = 2 X L_X - L`) rather than by subtracting the
+fluids from `E(z)^2`, which at z = 2000 would be 2.4e9 minus
+2.4e9 to get 0.7.
 
 ### Validation
 
