@@ -1891,11 +1891,22 @@ Most of what this section used to list has been built. What is left:
 
 ### Physics
 
-* **Massive neutrinos and `N_eff` in each model's low-redshift `E(z)`.**
-  Both parameters reach the Boltzmann backend and the sound horizon, and
-  are treated exactly there -- but the models' own `E(z)` still counts
-  massive neutrinos inside `Omega_m` as pure matter, which is right below
-  z ~ 100 and increasingly wrong above it.
+* **Massive neutrinos and `N_eff` in each model's own `E(z)`.** They
+  reach the Boltzmann backend and the sound horizon and are treated
+  exactly there, but the models' `E(z)` counts massive neutrinos inside
+  `Omega_m` as pure matter -- right below z ~ 100, and increasingly wrong
+  above it.
+
+  Worth saying what this is *not*, because the three places that consume
+  `E(z)` above z ~ 100 are each already handled. The sound horizon
+  integrates the exact Fermi-Dirac density. The compressed Planck priors
+  deliberately keep massive neutrinos inside `Omega_m` at every redshift,
+  because a prediction has to share the compression's definitions rather
+  than improve on them -- see `likelihoods/planck.py` on what mixing
+  conventions costs. And the growth ODE solves a matter-plus-dark-energy
+  equation, so starting it deep in *that* matter era is self-consistent.
+  So this is narrower than it looks, and doing it carelessly would break
+  agreements the library has validated.
 * **`Sum m_nu` as a fitted parameter.** Everything needed is in place;
   what is missing is enough growth-suppression signal to constrain it.
   The compressed Planck priors cannot supply it -- they are blind to

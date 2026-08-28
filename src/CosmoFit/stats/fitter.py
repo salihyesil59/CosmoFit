@@ -694,9 +694,11 @@ def _resolve_model(meta: dict):
     raise ValueError(
         f"Can't import the model {name!r} the saved chain was "
         f"sampled with (recorded module: {module!r}). A model built "
-        f"with `define_model()`/`model_from_expression()` only "
-        f"exists in the session that defined it -- rebuild it and "
-        f"pass it as `Fitter.from_chain(..., model=MyModel)`."
+        f"at runtime -- by `define_model()`, "
+        f"`model_from_expression()` or "
+        f"`CosmoFit.theory.Action.build()` -- exists only in the "
+        f"session that made it, so rebuild it the same way and pass "
+        f"it as `Fitter.from_chain(..., model=MyModel)`."
     )
 
 
@@ -1246,8 +1248,9 @@ class Fitter:
     def _model_is_picklable(self) -> bool:
         """
         Whether `model` survives a by-reference pickle, which the
-        worker plumbing requires. False for a dynamically-built
-        `define_model()`/`model_from_expression()` class.
+        worker plumbing requires. False for any class built at
+        runtime -- `define_model()`, `model_from_expression()` or
+        `CosmoFit.theory.Action.build()`.
         """
 
         import pickle
@@ -1393,10 +1396,12 @@ class Fitter:
             raise ValueError(
                 f"n_processes={n_processes} needs `model` "
                 f"({recipe['model']!r}) to be picklable by reference, "
-                f"which every built-in CosmoFit model is, but a "
-                f"dynamically-built `define_model()`/"
-                f"`model_from_expression()` model isn't. Use "
-                f"n_processes=1 for this model."
+                f"which every built-in CosmoFit model is. A model "
+                f"built at runtime is not -- that covers "
+                f"`define_model()`, `model_from_expression()` and "
+                f"`CosmoFit.theory.Action.build()`, all of which "
+                f"produce a class that exists only in the session "
+                f"that made it. Use n_processes=1 for this model."
             ) from exc
 
         # Explicitly request "fork" rather than using whatever
