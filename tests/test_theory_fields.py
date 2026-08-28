@@ -24,10 +24,13 @@ field -- pins the other end, against ``LCDM``.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
 from CosmoFit import Fitter
+from CosmoFit.cosmology.core import ModelConfigurationError
 from CosmoFit.cosmology.models import LCDM
 
 
@@ -257,7 +260,7 @@ def test_beyond_the_initial_redshift_is_an_error():
 
     assert np.isfinite(float(model.E(99.0)))
 
-    with pytest.raises(ValueError, match="z_init"):
+    with pytest.raises(ModelConfigurationError, match="z_init"):
         model.E(500.0)
 
 
@@ -284,23 +287,6 @@ def test_the_warm_started_shooting_does_not_change_the_answer():
 # ============================================================
 # Specification errors
 # ============================================================
-
-def test_quasi_static_growth_is_refused_for_a_field():
-    """
-    ``mu = 1/f'`` describes a modified gravitational sector. A
-    scalar field clusters in its own right and has nothing to do
-    with that expression.
-    """
-
-    with pytest.raises(NotImplementedError, match="clusters"):
-        Action(
-            "R",
-            fields={"phi": "X - V0"},
-            params={"V0": {"default": 2.0}},
-            closure="V0",
-            growth="quasi_static",
-        ).build("Bad")
-
 
 def test_a_field_action_has_no_algebraic_closure_equation():
 
@@ -540,3 +526,187 @@ def test_two_fields_reduce_and_integrate():
     # Both potentials are contributing: dropping one would change
     # what the closure has to solve for.
     assert derived.closure_value() > 1.0
+
+
+# ============================================================
+# Growth of structure
+# ============================================================
+
+def test_a_configuration_error_is_not_swallowed_into_infinity():
+    """
+    ``LogPosterior.chi2`` turns exceptions into an infinite
+    chi-squared, which is right for a *parameter* the model cannot
+    represent: a sampler that merely proposed it should not crash.
+
+    It is wrong for a *configuration* it cannot represent. The
+    growth machinery starts its ODE at z = 9999, so a field model
+    built with the default ``z_init = 3000`` fails at every
+    parameter value -- and used to do so as `chi2 = inf`
+    everywhere, leaving a fit that ran to completion having learned
+    nothing and saying nothing.
+    """
+
+    model = exponential_quintessence(z_init=3000.0)
+
+    fit = Fitter(
+        model=model,
+        datasets=["fsigma8"],
+        free_params=["H0", "Omega_m", "sigma8"],
+        initial={"H0": 70.0, "Omega_m": 0.3, "sigma8": 0.81, "lam": 0.5},
+    )
+
+    with pytest.raises(ModelConfigurationError, match="z = 9999"):
+        fit.chi2()
+
+
+def test_growth_data_works_once_the_history_reaches_far_enough():
+    """
+    The counterpart: the fix the message names actually fixes it.
+    """
+
+    model = exponential_quintessence(z_init=20000.0)
+
+    fit = Fitter(
+        model=model,
+        datasets=["fsigma8"],
+        free_params=["H0", "Omega_m", "sigma8"],
+        initial={"H0": 70.0, "Omega_m": 0.3, "sigma8": 0.81, "lam": 0.5},
+    )
+
+    assert np.isfinite(fit.chi2())
+
+    # A minimally coupled field is dark energy on top of General
+    # Relativity, so mu = 1 here is not an approximation.
+    cosmology = make(model, H0=70.0, Omega_m=0.3, sigma8=0.81, lam=0.5)
+
+    assert np.allclose(cosmology.mu(1.0 / (1.0 + Z)), 1.0)
+
+
+# ============================================================
+# Scalar-tensor growth
+# ============================================================
+
+def scalar_tensor(xi=0.05, growth="quasi_static"):
+
+    return Action(
+        "(1 + xi*phi**2)*R",
+        fields={"phi": "X - V0"},
+        params={
+            "xi": {"default": xi, "bounds": (-0.5, 0.5)},
+            "V0": {"default": 2.1, "bounds": (0.05, 20.0)},
+        },
+        closure="V0",
+        growth=growth,
+        z_init=20000.0,
+    ).build("ScalarTensorGrowth")
+
+
+def test_the_scalar_tensor_coupling_is_the_published_one():
+    """
+    Boisseau, Esposito-Farese, Polarski & Starobinsky (2000):
+
+        G_eff = (1 / 8 pi F) (2F + 4 F_phi^2) / (2F + 3 F_phi^2)
+
+    Checked against the formula evaluated by hand on the model's
+    own field solution -- so this tests the wiring (which ``F``,
+    which field value, at which time), not the algebra, which is
+    the part that could quietly be attached to the wrong thing.
+    """
+
+    xi = 0.05
+
+    model = make(
+        scalar_tensor(xi), H0=70.0, Omega_m=0.3,
+        xi=xi, phi_i=1.0, dphi_i=0.0,
+    )
+
+    a = 1.0 / (1.0 + Z)
+
+    phi = model.history(Z).state(-np.log1p(Z))[1]
+
+    F = 1.0 + xi * phi**2
+    F_phi = 2.0 * xi * phi
+
+    expected = (2 * F + 4 * F_phi**2) / (F * (2 * F + 3 * F_phi**2))
+
+    assert np.allclose(model.mu(a), expected, rtol=1e-12)
+
+    # And it is neither 1 nor constant, which is the whole point:
+    # the strength of gravity moves as the field rolls.
+    assert abs(float(model.mu(1.0)) - 1.0) > 0.1
+
+    assert np.ptp(model.mu(a)) > 0.1
+
+
+def test_the_coupling_reduces_to_general_relativity():
+    """
+    ``F = 1`` with a constant coupling gives ``mu = 1`` exactly --
+    the normalization the formula has to satisfy.
+    """
+
+    model = make(
+        scalar_tensor(xi=0.0), H0=70.0, Omega_m=0.3,
+        xi=0.0, phi_i=1.0, dphi_i=0.0,
+    )
+
+    assert np.allclose(model.mu(1.0 / (1.0 + Z)), 1.0, rtol=0, atol=1e-14)
+
+
+def test_quasi_static_needs_something_to_correct():
+    """
+    A minimally coupled field leaves gravity alone, so ``mu = 1``
+    exactly and ``quasi_static`` would be claiming a correction
+    that does not exist.
+    """
+
+    with pytest.raises(NotImplementedError, match="minimally coupled"):
+        Action(
+            "R",
+            fields={"phi": "X - V0"},
+            params={"V0": {"default": 2.1}},
+            closure="V0",
+            growth="quasi_static",
+        ).build("Bad")
+
+
+def test_growth_data_warns_when_the_coupling_is_ignored():
+    """
+    The silent-wrong-answer guard. Scalar-tensor gravity fit
+    against growth data with ``mu = 1`` gives General Relativity's
+    growth on top of a modified background -- a finite
+    chi-squared, a plausible posterior, and no way to tell.
+    """
+
+    with pytest.warns(UserWarning, match="scalar-tensor"):
+        Fitter(
+            model=scalar_tensor(growth="gr"),
+            datasets=["fsigma8"],
+            free_params=["H0", "Omega_m", "sigma8"],
+            initial={
+                "H0": 70.0, "Omega_m": 0.3, "sigma8": 0.81,
+                "xi": 0.05, "phi_i": 1.0,
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "model_kwargs, datasets",
+    [
+        (dict(growth="quasi_static"), ["fsigma8"]),   # coupling accounted for
+        (dict(growth="gr"), ["cc"]),                  # no growth data
+    ],
+)
+def test_the_coupling_warning_stays_quiet_otherwise(model_kwargs, datasets):
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+
+        Fitter(
+            model=scalar_tensor(**model_kwargs),
+            datasets=datasets,
+            free_params=["H0", "Omega_m", "sigma8"],
+            initial={
+                "H0": 70.0, "Omega_m": 0.3, "sigma8": 0.81,
+                "xi": 0.05, "phi_i": 1.0,
+            },
+        )

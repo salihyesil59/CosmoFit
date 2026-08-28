@@ -45,6 +45,7 @@ import numpy as np
 import sympy as sp
 
 from CosmoFit.cosmology.core.base import Cosmology
+from CosmoFit.cosmology.core.errors import ModelConfigurationError
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
 from CosmoFit.theory.curvature import (
@@ -230,14 +231,24 @@ class Action:
         into sub-horizon clustering -- and the safe default,
         because it is what every dark-energy model assumes.
 
-        ``"quasi_static"`` sets ``mu = 1/f'`` (derivative with
-        respect to the geometry scalar), the standard sub-horizon
-        quasi-static result for ``f(T)`` and ``f(Q)`` gravity and
-        what this library's hand-written ``FQExponential`` and
-        ``FRTLinear`` already use. It is an *additional* physical
-        assumption on top of the action -- a statement about
-        perturbations, which a background action does not by
-        itself determine -- so it must be asked for explicitly.
+        ``"quasi_static"`` asks for the sub-horizon quasi-static
+        result, which depends on what the action modified:
+
+        * a deformed geometry scalar (``f(T)``, ``f(Q)``) gives
+          ``mu = 1/f'``, what this library's hand-written
+          ``FQExponential`` and ``FRTLinear`` already use;
+        * a field coupled to the curvature gives the scalar-tensor
+          result of Boisseau, Esposito-Farese, Polarski &
+          Starobinsky (2000),
+          ``mu = (2F + 4 F_phi^2) / (F (2F + 3 F_phi^2))`` with
+          ``F = df/dR``, evaluated on the field's own solution so
+          that it moves as the field rolls.
+
+        Either way it is an *additional* physical assumption on top
+        of the action -- a statement about perturbations, which a
+        background action does not by itself determine -- so it
+        must be asked for explicitly. Asking for it where nothing
+        is modified is an error rather than a no-op.
 
     fields : dict, optional
         Scalar fields, mapping name -> Lagrangian density written
@@ -846,16 +857,9 @@ class Action:
         expansion history has to be integrated.
         """
 
-        if self.growth != "gr":
-            raise NotImplementedError(
-                "growth='quasi_static' describes the sub-horizon "
-                "limit of a modified gravitational sector. A "
-                "scalar field clusters in its own right, and its "
-                "mu is not 1/f' -- so this combination is refused "
-                "rather than given the wrong answer."
-            )
-
         system, args = self.field_system()
+
+        mu = self._compile_scalar_tensor_mu()
 
         arg_names = tuple(s.name for s in args)
         field_names = tuple(self.fields)
@@ -899,6 +903,7 @@ class Action:
             "_FIELDS": field_names,
             "_A_INIT": 1.0 / (1.0 + self.z_init),
             "_Z_INIT": self.z_init,
+            "_NON_MINIMAL": self.is_non_minimal,
             "E": _make_field_E(),
             "dEdz": _make_field_dEdz(),
             "Omega_de": _make_field_Omega_de(),
@@ -908,11 +913,102 @@ class Action:
         if self.closure in CosmologyParameters.names():
             attrs["DERIVED_PARAMS"] = frozenset({self.closure})
 
+        if mu is not None:
+            attrs["mu"] = _make_field_mu(mu)
+
         model = type(name, (_FieldModel,), attrs)
 
         self._verify(model)
 
         return model
+
+    # ---------------------------------------------------------
+
+    @property
+    def coupling(self) -> sp.Expr:
+        """
+        ``F``, the coefficient of ``R/2`` in this action -- which is
+        ``d f / d R``. Constant for a minimally coupled field,
+        and a function of the field for scalar-tensor gravity.
+        """
+
+        return sp.diff(self.gravity, self.scalar)
+
+    # ---------------------------------------------------------
+
+    @property
+    def is_non_minimal(self) -> bool:
+        """
+        Whether the gravitational sector couples to a field --
+        scalar-tensor gravity, where the field sets the strength of
+        gravity rather than sitting on top of it.
+        """
+
+        return any(
+            sp.Symbol(name) in self.coupling.free_symbols
+            for name in self.fields
+        )
+
+    # ---------------------------------------------------------
+
+    def _compile_scalar_tensor_mu(self):
+        """
+        ``mu = G_eff/G_N`` in the sub-horizon quasi-static limit of
+        scalar-tensor gravity, when it has been asked for.
+
+        For ``S = (1/2) integral F(phi) R - (1/2)(d phi)^2 - V``,
+        Boisseau, Esposito-Farese, Polarski & Starobinsky (2000)
+        give
+
+            G_eff = (1 / 8 pi F) (2F + 4 F_phi^2) / (2F + 3F_phi^2)
+
+        so that ``mu`` is ``1`` exactly when ``F = 1`` and the
+        coupling is constant. The extra ``F_phi^2`` terms are the
+        scalar's own fifth force; the ``1/F`` in front is the
+        rescaling of Newton's constant itself.
+
+        Like every other ``quasi_static`` in this module it is a
+        statement about perturbations, which a background action
+        does not by itself determine, so it is opt-in.
+        """
+
+        if self.growth == "gr":
+            return None
+
+        if self.geometry != "metric":
+            raise NotImplementedError(
+                "growth='quasi_static' with scalar fields is the "
+                "scalar-tensor result, which is a statement about "
+                "the metric sector. In the teleparallel sectors "
+                "mu = 1/f' describes the modified gravity alone "
+                "and says nothing about a field alongside it."
+            )
+
+        if not self.is_non_minimal:
+            raise NotImplementedError(
+                "growth='quasi_static' has nothing to correct "
+                "here: this action's fields are minimally coupled, "
+                "so gravity is unmodified and mu = 1 exactly -- "
+                "which is what growth='gr' already gives. Couple a "
+                "field to the curvature, as in "
+                "'(1 + xi*phi**2)*R', for it to mean anything."
+            )
+
+        F = self.coupling
+
+        derivatives = [
+            sp.diff(F, sp.Symbol(name)) for name in self.fields
+        ]
+
+        squared = sum(d**2 for d in derivatives)
+
+        mu = (2 * F + 4 * squared) / (F * (2 * F + 3 * squared))
+
+        system, args = self.field_system()
+
+        fields = [sp.Symbol(name) for name in self.fields]
+
+        return sp.lambdify((*fields, *args), mu, "numpy")
 
     # ---------------------------------------------------------
 
@@ -1544,7 +1640,7 @@ class _FieldModel(Cosmology):
         )
 
         if N_lo < np.log(self._A_INIT) - 1.0e-12:
-            raise ValueError(
+            raise ModelConfigurationError(
                 f"E(z) was asked for at z = "
                 f"{np.expm1(-N_lo):.4g}, beyond this model's "
                 f"initial redshift z_init = {self._Z_INIT:.4g}. "
@@ -2017,3 +2113,33 @@ def _make_curvature_dEdz():
     )
 
     return dEdz
+
+
+def _make_field_mu(compiled):
+
+    def mu(self, a, k=None):
+
+        a = np.asarray(a, dtype=float)
+
+        N = np.log(a)
+
+        history = self._history_for(float(np.min(N)), float(np.max(N)))
+
+        state = history.state(N)
+
+        fields = state[1:1 + len(self._FIELDS)]
+
+        values = self._resolved_params()
+
+        args = tuple(float(values[name]) for name in self._ARGS)
+
+        return np.asarray(compiled(*fields, *args), dtype=float)
+
+    mu.__doc__ = (
+        "Effective gravitational coupling G_eff/G_N in the "
+        "sub-horizon quasi-static limit of scalar-tensor gravity "
+        "(see ``Action(growth=...)``). Evaluated on the field's own "
+        "solution, so it varies with time as the field rolls."
+    )
+
+    return mu
