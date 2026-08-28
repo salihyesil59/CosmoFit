@@ -248,29 +248,18 @@ is a convenience layer over them, not a replacement.
 
 ## Example Notebooks
 
-All eight notebooks below are Colab-ready: click a badge to open it directly in Google Colab and
-*Runtime → Run all* — no local setup needed.
+Fourteen notebooks under [`examples/`](examples/), organised by what you are
+trying to do — see [`examples/README.md`](examples/README.md) for the full
+index. All are Colab-ready: click a badge and *Runtime → Run all*, no local
+setup.
 
-| Notebook | What it covers |
+| | |
 |---|---|
-| [`quickstart.ipynb`](examples/quickstart.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/quickstart.ipynb) | The shortest path to a real MCMC fit: flat ΛCDM on CC+DESI, a couple of minutes end to end. Start here. |
-| [`dataset_zoo.ipynb`](examples/dataset_zoo.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/dataset_zoo.ipynb) | A tour of all eight built-in datasets (CC, DESI, SDSS BAO, Pantheon+, DES-SN5YR, Planck, fsigma8, S8), each plotted on its own, plus which combinations to avoid. |
-| [`model_zoo_comparison.ipynb`](examples/model_zoo_comparison.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/model_zoo_comparison.ipynb) | All six background-expansion models (LCDM, wCDM, CPL, JBP, BA, GCG) fit to the same data and compared with AIC/BIC, plus a full MCMC for GCG. |
-| [`modified_gravity_growth.ipynb`](examples/modified_gravity_growth.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/modified_gravity_growth.ipynb) | f(Q)/f(R,T)/f(R) modified gravity end to end: background E(z), mu(a,k), fsigma8/S8, and a real MCMC showing FRHuSawicki's f_R0 going from completely unconstrained (background-only) to genuinely constrained (growth data). |
-| [`cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb) | The deep dive: CPL fit to CC+DESI+Pantheon+, convergence diagnostics, every `fit.plots` figure, model comparison, and an independent Planck cross-check. |
-| [`cpl_mcmc_tfd42.ipynb`](examples/cpl_mcmc_tfd42.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_tfd42.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
-| [`lscdm_mcmc.ipynb`](examples/lscdm_mcmc.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/lscdm_mcmc.ipynb) | A real research question, end to end: does Akarsu et al.'s **ΛsCDM** — a cosmological constant that switches sign at z† — still relieve the H0 tension against the 2024–2025 data (DESI DR2 BAO + DES-SN5YR + Planck priors + BBN, with `r_d` computed rather than fitted)? Includes a profile likelihood over z†, which locates the answer in a single measurement. |
-| [`s8_tension_cmb.ipynb`](examples/s8_tension_cmb.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/s8_tension_cmb.ipynb) | The **S₈ tension posed from the CMB side**: the complete Planck 2018 CMB computed from scratch (615 TT/TE/EE bandpowers, the tabulated low-ℓ EE likelihood, lensing — 652 points), σ₈ *derived* rather than fitted, confronted with KiDS-1000 and DES Y3, neither of which is in the fit. Includes an out-of-sample check against ACT DR6 lensing, and an explicit demonstration of what a free σ₈ does to the same question. |
-| [`dark_energy_evidence_audit.ipynb`](examples/dark_energy_evidence_audit.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/dev/examples/dark_energy_evidence_audit.ipynb) | **How much of the dark-energy evidence is a choice?** The same CPL-vs-ΛCDM and ΛsCDM-vs-ΛCDM comparison run across 20 combinations of BAO set (none / low-z / DESI DR1 / DESI DR2 / eBOSS DR16), supernova compilation (DES-SN5YR / Pantheon+) and whether `r_d` is computed or fitted. ΛsCDM's improvement needs all three choices to go one way; CPL's is smaller but present in every cell, with w₀ > −1 and w_a < 0 in all twenty. |
-
-[`cpl_mcmc_tfd42.py`](examples/cpl_mcmc_tfd42.py) is a plain-script version of the same analysis --
-run it with `python examples/cpl_mcmc_tfd42.py` for the actual long run (`n_processes` gets its full
-speedup as a script; inside a live Jupyter kernel it currently doesn't -- see Project Status below).
-Results print to stdout as they run, every figure is saved as an SVG into
-`examples/cpl_mcmc_tfd42_figures/`, and the numeric results to `examples/cpl_mcmc_tfd42_result.json`.
-Both chains are saved to `examples/cpl_mcmc_tfd42_chains/` and reused on a re-run (see
-[Saved Chains](#saved-chains)), so running it a second time -- or picking up after a Ctrl-C --
-skips straight past the MCMC. The notebook version does the same.
+| **[01 · Getting started](examples/01-getting-started)** | [`quickstart`](examples/01-getting-started/quickstart.ipynb) — nothing to a real MCMC posterior in a couple of minutes; [`dataset_zoo`](examples/01-getting-started/dataset_zoo.ipynb) — the built-in datasets, and which combinations to avoid. |
+| **[02 · Models](examples/02-models)** | [`model_zoo_comparison`](examples/02-models/model_zoo_comparison.ipynb) — six dark-energy parametrizations head to head; [`modified_gravity_growth`](examples/02-models/modified_gravity_growth.ipynb) — f(Q)/f(R,T)/f(R) with `mu(a,k)` and growth data; [`holographic_family`](examples/02-models/holographic_family.ipynb) — HDE/ADE/RDE against published constraints. |
+| **[03 · Building models](examples/03-building-models)** | [`custom_models`](examples/03-building-models/custom_models.ipynb) — three routes to your own `E(z)`; [`models_from_an_action`](examples/03-building-models/models_from_an_action.ipynb) — give an *action* and let the library derive `E(z)`; [`scalar_field_models`](examples/03-building-models/scalar_field_models.ipynb) — quintessence and k-essence, integrated. |
+| **[04 · Inference](examples/04-inference)** | [`evidence_and_model_selection`](examples/04-inference/evidence_and_model_selection.ipynb) — AIC/BIC, likelihood-ratio, and Bayesian evidence; [`profile_likelihood_and_fisher`](examples/04-inference/profile_likelihood_and_fisher.ipynb) — three ways to an error bar; [`tension_statistics`](examples/04-inference/tension_statistics.ipynb) — four definitions of "they disagree at 4σ". |
+| **[05 · Case studies](examples/05-case-studies)** | [`cpl_mcmc_analysis`](examples/05-case-studies/cpl_mcmc_analysis.ipynb) and [`cpl_mcmc_tfd42`](examples/05-case-studies/cpl_mcmc_tfd42.ipynb) — the CPL deep dive and its publication-scale variant; [`lscdm_mcmc`](examples/05-case-studies/lscdm_mcmc.ipynb) — does ΛsCDM still relieve the H₀ tension?; [`s8_tension_cmb`](examples/05-case-studies/s8_tension_cmb.ipynb) — the S₈ tension from a from-scratch Planck spectrum; [`dark_energy_evidence_audit`](examples/05-case-studies/dark_energy_evidence_audit.ipynb) — how much of the dark-energy evidence is a choice, across 20 combinations. |
 
 ---
 
@@ -563,13 +552,25 @@ from CosmoFit import Cosmology
 class MyModel(Cosmology):
     EXTRA_PARAMS = {"beta": {"default": 0.0, "bounds": (-2.0, 2.0)}}
 
+    def _dark(self, z):
+        return (1 - self.Omega_m) * (1 + z) ** (3 * (1 + self.w0)) * (1 + self.beta * z)
+
     def E(self, z):
         z = np.asarray(z, dtype=float)
-        return np.sqrt(
-            self.Omega_m * (1 + z) ** 3
-            + (1 - self.Omega_m) * (1 + z) ** (3 * (1 + self.w0)) * (1 + self.beta * z)
-        )
+        return np.sqrt(self.Omega_m * (1 + z) ** 3 + self._dark(z))
+
+    def dEdz(self, z, h=1e-5):
+        z = np.asarray(z, dtype=float)
+        return (self.E(z + h) - self.E(z - h)) / (2 * h)      # or by hand
 ```
+
+A direct subclass **must** define `dEdz`, and from the moment it is
+constructed: the distance integrator interpolates `1/E(z)` with a Hermite
+spline built from that derivative, which is what makes it exact to fourth
+order instead of second. `define_model` installs a central-difference
+fallback for you; subclassing does not, so that a model can supply the exact
+derivative -- as every built-in one does -- rather than silently give up
+about four orders of magnitude of accuracy in every distance.
 
 ---
 
@@ -1018,7 +1019,7 @@ dynamically-built `define_model()`/`model_from_expression()` model,
 which raises a clear error rather than an obscure pickling failure
 if `n_processes` is given), and is most reliable on Linux/macOS
 (multiprocessing from a Windows notebook is fragile for reasons
-outside this library's control). The new `examples/cpl_mcmc_tfd42.ipynb`
+outside this library's control). The new `examples/05-case-studies/cpl_mcmc_tfd42.ipynb`
 notebook is a publication-scale variant of `cpl_mcmc_analysis.ipynb`
 using this: all four datasets (including Planck, which makes `rd`
 and `Omega_b` constrainable and lets them join the free parameters
