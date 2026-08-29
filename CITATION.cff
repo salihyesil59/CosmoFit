@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+
+message: >-
+  If you use CosmoFit in a publication, please cite the software as
+  below -- and, more importantly, cite the papers behind whatever you
+  actually used. Every dataset, model and statistical method in the
+  library is somebody else's work; REFERENCES.md lists all of them
+  with links and with where in the code each one is used.
+
+title: "CosmoFit: a modular Python library for cosmological parameter estimation"
+
+type: software
+
+authors:
+  - given-names: Salih
+    family-names: Yeşil
+
+repository-code: "https://github.com/salihyesil59/CosmoFit"
+
+url: "https://github.com/salihyesil59/CosmoFit"
+
+license: MIT
+
+version: 0.39.2
+
+keywords:
+  - cosmology
+  - dark energy
+  - modified gravity
+  - Bayesian inference
+  - MCMC
+  - baryon acoustic oscillations
+  - supernovae
+  - cosmic microwave background
