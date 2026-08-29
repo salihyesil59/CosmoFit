@@ -930,7 +930,7 @@ Where it stands today:
 |---|---|
 | datasets | **21**, from cosmic chronometers to the from-scratch CMB |
 | models | **20** written out by hand, plus three routes to one that is not here |
-| tests | **501**, on Python 3.11-3.13, with and without every optional extra |
+| tests | **681** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/) |
 
 `main` is deliberately held at **v0.22.0**; everything since has been
@@ -995,9 +995,76 @@ Most of what this section used to list has been built. What is left:
 
 ### v1.0.0
 
-* Stable public API
-* Complete documentation
-* Test coverage across the whole library, not only the newest parts
+This section used to be three bullet points. Here is where each of
+them stands.
+
+**Stable public API.** Done. Nothing was holding it: every other test
+imports what it happens to need, so a name could be renamed, moved
+between subpackages or dropped from `__all__` and the suite would go
+on passing as long as *some* path to the object still existed.
+`tests/test_public_api.py` now types the surface out by hand -- 64
+names -- and asserts the set in both directions. Writing it down
+found two names that had already drifted out of `CosmoFit.cosmology`
+while every one of their siblings was re-exported:
+`ModelConfigurationError`, which is the one exception a user is asked
+to tell apart from an ordinary failure, and `GrowthCalculator`.
+
+**Complete documentation.** Done, in two halves. The release history
+is in **[CHANGELOG.md](CHANGELOG.md)** -- it had stopped at v0.25.0,
+so fourteen releases, including the whole of `CosmoFit.theory`,
+existed only as GitHub release notes. And there is an API reference
+under [`docs/`](docs/), built by CI with warnings as errors. Getting
+it there fixed ten docstrings that rendered wrong on the page:
+equations parsed as bullet lists, `Parameters` sections holding
+prose, and `|beta|` read as a substitution reference.
+
+**Test coverage across the whole library, not only the newest parts.**
+Done: **93%**, from 79%, across **681 tests**. The phrase turned out
+to be exactly right -- `theory`, the newest subpackage, was at
+86-94% while the oldest code was not:
+
+| | was | now |
+|---|---|---|
+| `plots/plotter.py` | 16% | 94% |
+| `stats/cpl_diagnostics.py` | 37% | 100% |
+| `stats/results.py` | 58% | 97% |
+| `stats/chains.py` | 64% | 92% |
+| `cosmology/core/parameters.py` | 67% | 96% |
+| `likelihoods/joint.py` | 70% | 100% |
+| `stats/priors.py` | 73% | 100% |
+| `data/covariance.py` | 78% | 93% |
+| `stats/posterior.py` | 85% | 100% |
+
+What is left before the version number changes is not physics:
+
+* **`py.typed`.** Every annotation on the public surface resolves,
+  and a test asserts it -- these modules use
+  `from __future__ import annotations`, so a wrong one is invisible
+  until something calls `get_type_hints`, which nothing did. But only
+  58 of 201 public callables are *fully* annotated, and the missing
+  ones are the most-used: every model's `E`, `dEdz`, `Omega_de` and
+  `w`. Shipping the marker in that state would tell a type checker to
+  trust a package whose core methods return `Any`, which hides errors
+  rather than catching them.
+* **PyPI.** Installation is still `git clone`. The metadata is ready
+  -- URLs, classifiers, an SPDX license expression -- and CI runs
+  `twine check` on the built wheel. Publishing is a decision rather
+  than a task.
+* **`main` catching up.** It is deliberately at v0.22.0. When it
+  moves, the `Changelog` and `Examples` entries in `[project.urls]`
+  move from `dev` to `main` with it.
+* **Where the API reference is published.** CI builds it and uploads
+  it as an artifact; it does not deploy it anywhere.
+
+## Contributing
+
+**[CONTRIBUTING.md](CONTRIBUTING.md)** -- how to get set up, why there
+is no code formatter, and what a finished change looks like here.
+The short version of the last one: a test that fails before the fix,
+and a validation against something that does not share the machinery
+being validated.
+
+---
 
 ## References
 
@@ -1007,6 +1074,10 @@ cosmological models and statistical methods -- see
 methodology paper used, with links, and where each is used in the
 code. If you use CosmoFit in a publication, cite the underlying
 data/method papers relevant to what you used.
+
+[CITATION.cff](CITATION.cff) describes the software itself, if you
+also want to cite the library -- but the papers behind whatever you
+actually used matter more.
 
 ---
 
