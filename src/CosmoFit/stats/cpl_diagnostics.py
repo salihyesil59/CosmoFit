@@ -93,7 +93,13 @@ def crossing_redshift(w0_samples, wa_samples, z_min=0.0, z_max=2.5):
 
     denominator = 1.0 + w0_samples + wa_samples
 
-    z_cross_all = -(1.0 + w0_samples) / denominator
+    # A sample on the LCDM point itself gives 0/0, and any sample
+    # with `w0 + wa = -1` gives x/0. Both are dropped by the
+    # `isfinite` filter below -- they have no crossing -- so numpy
+    # reporting them would be a warning about the expected case, on
+    # exactly the posterior this function is most often handed.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z_cross_all = -(1.0 + w0_samples) / denominator
 
     valid = (
         np.isfinite(z_cross_all)
@@ -124,7 +130,9 @@ def crossing_direction(w0_samples, wa_samples, z_min=0.0, z_max=2.5, z_ref=2.5):
     wa_samples = np.asarray(wa_samples, dtype=float)
 
     denominator = 1.0 + w0_samples + wa_samples
-    z_cross_all = -(1.0 + w0_samples) / denominator
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z_cross_all = -(1.0 + w0_samples) / denominator
 
     valid = (
         np.isfinite(z_cross_all)
