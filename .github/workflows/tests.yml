@@ -17,6 +17,45 @@ concurrency:
 jobs:
 
   # ----------------------------------------------------------------
+  # Lint, and the packaging metadata.
+  #
+  # Cheap and first: a dead import or an unresolvable name should not
+  # cost twenty minutes of test matrix to find out about. `ruff` is
+  # configured as a linter only -- see the note in pyproject.toml on
+  # why there is no formatter here.
+  #
+  # `twine check` is the half of a release that cannot be tested by
+  # running the code: a malformed README, a license field PyPI will
+  # reject, a missing URL. Nothing about it needs the package to be
+  # installed, only built.
+  # ----------------------------------------------------------------
+  lint:
+    name: lint and package metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install the tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff build twine
+
+      - name: Lint
+        run: ruff check src tests app tools
+
+      - name: Build, and check what PyPI would be sent
+        run: |
+          python -m build
+          twine check dist/*
+
+  # ----------------------------------------------------------------
   # The whole suite, with every optional dependency present.
   #
   # Split across Python versions because the library has been bitten
