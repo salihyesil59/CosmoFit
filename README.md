@@ -2,11 +2,19 @@
 
 > **Modern Cosmological Parameter Estimation in Python**
 
+[![PyPI](https://img.shields.io/pypi/v/cosmofit.svg)](https://pypi.org/project/cosmofit/)
+[![Python](https://img.shields.io/pypi/pyversions/cosmofit.svg)](https://pypi.org/project/cosmofit/)
+[![Tests](https://github.com/salihyesil59/CosmoFit/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/salihyesil59/CosmoFit/actions/workflows/tests.yml)
+[![Docs](https://img.shields.io/badge/docs-API%20reference-blue.svg)](https://salihyesil59.github.io/CosmoFit/)
+[![License](https://img.shields.io/pypi/l/cosmofit.svg)](LICENSE)
+
 **CosmoFit** is an open-source Python library for cosmological parameter estimation and Bayesian inference. It provides a modular framework for fitting cosmological models to observational data using Markov Chain Monte Carlo (MCMC) techniques.
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v1.0.0
+```bash
+pip install cosmofit
+```
 
 ---
 
@@ -934,10 +942,12 @@ deployment.
 
 ## Project Status
 
-CosmoFit is under active development. The full release history --
-thirty-three versions, what each one changed, and for several of them
-how the bug was found rather than only that it was fixed -- lives in
-**[CHANGELOG.md](CHANGELOG.md)**.
+**v1.0.0** is the first stable release, on
+[PyPI](https://pypi.org/project/cosmofit/) with an
+[API reference](https://salihyesil59.github.io/CosmoFit/). The full
+release history -- 35 versions, what each one changed, and for
+several of them how the bug was found rather than only that it was
+fixed -- lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
 Where it stands today:
 
@@ -948,15 +958,18 @@ Where it stands today:
 | tests | **697** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/) |
 
-**v1.0.0** is the first stable release. `main` had been deliberately
-held at v0.22.0 while everything since was published as `-dev`
-pre-releases from the `dev` branch; it now carries all of it. What
-that release meant, and what it took, is in the
-[Roadmap](#roadmap).
+`main` had been deliberately held at v0.22.0 while everything since
+was published as `-dev` pre-releases from the `dev` branch; it now
+carries all of it and tracks releases. What v1.0.0 meant, and what
+it took, is [its CHANGELOG entry](CHANGELOG.md).
 
 ---
 
 ## Roadmap
+
+What v1.0.0 meant, and what it took to get there, is the
+[v1.0.0 entry in CHANGELOG.md](CHANGELOG.md) rather than a section
+here -- a roadmap should say where the road goes next.
 
 Most of what this section used to list has been built. What is left:
 
@@ -1008,89 +1021,6 @@ Most of what this section used to list has been built. What is left:
   left -- worth perhaps 2-4x, and the only one that helps inside a
   Jupyter kernel, where `n_processes` does not. It needs a batch axis
   through every calculator, so it is a real refactor rather than a flag.
-
-### v1.0.0 -- what it took
-
-This section used to be three bullet points. All three are done, and
-each is now held by a test rather than by intention.
-
-**Stable public API.** Nothing was holding it: every other test
-imports what it happens to need, so a name could be renamed, moved
-between subpackages or dropped from `__all__` and the suite would go
-on passing as long as *some* path to the object still existed.
-`tests/test_public_api.py` types the surface out by hand -- 64 names
--- and asserts the set in both directions. Writing it down found two
-names that had already drifted out of `CosmoFit.cosmology` while
-every one of their siblings was re-exported: `ModelConfigurationError`,
-which is the one exception a user is asked to tell apart from an
-ordinary failure, and `GrowthCalculator`.
-
-**Complete documentation.** The release history is in
-**[CHANGELOG.md](CHANGELOG.md)** -- it had stopped at v0.25.0, so
-fourteen releases, including the whole of `CosmoFit.theory`, existed
-only as GitHub release notes. And there is an API reference under
-[`docs/`](docs/), built by CI with warnings as errors. Getting it
-there fixed ten docstrings that rendered wrong on the page:
-equations parsed as bullet lists, `Parameters` sections holding
-prose, and `|beta|` read as a substitution reference.
-
-**Test coverage across the whole library, not only the newest parts.**
-**93%**, from 79%, across **697 tests**. The phrase turned out to be
-exactly right -- `theory`, the newest subpackage, was at 86-94%
-while the oldest code was not:
-
-| | was | now |
-|---|---|---|
-| `plots/plotter.py` | 16% | 94% |
-| `stats/cpl_diagnostics.py` | 37% | 100% |
-| `stats/results.py` | 58% | 97% |
-| `stats/chains.py` | 64% | 92% |
-| `cosmology/core/parameters.py` | 67% | 96% |
-| `likelihoods/joint.py` | 70% | 100% |
-| `stats/priors.py` | 73% | 100% |
-| `data/covariance.py` | 78% | 93% |
-| `stats/posterior.py` | 85% | 100% |
-
-**And the package is typed.** `py.typed` ships, which tells every
-downstream type checker to trust these annotations -- so it had to be
-true first. It was 58 of 201 public callables fully annotated; it is
-**201 of 201**. Three tests hold it: that everything is annotated,
-that every annotation *resolves* (including the ones deferred to
-`TYPE_CHECKING`, which is what a checker sees and `get_type_hints`
-cannot), and that ten of `Fitter`'s methods actually return what they
-say they do.
-
-That last test is there because six annotations turned out to be
-false -- three of them written years before this release, three of
-them written *during* it. `Fitter.best_fit` said `BestFitResult` and
-returns scipy's `OptimizeResult`; `run_mcmc` said `MCMCResult` and
-returns emcee's `EnsembleSampler`; `load_chain` said `MCMCResult` and
-returns a `StoredSampler`. Once `py.typed` ships, a wrong annotation
-stops being a private mistake and becomes something other people's
-tools repeat with confidence.
-
-### Publishing
-
-The library is on **[PyPI](https://pypi.org/project/cosmofit/)** and
-the API reference is at
-**[salihyesil59.github.io/CosmoFit](https://salihyesil59.github.io/CosmoFit/)**.
-
-Both go out through workflows that are `workflow_dispatch` only, and
-that is the design rather than a placeholder: a version number, once
-used, can never be reused, and a site once deployed is public under
-this repository's name. Neither belongs on a tag-push trigger, where
-it would happen as a side effect of something else. `publish` uploads
-through PyPI's Trusted Publishing -- GitHub mints a short-lived OIDC
-token and PyPI accepts it in place of an API token -- so no
-long-lived secret lives in this repository.
-
-The release was rehearsed twice before it was made. First locally:
-the wheel installed into a clean virtual environment outside this
-source tree, fitting LCDM to CC+DESI+Pantheon++Planck -- 1671 points,
-H0 = 67.5, Omega_m = 0.313. Then on TestPyPI, installed back down
-from the index and giving the same fit to the digit. That first
-rehearsal is what found two of the six false annotations, and what
-found that the sdist was missing `CITATION.cff`.
 
 ## Contributing
 

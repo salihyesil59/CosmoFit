@@ -179,6 +179,28 @@ Published to TestPyPI first, installed back down from that index into
 a clean environment, and checked to give the same fit to the digit
 before the real one was touched.
 
+### And the notebooks stop cloning the repository
+
+All seventeen used to open in Colab by cloning `dev` and installing
+it *editable*, which then needed a `sys.path` fix: pip runs in a
+subprocess, so the already-running kernel never saw the `.pth` file
+it wrote, and `import CosmoFit` could resolve to the bare checkout
+directory instead -- same name, and `/content` is on `sys.path`. Six
+slightly different versions of that workaround had accumulated.
+
+A published package removes all of it: `pip install cosmofit`, into
+site-packages, which the kernel is already looking at. Each notebook
+asks for the extras it actually needs, and the Colab badges point at
+`main` rather than `dev`.
+
+Two things fell out of checking rather than assuming. `lscdm_mcmc`
+looked like it needed CAMB because it mentions `planck_lite` -- in a
+section explaining why the full spectra **cannot** be used there.
+And `dataset_zoo` genuinely does need it, which the extras table in
+`examples/README.md` had not said. `dark_energy_evidence_audit` was
+the one notebook with no Colab badge at all, while that README
+claimed every one of them was Colab-ready; it has one now.
+
 ## v0.40.0
 
 Everything the Roadmap listed for **v1.0.0**, worked through against
