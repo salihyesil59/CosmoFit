@@ -93,7 +93,13 @@ def crossing_redshift(w0_samples, wa_samples, z_min=0.0, z_max=2.5):
 
     denominator = 1.0 + w0_samples + wa_samples
 
-    z_cross_all = -(1.0 + w0_samples) / denominator
+    # A sample on the LCDM point itself gives 0/0, and any sample
+    # with `w0 + wa = -1` gives x/0. Both are dropped by the
+    # `isfinite` filter below -- they have no crossing -- so numpy
+    # reporting them would be a warning about the expected case, on
+    # exactly the posterior this function is most often handed.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z_cross_all = -(1.0 + w0_samples) / denominator
 
     valid = (
         np.isfinite(z_cross_all)
@@ -124,7 +130,9 @@ def crossing_direction(w0_samples, wa_samples, z_min=0.0, z_max=2.5, z_ref=2.5):
     wa_samples = np.asarray(wa_samples, dtype=float)
 
     denominator = 1.0 + w0_samples + wa_samples
-    z_cross_all = -(1.0 + w0_samples) / denominator
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        z_cross_all = -(1.0 + w0_samples) / denominator
 
     valid = (
         np.isfinite(z_cross_all)
@@ -268,7 +276,7 @@ def mahalanobis_from_lcdm(w0_samples, wa_samples, lcdm_point=(-1.0, 0.0)):
     ``sqrt((x-mu)^T C^-1 (x-mu))``. It is *not* a number of sigma.
     For a 2D Gaussian, ``D^2`` follows a chi-square distribution with
     **2** degrees of freedom, not 1, so the probability enclosed at a
-    given D is smaller than the familiar 1D intuition suggests:
+    given D is smaller than the familiar 1D intuition suggests::
 
         D = 1.515  encloses 68.27%  (the "1 sigma" probability)
         D = 2.486  encloses 95.45%  (the "2 sigma" probability)
@@ -281,19 +289,25 @@ def mahalanobis_from_lcdm(w0_samples, wa_samples, lcdm_point=(-1.0, 0.0)):
 
     Returns
     -------
-    dict with keys:
-        mean, covariance : the posterior mean and covariance used.
-        distance_squared : D^2.
-        distance : D, the Mahalanobis distance (NOT sigma).
-        p_value : P(chi2_2 > D^2), the probability of being at least
-            this far out under the posterior.
-        confidence_level : 1 - p_value, i.e. the confidence at which
-            LCDM is excluded.
-        sigma : the equivalent one-dimensional two-tailed
-            significance -- the number to report.
+    dict
+        With keys::
 
-    Note this is a Gaussian approximation to the posterior: it uses
-    only the mean and covariance, so a strongly non-Gaussian (e.g.
+            mean, covariance   the posterior mean and covariance used
+            distance_squared   D^2
+            distance           D, the Mahalanobis distance (NOT sigma)
+            p_value            P(chi2_2 > D^2): the probability of
+                               being at least this far out under the
+                               posterior
+            confidence_level   1 - p_value, i.e. the confidence at
+                               which LCDM is excluded
+            sigma              the equivalent one-dimensional
+                               two-tailed significance -- the number
+                               to report
+
+    Notes
+    -----
+    This is a Gaussian approximation to the posterior: it uses only
+    the mean and covariance, so a strongly non-Gaussian (e.g.
     banana-shaped) w0-wa contour is not fully captured. Compare
     against the fraction of samples further out than the LCDM point
     if that matters.

@@ -1,0 +1,9 @@
+# 6dF Galaxy Survey BAO, Beutler et al. (2011), MNRAS 416, 3017, arXiv:1106.3366
+# Table 3 / Eq. (5): r_s(z_d) / D_V(z_eff) at z_eff = 0.106.
+#
+# Quoted as r_s/D_V rather than D_V/r_s, which is why the BAO model
+# map needs the "rs_over_DV" observable: inverting 0.336 +- 0.015 by
+# hand would turn a Gaussian into a non-Gaussian and shift the mean.
+#
+# [z] [value at z] [quantity]
+0.106 0.336 rs_over_DV

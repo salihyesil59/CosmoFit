@@ -1,0 +1,206 @@
+name: tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# A second push to the same branch supersedes the first: these runs
+# take minutes and there is no value in finishing a build for a
+# commit that has already been replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ----------------------------------------------------------------
+  # Lint, and the packaging metadata.
+  #
+  # Cheap and first: a dead import or an unresolvable name should not
+  # cost twenty minutes of test matrix to find out about. `ruff` is
+  # configured as a linter only -- see the note in pyproject.toml on
+  # why there is no formatter here.
+  #
+  # `twine check` is the half of a release that cannot be tested by
+  # running the code: a malformed README, a license field PyPI will
+  # reject, a missing URL. Nothing about it needs the package to be
+  # installed, only built.
+  # ----------------------------------------------------------------
+  lint:
+    name: lint and package metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install the tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff build twine
+
+      - name: Lint
+        run: ruff check src tests app tools
+
+      - name: Build, and check what PyPI would be sent
+        run: |
+          python -m build
+          twine check dist/*
+
+  # ----------------------------------------------------------------
+  # The API reference.
+  #
+  # `-W` because the build is clean: 237 warnings' worth of malformed
+  # docstrings were fixed to get it there (equations parsed as bullet
+  # lists, `Parameters` sections holding prose, `|x|` read as a
+  # substitution reference), and every one of those rendered wrong on
+  # the page. Letting warnings back in would mean nobody notices the
+  # next one either.
+  #
+  # Builds only -- publishing the site is a separate decision.
+  # ----------------------------------------------------------------
+  docs:
+    name: api reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs,theory,evidence]"
+
+      - name: Build, with warnings as errors
+        run: python -m sphinx -b html -W --keep-going docs docs/_build/html
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-reference
+          path: docs/_build/html
+          retention-days: 14
+
+  # ----------------------------------------------------------------
+  # The whole suite, with every optional dependency present.
+  #
+  # Split across Python versions because the library has been bitten
+  # by one before: 3.14 changed multiprocessing's default start
+  # method on Linux from fork to forkserver, which broke
+  # `run_mcmc(n_processes=...)` outright (see v0.15.0 in CHANGELOG.md).
+  # ----------------------------------------------------------------
+  full:
+    name: python ${{ matrix.python }} (all extras)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,cmb,gui,speed,evidence,theory]"
+
+      - name: Show what is installed
+        run: |
+          python -c "import CosmoFit; print('CosmoFit', CosmoFit.__version__)"
+          python -c "import camb; print('CAMB', camb.__version__)"
+          python -c "import streamlit; print('streamlit', streamlit.__version__)"
+          python -c "import numba; print('numba', numba.__version__)"
+          python -c "import dynesty; print('dynesty', dynesty.__version__)"
+          python -c "import sympy; print('sympy', sympy.__version__)"
+
+      - name: Tests
+        run: pytest -q --durations=10
+
+  # ----------------------------------------------------------------
+  # Core dependencies only.
+  #
+  # Not redundant with the job above: CAMB and Streamlit are optional
+  # and every test that needs them skips, so this is the only thing
+  # that checks the *skip paths* actually skip -- rather than the
+  # library importing something it should not, or a test failing with
+  # ImportError instead of being skipped. That is the configuration
+  # someone who ran a plain `pip install cosmofit` is in.
+  # ----------------------------------------------------------------
+  minimal:
+    name: core dependencies only
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install without the optional extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Optional backends must be absent
+        run: |
+          python - <<'EOF'
+          for name in ("camb", "streamlit", "numba", "dynesty", "sympy"):
+              try:
+                  __import__(name)
+              except ImportError:
+                  print(f"{name}: absent, as intended")
+              else:
+                  raise SystemExit(
+                      f"{name} is installed in the minimal job -- it leaked "
+                      f"in as a hard dependency of something, and the skip "
+                      f"paths are no longer being tested here."
+                  )
+          EOF
+
+      - name: Importing the library must not need them
+        run: |
+          python -c "
+          import CosmoFit
+          from CosmoFit import Fitter, LCDM, PlanckLensingLikelihood
+          print('imports fine without CAMB')
+          "
+
+      # One run, then assert on its output. The CAMB-dependent tests
+      # must *skip* here -- if they pass, the optional dependency
+      # leaked in and this job is no longer testing what it claims;
+      # if they error, they stopped guarding themselves and a plain
+      # `pip install cosmofit` is broken.
+      - name: Tests, and check they skipped rather than passed
+        run: |
+          set -o pipefail
+          pytest -q -rs 2>&1 | tee result.txt
+          grep -q "skipped" result.txt || {
+            echo "::error::No tests were skipped without CAMB installed."
+            echo "Either the optional dependency leaked in, or the"
+            echo "CAMB-dependent tests stopped guarding themselves."
+            exit 1
+          }

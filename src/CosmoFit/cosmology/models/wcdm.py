@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -27,7 +31,7 @@ class WCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
         """
         Dark-energy equation of state. Constant by construction
         (``w(z) = w0`` at every redshift) -- provided mainly so
@@ -41,7 +45,7 @@ class WCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def fde(self, z):
+    def fde(self, z: Redshift) -> Array:
         """
         Dark-energy density evolution factor.
 
@@ -57,13 +61,13 @@ class WCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
         return np.sqrt(
 
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
 
             +
 
@@ -77,7 +81,7 @@ class WCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -101,6 +105,6 @@ class WCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
 
         return self.Omega_de0 * self.fde(z)

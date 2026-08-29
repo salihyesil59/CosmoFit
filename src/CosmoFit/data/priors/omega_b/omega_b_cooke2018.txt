@@ -1,0 +1,8 @@
+# BBN + the precision primordial deuterium abundance of
+# Cooke, Pettini & Steidel (2018), ApJ 855, 102, arXiv:1710.11129.
+# Much tighter than the PDG-abundance value in omega_b_bbn2024.txt
+# because it propagates only the D/H measurement error, not the
+# nuclear-rate spread -- use it deliberately, not by default.
+#
+# [value] [sigma]   omega_b h^2
+0.02166 0.00019

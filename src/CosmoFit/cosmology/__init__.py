@@ -1,24 +1,63 @@
-from .core import Cosmology, CosmologyParameters, constants
-from .models import LCDM, WCDM, CPL, JBP, BA, GCG, FQExponential, FRTLinear, FRHuSawicki
+from .core import (
+    Cosmology,
+    CosmologyParameters,
+    ModelConfigurationError,
+    constants,
+)
+from .models import (
+    LCDM,
+    WCDM,
+    CPL,
+    JBP,
+    BA,
+    LogarithmicDE,
+    PEDE,
+    GEDE,
+    LsCDM,
+    GCG,
+    IDE,
+    RunningVacuum,
+    Cardassian,
+    HDE,
+    ADE,
+    RDE,
+    DGP,
+    FQExponential,
+    FRTLinear,
+    FRHuSawicki,
+)
 from .numerics import DistanceIntegrator
 from .calculators import (
     BackgroundCalculator,
     DistanceCalculator,
     SoundHorizon,
     RecombinationCalculator,
+    GrowthCalculator,
 )
 from .custom import define_model, model_from_expression
 
 __all__ = [
     "Cosmology",
     "CosmologyParameters",
+    "ModelConfigurationError",
     "constants",
     "LCDM",
     "WCDM",
     "CPL",
     "JBP",
     "BA",
+    "LogarithmicDE",
+    "PEDE",
+    "GEDE",
+    "LsCDM",
     "GCG",
+    "IDE",
+    "RunningVacuum",
+    "Cardassian",
+    "HDE",
+    "ADE",
+    "RDE",
+    "DGP",
     "FQExponential",
     "FRTLinear",
     "FRHuSawicki",
@@ -27,6 +66,7 @@ __all__ = [
     "DistanceCalculator",
     "SoundHorizon",
     "RecombinationCalculator",
+    "GrowthCalculator",
     "define_model",
     "model_from_expression",
 ]

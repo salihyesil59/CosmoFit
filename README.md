@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.22.0
+> **Current Version:** v1.0.0
 
 ---
 
@@ -19,37 +19,140 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   * **CPL** (Chevallier-Polarski-Linder) -- w(z) = w0 + wa z/(1+z)
   * **JBP** (Jassal-Bagla-Padmanabhan) -- w(z) = w0 + wa z/(1+z)^2
   * **BA** (Barboza-Alcaniz) -- w(z) = w0 + wa z(1+z)/(1+z^2)
+  * **LogarithmicDE** (Efstathiou) -- w(z) = w0 + wa ln(1+z); the one w0-wa form here
+    that does *not* saturate at high z, so it is the control case for asking whether a
+    measured `wa` is the data or the assumed shape
+  * **PEDE** (Phenomenologically Emergent Dark Energy) -- Omega_de(z) = Omega_de0
+    [1 - tanh(log10(1+z))], with **no free dark-energy parameter at all**: the same
+    parameter count as LCDM and a completely different expansion history, so an AIC/BIC
+    comparison against LCDM is a pure comparison of fit
+  * **GEDE** (Generalized EDE) -- contains both LCDM (Delta -> 0) and PEDE
+    (Delta = 1, z_t = 0) as exact limits, so `Delta` measures the distance from a
+    cosmological constant on a continuous scale
+  * **LsCDM** (sign-switching Lambda, Akarsu et al.) -- Lambda flips sign at
+    z_dagger ~ 2 (AdS below, dS above), shrinking r_d and so raising the BAO-inferred H0;
+    a route to the H0 tension that late-time-only dark-energy models cannot take
   * **GCG** (Generalized Chaplygin Gas) -- unified dark matter/dark energy fluid,
     p = -A/rho^alpha
+  * **IDE** (Interacting Dark Energy) -- Q = 3 xi H rho_de in closed form; changes how
+    *matter* dilutes, which no w(z) parametrization does, so it has its own
+    growth-of-structure signature
+  * **RunningVacuum** -- Lambda(H) = c0 + 3 nu H^2, from renormalization-group running of
+    the vacuum energy; one of the few extensions whose extra parameter has a *predicted*
+    magnitude (|nu| ~ 10^-3) rather than an arbitrary one
 
-* Modified-gravity models, at both background *and* growth-of-structure level (see Project
-  Status for exactly what's real vs. simplified in each)
+* Models where acceleration comes from a modified Friedmann equation rather than any dark
+  energy at all
+
+  * **Cardassian** (modified polytropic) -- H^2 = A rho + B rho^n, a flat, matter-dominated,
+    accelerating universe
+  * **DGP** (Dvali-Gabadadze-Porrati braneworld, self-accelerating branch) -- gravity leaks
+    into a fifth dimension; LCDM's parameter count, and a *suppressed* growth history
+    (mu ~ 0.72 today) that is the real observational handle on it
+
+* Modified-gravity models, at both background *and* growth-of-structure level (see
+  [CHANGELOG.md](CHANGELOG.md) at v0.16.0 and v0.17.0 for exactly what's real vs.
+  simplified in each)
 
   * **FQExponential** -- f(Q) gravity (symmetric teleparallel), f(Q) = Q exp(lambda Q0/Q)
   * **FRTLinear** -- f(R,T) gravity (linear), f(R,T) = R + 2 lambda T
   * **FRHuSawicki** -- f(R) gravity (Hu-Sawicki); background is identical to LCDM's by
-    construction (stated explicitly, see Project Status), but growth of structure -- where
-    this model's `f_R0`/`n` parameters actually show up -- is now real: a scale- and
-    time-dependent, chameleon-screened `mu(a,k)`
+    construction (stated explicitly, see [CHANGELOG.md](CHANGELOG.md) at v0.16.0), but
+    growth of structure -- where this model's `f_R0`/`n` parameters actually show up --
+    is now real: a scale- and time-dependent, chameleon-screened `mu(a,k)`
 
 * Growth of structure: every model (not just the three above) gets a linear growth factor
   D(z), growth rate f(z), and fsigma8(z)/S8 via a generic `mu(a,k)` hook on top of its own
   E(z)/dE(z)dz (`cosmology.calculators.growth.GrowthCalculator`) -- `mu = 1` (standard GR
   growth) for LCDM/wCDM/CPL/JBP/BA/GCG, a real derived `mu(a,k)` for the three
   modified-gravity models above
+* **The BAO sound horizon `r_d` computed from scratch** (`Fitter(..., compute_rd=True)`)
+  rather than fitted as a free nuisance parameter -- the integral
+  `r_d = int c_s/H dz` with photons, massless neutrinos and massive neutrinos carrying
+  their exact Fermi-Dirac energy density, validated against CAMB's `rdrag` to 5e-5. This
+  is what turns BAO from a *relative* distance measurement (which constrains only
+  `H0 * r_d`) into an absolute one, and it is how "BAO + BBN gives H0" works
+* **σ₈ derived from the CMB rather than fitted** (`Fitter(..., derive_sigma8=True)`), when the fit
+  contains a from-scratch CMB likelihood. Without it, `sigma8` is a free parameter *and* the CMB
+  fixes an amplitude of its own through `ln1e10As` -- two unrelated numbers for one quantity, with
+  the sampler reporting a posterior for each. It also changes what a fit can ask: with `sigma8`
+  free, the S₈ measurement is absorbed (the parameter slides onto it and χ² goes to zero, which
+  looks like agreement); derived, the CMB's own prediction meets the measurement and the S₈
+  tension is visible
 * Flexible parameter management
 * Built-in observational datasets
 
   * Cosmic Chronometers (CC)
-  * BAO (DESI 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO) -- don't combine the two, see the note below
-  * Supernova (Pantheon+, DES-SN5YR) -- don't combine the two, see the note below
-  * CMB distance priors (Planck 2018 R, l_A, omega_b_h2)
+  * BAO (**DESI DR2 2025** or DESI DR1 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO;
+    **low-z 6dFGS + SDSS DR7 MGS**) -- the low-z pair is independent of the other two and
+    can join either; DESI and SDSS cannot be combined with each other, see the note below
+  * The **SDSS BAO + full-shape consensus**: D_M/r_d, D_H/r_d *and* f*sigma8 at
+    z = 0.38, 0.51, 0.698, 1.48 with the covariance between them. The same galaxies
+    as the BAO-only entry above, so use one or the other -- and prefer this one over
+    pairing `sdss_bao` with `fsigma8`, which covers the same galaxies while treating
+    growth and geometry as uncorrelated when they are not
+  * BAO as a **tabulated likelihood surface** rather than a mean and a covariance:
+    **eBOSS DR16 ELG** (`D_V/r_d` at z=0.845, a 399-point curve) and **eBOSS DR16
+    Lyman-alpha** (`(D_M/r_d, D_H/r_d)` at z=2.334, a 50x50 surface, the
+    highest-redshift BAO here outside the CMB). eBOSS released both as grids because
+    a Gaussian misrepresents them -- the ELG BAO is a 1.4-sigma detection whose
+    likelihood is still rising at the low edge of the table
+  * The **eBOSS DR16 ELG full-shape** analysis of the same galaxies: a 100x100x100
+    grid in `(D_M/r_d, D_H/r_d, f*sigma8)`, so it constrains the **growth rate**
+    alongside the geometry and carries the fsigma8/Alcock-Paczynski degeneracy
+    exactly. Mutually exclusive with the BAO-only ELG entry
+  * **Holographic dark energy** (Li 2004) -- the one background model here with
+    no closed-form `E(z)`: `Omega_DE` comes from an ODE solved on every parameter
+    change, with the future event horizon as the infrared cutoff. Its single
+    parameter `c` decides whether `w` crosses below -1, as a prediction rather
+    than a parametrization choice
+  * **Agegraphic** and **Ricci** dark energy, the other two members of the holographic
+    family -- same `rho_DE = 3c^2 M_p^2 / L^2`, different cutoff (conformal age, Ricci
+    scalar). ADE has **one fewer free parameter than LCDM**: its early-time condition
+    fixes `Omega_m` from `n`, so n = 2.8 *predicts* `Omega_m = 0.280`
+  * Supernova (Pantheon+, DES-SN5YR, **Union3**) -- one per fit, see the note below
+  * CMB, four ways: the compressed distance priors (Planck 2018 R, l_A, omega_b_h2 -- fast,
+    works for every model); the **full Planck 2018 TT/TE/EE spectra** (615 `plik_lite`
+    bandpowers including the two Commander low-l temperature bins, computed from scratch with
+    CAMB -- slow, LCDM and w(z) models only); **Planck 2018 CMB lensing** (9 bandpowers of the
+    reconstructed lensing potential, `8 <= L <= 400`), the CMB's own measurement of how much
+    structure grew; and **Planck 2018 low-l EE** as the tabulated, *non-Gaussian* likelihood it
+    actually is rather than the usual `tau = 0.0544 +- 0.0073` shorthand (which is still
+    available as the `"tau"` dataset)
+  * **ACT DR6 CMB lensing** -- a second, independent lensing reconstruction, tighter than
+    Planck's (2.3% on the amplitude), built on the lensing convergence rather than the potential
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
   * S8 weak-lensing prior (KiDS-1000 or DES Y3, Gaussian) -- don't combine the two versions,
     see the note below
+  * **External single-number measurements**, entering as datasets rather than as priors so
+    they show up in the chi2 breakdown and the degrees-of-freedom count: local **H0**
+    (SH0ES 2022/2024, or TDCOSMO 2025 time-delay lensing -- independent of the Cepheid
+    ladder), a **BBN** constraint on omega_b h^2 (Schoeneberg 2024 or Cooke 2018), and the
+    Planck lowE **tau** prior
 
 * Modular likelihood architecture
 * Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
+* **Bayesian evidence by nested sampling** (`fitter.run_nested()`, needs `pip install
+  "cosmofit[evidence]"`): `ln Z` and a proper Bayes factor, for the comparisons a
+  likelihood-ratio test cannot make. `LsCDM` reduces to `LCDM` only as `z_dagger -> infinity`
+  and `DGP` is not nested at all, so Wilks' theorem does not apply to either -- an evidence
+  ratio is defined regardless, and integrates rather than maximizes, so it charges a model
+  for prior volume it does not use. Validated against an analytically integrable Gaussian.
+  Read `stats.evidence`'s note on prior sensitivity before quoting one
+* **Profile likelihood** (`fitter.profile("z_dagger", values)`): `chi2` minimized over every
+  other parameter at each fixed value. The honest tool where Wilks fails, and where a marginal
+  posterior would smooth over structure -- it is how `lscdm_mcmc.ipynb` found a 28-unit cliff
+* **Tension statistics** (`stats.tension`): the `np.hypot` this repo used to write by hand,
+  named and with its assumptions stated -- plus the alternatives for when they fail.
+  `sample_tension` works from posterior samples with no Gaussian assumption;
+  `gaussian_tension_nd` because a tension in a plane is not the larger of its projections
+  (two posteriors can sit 0.35 sigma apart in each parameter and 1.74 sigma apart jointly);
+  and `suspiciousness`, which divides out the prior dependence a Bayes factor carries.
+  Checked against the published Hubble (4.85 sigma) and S8 (2.67 sigma) tensions, and
+  against the analytic parameter-difference chi2
+* **Fisher matrix** (`fitter.fisher()`): parameter errors from the curvature at the best fit,
+  in `~2n^2` evaluations rather than a chain. What `s8_tension_cmb.ipynb` needed when every
+  likelihood call is a CAMB call and a converged chain is thirteen hours
 * Dedicated sampling backend (`stats.sampler`), decoupled from `Fitter` and swappable (custom
   `emcee` moves today, room for other backends later)
 * Multi-core MCMC (`fitter.run_mcmc(n_processes=...)`): evaluates walkers across multiple CPU
@@ -64,11 +167,32 @@ The project is designed to make cosmological analyses simple, reproducible, and 
   session with no configuration to retype
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
   extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
+* **Models from an action** (`CosmoFit.theory`, `pip install -e ".[theory]"`): give a
+  gravitational action on an FLRW metric and the library does the variational calculus --
+  reduces it to a point-like Lagrangian, varies the lapse for the Friedmann constraint,
+  solves or integrates it, and hands back an ordinary model every dataset already works on
+
+  * **Undeformed gravity in three sectors** -- `R`, `T` (torsion), `Q` (non-metricity);
+    the sign conventions are fixed by requiring each to reproduce General Relativity
+    exactly, and the tests assert it rather than trusting the convention
+  * **`f(T)` / `f(Q)`** -- solved pointwise, transcendental constraints included: the
+    exponential `f(Q)` model's Lambert-`W` Friedmann equation is rederived from the action
+  * **Quintessence and k-essence**, any `L(X, phi)` and any number of fields -- integrated
+    forwards from `z_init`, with `E(0) = 1` as a shooting condition. Validated against
+    *both* Copeland-Liddle-Wands attractors to five decimals
+  * **Scalar-tensor `F(phi) R`** -- the field sets the strength of gravity, bringing the
+    `3 H dF/dt` term into the Friedmann equation and a moving `G_eff/G_N` into the growth
+  * **A general `f(R)`** -- fourth-order, reduced by promoting `R` to an independent
+    variable held to its geometric value by a Lagrange multiplier
 * Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, configure
   one or more models (built-in or your own), edit free parameters, and run the MCMC fit(s) + plots
   with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
   test) and on the same figures, all from the browser, with every figure downloadable as SVG, PNG,
-  or PDF
+  or PDF. It is also **self-explaining**: every dataset and model carries a note saying what it
+  measures, over what redshift range, what it constrains and where it comes from; six presets
+  configure a whole analysis in one click; the parameter table shows only the parameters *this*
+  fit actually uses; and the app warns about combinations that will not work (or, worse, will
+  quietly produce a posterior for something the data cannot constrain) before you run them
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
   directly by some data releases
 * Dedicated plotting module (`fitter.plots`): MCMC chain/corner plots, Hubble diagram, H(z)
@@ -128,8 +252,12 @@ CosmoFit/
 │   ├── data/          # dataset loaders + bundled CC/DESI/Pantheon+/Planck data files
 │   ├── likelihoods/   # per-dataset chi2/likelihood classes + joint likelihood
 │   ├── stats/         # Fitter (MCMC/best-fit), priors, posterior, saved chains, model comparison
+│   ├── theory/        # build a model from an action: reduce, vary, solve (optional: sympy)
 │   └── plots/         # FitPlotter -- every figure, attached as fitter.plots
-├── examples/          # example notebooks
+├── examples/          # example notebooks, in five sections
+├── tests/             # the test suite
+├── app/               # the Streamlit GUI
+├── CHANGELOG.md       # the release history
 └── pyproject.toml
 ```
 
@@ -142,26 +270,18 @@ is a convenience layer over them, not a replacement.
 
 ## Example Notebooks
 
-All six notebooks below are Colab-ready: click a badge to open it directly in Google Colab and
-*Runtime → Run all* — no local setup needed.
+Seventeen notebooks under [`examples/`](examples/), organised by what you are
+trying to do — see [`examples/README.md`](examples/README.md) for the full
+index. All are Colab-ready: click a badge and *Runtime → Run all*, no local
+setup.
 
-| Notebook | What it covers |
+| | |
 |---|---|
-| [`quickstart.ipynb`](examples/quickstart.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/quickstart.ipynb) | The shortest path to a real MCMC fit: flat ΛCDM on CC+DESI, a couple of minutes end to end. Start here. |
-| [`dataset_zoo.ipynb`](examples/dataset_zoo.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/dataset_zoo.ipynb) | A tour of all eight built-in datasets (CC, DESI, SDSS BAO, Pantheon+, DES-SN5YR, Planck, fsigma8, S8), each plotted on its own, plus which combinations to avoid. |
-| [`model_zoo_comparison.ipynb`](examples/model_zoo_comparison.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/model_zoo_comparison.ipynb) | All six background-expansion models (LCDM, wCDM, CPL, JBP, BA, GCG) fit to the same data and compared with AIC/BIC, plus a full MCMC for GCG. |
-| [`modified_gravity_growth.ipynb`](examples/modified_gravity_growth.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/modified_gravity_growth.ipynb) | f(Q)/f(R,T)/f(R) modified gravity end to end: background E(z), mu(a,k), fsigma8/S8, and a real MCMC showing FRHuSawicki's f_R0 going from completely unconstrained (background-only) to genuinely constrained (growth data). |
-| [`cpl_mcmc_analysis.ipynb`](examples/cpl_mcmc_analysis.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_analysis.ipynb) | The deep dive: CPL fit to CC+DESI+Pantheon+, convergence diagnostics, every `fit.plots` figure, model comparison, and an independent Planck cross-check. |
-| [`cpl_mcmc_tfd42.ipynb`](examples/cpl_mcmc_tfd42.ipynb) [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/salihyesil59/CosmoFit/blob/main/examples/cpl_mcmc_tfd42.ipynb) | Publication-scale variant of the above: CPL fit to all four datasets *jointly* (Planck included, making `rd`/`Omega_b` constrainable), a much longer chain, and multi-core MCMC (`n_processes`). |
-
-[`cpl_mcmc_tfd42.py`](examples/cpl_mcmc_tfd42.py) is a plain-script version of the same analysis --
-run it with `python examples/cpl_mcmc_tfd42.py` for the actual long run (`n_processes` gets its full
-speedup as a script; inside a live Jupyter kernel it currently doesn't -- see Project Status below).
-Results print to stdout as they run, every figure is saved as an SVG into
-`examples/cpl_mcmc_tfd42_figures/`, and the numeric results to `examples/cpl_mcmc_tfd42_result.json`.
-Both chains are saved to `examples/cpl_mcmc_tfd42_chains/` and reused on a re-run (see
-[Saved Chains](#saved-chains)), so running it a second time -- or picking up after a Ctrl-C --
-skips straight past the MCMC. The notebook version does the same.
+| **[01 · Getting started](examples/01-getting-started)** | [`quickstart`](examples/01-getting-started/quickstart.ipynb) — nothing to a real MCMC posterior in a couple of minutes; [`dataset_zoo`](examples/01-getting-started/dataset_zoo.ipynb) — all 21 datasets, the three non-Gaussian ones, and the sixteen pairs not to combine; [`cmb_from_scratch`](examples/01-getting-started/cmb_from_scratch.ipynb) — the CMB computed rather than compressed, and what that costs. |
+| **[02 · Models](examples/02-models)** | [`model_zoo_comparison`](examples/02-models/model_zoo_comparison.ipynb) — six dark-energy parametrizations head to head; [`modified_gravity_growth`](examples/02-models/modified_gravity_growth.ipynb) — f(Q)/f(R,T)/f(R) with `mu(a,k)` and growth data; [`holographic_family`](examples/02-models/holographic_family.ipynb) — HDE/ADE/RDE against published constraints. |
+| **[03 · Building models](examples/03-building-models)** | [`custom_models`](examples/03-building-models/custom_models.ipynb) — three routes to your own `E(z)`; [`models_from_an_action`](examples/03-building-models/models_from_an_action.ipynb) — give an *action* and let the library derive `E(z)`; [`scalar_field_models`](examples/03-building-models/scalar_field_models.ipynb) — quintessence, k-essence and scalar-tensor gravity, integrated. |
+| **[04 · Inference](examples/04-inference)** | [`evidence_and_model_selection`](examples/04-inference/evidence_and_model_selection.ipynb) — AIC/BIC, likelihood-ratio, and Bayesian evidence; [`profile_likelihood_and_fisher`](examples/04-inference/profile_likelihood_and_fisher.ipynb) — three ways to an error bar; [`tension_statistics`](examples/04-inference/tension_statistics.ipynb) — four definitions of "they disagree at 4σ". |
+| **[05 · Case studies](examples/05-case-studies)** | [`cpl_mcmc_analysis`](examples/05-case-studies/cpl_mcmc_analysis.ipynb) and [`cpl_mcmc_tfd42`](examples/05-case-studies/cpl_mcmc_tfd42.ipynb) — the CPL deep dive and its publication-scale variant; [`lscdm_mcmc`](examples/05-case-studies/lscdm_mcmc.ipynb) — does ΛsCDM still relieve the H₀ tension?; [`s8_tension_cmb`](examples/05-case-studies/s8_tension_cmb.ipynb) — the S₈ tension from a from-scratch Planck spectrum; [`dark_energy_evidence_audit`](examples/05-case-studies/dark_energy_evidence_audit.ipynb) — how much of the dark-energy evidence is a choice, across 20 combinations. |
 
 ---
 
@@ -411,7 +531,7 @@ This works for any model CosmoFit knows about, built-in or [custom](#custom-mode
 ## Custom Models
 
 Testing a model that isn't in the literature -- and isn't one of
-CosmoFit's six built-ins -- doesn't require touching the library's
+CosmoFit's twenty built-ins -- doesn't require touching the library's
 internals. `define_model` builds a usable model from a single
 `E(z)` function (that alone is enough to fit against every dataset
 and produce every plot except `w_of_z()`/`deceleration()`); any new
@@ -454,12 +574,260 @@ from CosmoFit import Cosmology
 class MyModel(Cosmology):
     EXTRA_PARAMS = {"beta": {"default": 0.0, "bounds": (-2.0, 2.0)}}
 
+    def _dark(self, z):
+        return (1 - self.Omega_m) * (1 + z) ** (3 * (1 + self.w0)) * (1 + self.beta * z)
+
     def E(self, z):
         z = np.asarray(z, dtype=float)
-        return np.sqrt(
-            self.Omega_m * (1 + z) ** 3
-            + (1 - self.Omega_m) * (1 + z) ** (3 * (1 + self.w0)) * (1 + self.beta * z)
-        )
+        return np.sqrt(self.Omega_m * (1 + z) ** 3 + self._dark(z))
+
+    def dEdz(self, z, h=1e-5):
+        z = np.asarray(z, dtype=float)
+        return (self.E(z + h) - self.E(z - h)) / (2 * h)      # or by hand
+```
+
+A direct subclass **must** define `dEdz`, and from the moment it is
+constructed: the distance integrator interpolates `1/E(z)` with a Hermite
+spline built from that derivative, which is what makes it exact to fourth
+order instead of second. `define_model` installs a central-difference
+fallback for you; subclassing does not, so that a model can supply the exact
+derivative -- as every built-in one does -- rather than silently give up
+about four orders of magnitude of accuracy in every distance.
+
+---
+
+## Models From an Action
+
+`define_model` still asks for `E(z)`, which means somebody has
+already done the variational calculus by hand. `CosmoFit.theory`
+takes the other end: give it a gravitational action on an FLRW
+metric and it derives `E(z)` itself.
+
+The method is the standard minisuperspace one. FLRW is written
+with an explicit lapse `N(t)`, the action is reduced to a
+point-like Lagrangian in `a`, `adot` and `N`, and varying the
+lapse produces the Friedmann *constraint* -- the lapse is a
+non-dynamical gauge degree of freedom, which is exactly why its
+variation gives a constraint rather than an evolution equation.
+Setting `N = 1` afterwards recovers the familiar form. Writing
+`N = 1` from the start would lose the equation altogether.
+
+```python
+from CosmoFit import Fitter
+from CosmoFit.theory import Action
+
+# Power-law f(T) gravity (Bengochea & Ferraro 2009).
+model = Action(
+    "T + A0*(-T)**b",
+    geometry="teleparallel",
+    params={
+        "A0": {"default": -4.2, "bounds": (-30.0, 0.0)},
+        "b": {"default": 0.0, "bounds": (-2.0, 0.9), "label": r"$b$"},
+    },
+    closure="A0",           # fixed by E(0) = 1, not fit
+    growth="quasi_static",  # mu = 1/f', for fsigma8/s8
+).build("PowerLawFT")
+
+fit = Fitter(
+    model=model,
+    datasets=["cc", "desi"],
+    free_params=["H0", "Omega_m", "b", "rd"],
+    initial={"H0": 70.0, "Omega_m": 0.3, "b": 0.0, "rd": 147.0},
+)
+fit.best_fit()
+```
+
+What comes back is an ordinary `Cosmology` subclass. Every
+dataset, likelihood, sampler and plot in the library works on it
+unchanged.
+
+`Action.constraint()` returns the derived Friedmann equation
+symbolically, if the derivation is what you wanted rather than the
+fit.
+
+### What it checks, and what it refuses
+
+The three geometry scalars carry different signs across the
+literature, and picking one wrongly inverts every modification
+built on it while leaving nothing downstream to complain. They are
+fixed here by requiring that an undeformed `f` reproduce General
+Relativity exactly, and the test suite asserts that in all three
+sectors rather than trusting the convention.
+
+* An action that does not satisfy `E(0) = 1` is **refused**. It
+  would predict every distance wrong by a constant factor without
+  looking broken. `closure=` names the parameter that condition
+  fixes -- in Lambda-CDM, `"R - 2*Lam"` with `closure="Lam"` is
+  what makes `Lam = 3 (1 - Omega_m - Omega_k)`.
+* `growth="quasi_static"` is **opt-in**. `mu = 1/f'` is a
+  statement about perturbations, which a background action does
+  not by itself determine.
+
+### A general `f(R)`
+
+Fourth-order, and it gets its own reduction — applied
+automatically, with nothing to ask for:
+
+```python
+model = Action(
+    "R - 2*Lam + alpha_fr*R**2",
+    params={"Lam":      {"default": 2.1, "bounds": (0.0, 6.0)},
+            "alpha_fr": {"default": 1e-3, "bounds": (1e-6, 1.0)}},
+).build("Starobinsky")
+```
+
+The ordinary reduction removes the `addot` in the Einstein–Hilbert
+term by integrating by parts, which is legitimate only while the
+Lagrangian is *linear* in it. For a general `f(R)` it is not — the
+term that would be dropped is not a total derivative. Promoting `R`
+to an **independent variable**, held to its geometric value by a
+Lagrange multiplier, gives
+
+```
+L = (1/2) N a^3 [ f(R) - f'(R) R + f'(R) R_geom ]
+```
+
+which is linear in `addot` again, at the cost of one extra dynamical
+variable. That variable is the theory's fourth order made visible,
+and it appears as a parameter: **`R_0`**, the Ricci scalar today —
+an initial condition General Relativity does not have. There is no
+`closure` here, because `E(0) = 1` holds by construction.
+
+**Checked three ways.** The derived Friedmann constraint equals the
+textbook `3 f_R H² = (f_R R − f)/2 − 3H d(f_R)/dt + rho`
+symbolically. `alpha -> 0` reproduces ΛCDM, and does so smoothly:
+over `z <= 5` the departure falls 6.4e-01 → 1.8e-01 → 4.2e-03 as
+`alpha` goes 1e-1 → 1e-3 → 1e-5. And the accuracy measure is the
+**third** equation of
+motion, from varying `a` — the one the integration never uses,
+which holds by the Bianchi identity and comes out at 1e-15.
+
+Unlike a scalar field, this integrates **backwards** from today, and
+the difference is measured rather than assumed: a `1e-8` kick to
+`R_0` moves `E(z)` by less than that out to `z = 1100`, where a
+scalar field would have run away.
+
+### Scalar fields
+
+An action can carry dynamical fields, in which case the expansion
+history is integrated rather than solved pointwise:
+
+```python
+model = Action(
+    "R",
+    fields={"phi": "X - V0*exp(-lam*phi)"},   # any L(X, phi)
+    params={"V0":  {"default": 2.1, "bounds": (0.05, 50.0)},
+            "lam": {"default": 0.5, "bounds": (0.0, 1.7)}},
+    closure="V0",
+).build("ExponentialQuintessence")
+```
+
+More than one field is fine, and a field's name is also in scope in
+`gravity` -- which is how **scalar-tensor gravity** is written:
+
+```python
+Action(
+    "(1 + xi*phi**2)*R",                       # F(phi) R, not R + phi
+    fields={"phi": "X - V0"},
+    params={"xi": {"default": 0.02, "bounds": (-0.5, 0.5)},
+            "V0": {"default": 2.1, "bounds": (0.05, 20.0)}},
+    closure="V0",
+)
+```
+
+That is a different theory from a field sitting on top of General
+Relativity: the field sets the strength of gravity, and the
+Friedmann equation gains the `3 H dF/dt` term. The derivation
+reproduces `3 F H^2 + 3 H dF/dt = rho` symbolically, and `xi = 0`
+returns ΛCDM to 1e-9.
+
+It also changes how structure grows, and that is easy to get
+silently wrong. `growth="quasi_static"` gives the scalar-tensor
+`mu = G_eff/G_N` of Boisseau, Esposito-Farèse, Polarski &
+Starobinsky (2000), evaluated on the field's own solution so that
+it moves as the field rolls. Left at the default `"gr"`, `mu` is 1
+-- correct for a *minimally* coupled field, and wrong here -- so
+`Fitter` warns if such a model meets growth data.
+
+One more thing to know: a field's history starts at `z_init`
+(default 3000), and the growth ODE starts at `z = 9999`. Fitting
+`fsigma8` therefore needs `Action(z_init=20000)` or similar, and
+saying so is now an error rather than an infinite chi-squared.
+
+Each field adds two parameters, `phi_i` and `dphi_i` -- its value
+and `dphi/dN` at `z_init` (default 3000, and the earliest
+redshift the model can be evaluated at).
+
+**They are set early, not today, and that is the whole design.**
+Setting them at `a = 1` would make `E(0) = 1` algebraic and skip
+the shooting entirely. It is also wrong: integrating backwards
+from a field at rest today, the Hubble friction that damps the
+field forwards becomes anti-friction, the generic past solution
+is kinetic-dominated, and `rho_phi` grows as `a^-6`. For
+exponential quintessence normalized to today's dark-energy
+density that gives `E(2.5) = 9.3` where ΛCDM gives 3.7. Nothing
+fails -- it is the correct past of those initial conditions, and
+those initial conditions are not a universe.
+
+So the state is given where a quintessence model actually gives
+it, early and typically frozen, and `E(0) = 1` becomes a shooting
+condition on `closure`. Forwards is also the numerically stable
+direction.
+
+Validated against Copeland, Liddle & Wands (1998), whose
+late-time attractors are exact functions of the slope alone. On a
+matter background there are two, selected by `lambda^2` against 3:
+
+| | `w` | predicted | `Omega_phi` | predicted |
+|---|---|---|---|---|
+| λ = 0.5 | −0.916667 | −0.916667 | 1.00000 | 1 |
+| λ = 1.0 | −0.666667 | −0.666667 | 1.00000 | 1 |
+| λ = 1.9 | −0.000035 | 0 | 0.83097 | 0.83102 |
+| λ = 2.0 | +0.000035 | 0 | 0.75006 | 0.75000 |
+
+The first two are the field-dominated attractor
+(`w = -1 + lambda^2/3`); the last two are the scaling attractor,
+where the field tracks matter at a fixed fraction `3/lambda^2` --
+which is why a steep potential cannot accelerate. Ask such a
+model for more dark energy than its attractor allows and `H(0)`
+saturates below 1 with no potential scale reaching it; that
+arrives as a statement about the model rather than as a stalled
+integrator.
+
+A constant potential pins the other end: it reproduces `LCDM` to
+1e-10 in `E(z)`, with `w = -1` and `Omega_de` constant to machine
+precision at every redshift.
+
+Cost is about 37 ms per parameter set -- a shooting solve plus an
+integration, against ~150 µs for a closed-form model. `w` and
+`Omega_de` are read off the field's own Lagrangian
+(`p = L`, `rho = 2 X L_X - L`) rather than by subtracting the
+fluids from `E(z)^2`, which at z = 2000 would be 2.4e9 minus
+2.4e9 to get 0.7.
+
+### Validation
+
+Because this derives what the rest of the library has typed in by
+hand, it can be checked against it:
+
+| action | reproduces | agreement |
+|---|---|---|
+| `R - 2*Lam` | `LCDM`, curvature included | `E(z)`, `dE/dz` to 1e-16 |
+| `Q*exp(lam*Q0/Q)` | `FQExponential` | constraint identical; `lam`, `E(z)`, `mu` to 1e-13 |
+| `T + A0*(-T)**b`, `b = 0` | `LCDM`, via a different sector | `E(z)` to 1e-13 |
+
+The `f(Q)` case is the demanding one. Its constraint is
+transcendental -- the hand-written model inverts a Lambert `W` to
+solve it -- so the derivation has to produce
+`(E^2 - 2 lam) exp(lam/E^2) = Omega_m (1+z)^3` from the action
+alone, and the solver has to land on the same branch `W_0` picks
+rather than on any root of that equation.
+
+Installed as an extra, since nothing else in the library needs
+sympy:
+
+```bash
+pip install "cosmofit[theory]"
 ```
 
 ---
@@ -490,14 +858,56 @@ Each distinct configuration gets its own file (see
 shouldn't be.
 
 It lets you: tick which built-in datasets to fit; pick one of the
-six built-in models, or write a custom one directly as an `E(z)`
-expression (e.g. `sqrt(Omega_m*(1+z)**3 + ...)`, using the same
-mechanism as `model_from_expression()` below) with your own extra
-parameters; tick which parameters are free and edit their initial
-values/bounds in a table; and, with one click, run the MCMC fit and
-render whichever result plots apply to your model/dataset choice.
-Results (best fit, posterior summary, convergence) can be downloaded
-as JSON via `FitResult.save_json()`.
+seventeen built-in models, or write a custom one directly as an
+`E(z)` expression (e.g. `sqrt(Omega_m*(1+z)**3 + ...)`, using the
+same mechanism as `model_from_expression()` below) with your own
+extra parameters; tick which parameters are free and edit their
+initial values/bounds in a table; and, with one click, run the MCMC
+fit and render whichever result plots apply to your model/dataset
+choice. Results (best fit, posterior summary, convergence) can be
+downloaded as JSON via `FitResult.save_json()`.
+
+**It also explains itself.** Fourteen datasets and seventeen models
+is a lot to face cold, and a wrong combination does not announce
+itself -- it produces a perfectly ordinary-looking posterior. So:
+
+* **Every dataset carries a note** -- what it measures, over what
+  redshift range, how many points, what it actually constrains, and
+  the paper it comes from. They are grouped by probe (expansion rate,
+  BAO, supernovae, CMB, growth, external measurements), because a fit
+  is normally built by taking one from each family rather than by
+  ticking everything.
+* **Every model carries a note** -- what it is, what its extra
+  parameters mean, and *which parameter values reduce it to ΛCDM*,
+  which is the number an AIC/BIC comparison is measuring the distance
+  from. Capability badges say whether it has its own `w(z)`, whether
+  it modifies growth, and whether the full CMB spectra can be
+  computed for it.
+* **Six presets** configure a whole analysis in one click --
+  including "DESI DR2 + BBN → H₀ without the CMB", which sets the
+  datasets, picks DR2, and turns on the computed sound horizon
+  together, since none of those three is useful without the others.
+* **The parameter table shows only what this fit uses.** The shared
+  container carries every parameter any model needs; for an LCDM fit
+  against CC and BAO all but four are inert. Relevance depends on the
+  datasets too -- `rd` appears only with BAO, `sigma8` only with
+  growth data, `n_s`/`tau` only with the CMB spectra.
+* **It warns before you run, not after.** A model the CMB spectra
+  cannot be computed for is an error you would otherwise meet as a
+  stack trace minutes in. The quieter ones matter more: a
+  modified-gravity model with no growth data ticked, a model whose
+  own parameters are left fixed, a free `sigma8` that nothing in the
+  fit constrains. Each of those runs, converges, and returns a
+  posterior that looks like a measurement.
+* **A χ² breakdown per dataset** on the results tab, which is what
+  turns a total χ² into "the local H₀ measurement is contributing 24
+  of it, on one data point" -- the entire content of a tension.
+* **Derived quantities** (`q₀`, `z_t`, and `r_d` computed from the
+  densities) with real error bars, pushed sample by sample back
+  through the model's own `E(z)`.
+* A **📖 Guide** panel listing every dataset and model in one
+  browsable table, with the conflict rules and a short "how to use
+  this" walkthrough.
 
 The custom-model expression box evaluates with `eval()` but with
 Python's builtins removed and only whitelisted `numpy` math plus the
@@ -509,525 +919,175 @@ deployment.
 
 ## Project Status
 
-CosmoFit is currently under active development.
+CosmoFit is under active development. The full release history --
+thirty-three versions, what each one changed, and for several of them
+how the bug was found rather than only that it was fixed -- lives in
+**[CHANGELOG.md](CHANGELOG.md)**.
 
-Version **v0.3.0** fixes a curvature bug in the LCDM/CPL Friedmann
-equations and in the transverse comoving distance (Omega_k was
-previously a fittable-but-inert parameter), and adds a Planck 2018
-CMB distance-prior likelihood (shift parameter R, acoustic scale
-l_A, omega_b_h2), backed by a radiation-aware sound-horizon
-calculation and the Hu & Sugiyama (1996) z_star fitting formula.
+Where it stands today:
 
-Version **v0.4.0** fixes a Pantheon+ distance-modulus bug (the
-zHD/zHEL redshift distinction from Brout et al. 2022 was not
-applied) and a circular import between `data.loader` and
-`likelihoods`, roughly halves the per-step cost of an MCMC run
-that includes Pantheon+, adds the `wCDM` model, adds an
-autocorrelation-time MCMC convergence check
-(`Fitter.convergence()`), and moves all plotting into a dedicated
-`plots.FitPlotter` (`fitter.plots`), with new Hubble diagram, H(z),
-BAO distance, Planck pull, w(z) evolution and deceleration-parameter
-figures alongside the existing chain/corner plots.
+| | |
+|---|---|
+| datasets | **21**, from cosmic chronometers to the from-scratch CMB |
+| models | **20** written out by hand, plus three routes to one that is not here |
+| tests | **697** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
+| notebooks | **17**, in five sections under [`examples/`](examples/) |
 
-Version **v0.5.0** moves the package to a standard `src` layout
-(`src/CosmoFit/...`) with a unified public API, so `from CosmoFit
-import CPL, Fitter, ...` now works instead of importing the five
-subpackages (`cosmology`, `data`, `likelihoods`, `stats`, `plots`)
-separately from the repository root.
-
-Version **v0.6.0** adds three dark-energy models: **JBP** and **BA**
-(alternative w0-wa parametrizations to CPL, reusing the same `w0`/`wa`
-parameters) and **GCG** (Generalized Chaplygin Gas, a genuinely
-different unified dark-matter/dark-energy fluid, adding two new shared
-parameters `A_s`/`alpha`). All three have closed-form `E(z)`/`dE/dz`
-(no per-step numerical integration), verified against finite-difference
-derivatives and independent numerical integration of the continuity
-equation, so they're exactly as fast in an MCMC as LCDM/wCDM/CPL.
-
-Version **v0.7.0** adds the **DES-SN5YR** (Dark Energy Survey 5-year)
-supernova likelihood, downloaded directly from the official
-[des-science/DES-SN5YR](https://github.com/des-science/DES-SN5YR)
-data release and cross-validated against its own reference likelihood
-implementation (the distance-modulus formula and analytic
-marginalization both match it exactly). Its covariance is shipped as a
-precision (inverse covariance) matrix rather than a covariance matrix,
-so this version also adds `PrecisionCovariance`, used directly (no
-inversion round-trip) instead of forcing it through the existing
-Cholesky-based `DenseCovariance`. The Pantheon+ and DES-SN5YR
-marginalization logic (previously duplicated) was factored into a
-shared `AnalyticOffsetMixin`.
-
-> **Note:** don't combine `"pantheon"` and `"des_sn5yr"` in the same
-> fit -- DES-SN5YR's low-z anchor sample (~11% of it) is also compiled
-> into Pantheon+, so fitting both double-counts those supernovae. See
-> the `DESSN5YRLikelihood` docstring.
-
-Version **v0.8.0** adds the **SDSS BAO** likelihood: BOSS DR12
-(z=0.38, 0.51) + eBOSS DR16 LRG (z=0.698) + eBOSS DR16 QSO (z=1.48),
-combined into one dataset with a block-diagonal covariance (each
-component is an independent, non-overlapping-redshift measurement).
-Data downloaded directly from
-[CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
-(the same repository that is, independently, also the exact source of
-this project's existing DESI 2024 files -- confirmed byte-for-byte)
-and cross-checked against the published eBOSS DR16 LRG/QSO
-uncertainties. BOSS DR12's usual third bin (z=0.61) is deliberately
-omitted, since it overlaps the eBOSS DR16 LRG redshift range. The
-DESI/SDSS-BAO `model()`/`residuals()`/`chi2()` logic (previously
-duplicated in `DESILikelihood`) was factored into a shared
-`BAODistanceLikelihood` base class.
-
-> **Note:** don't combine `"desi"` and `"sdss_bao"` in the same fit --
-> DESI targets much of the same sky BOSS/eBOSS did, so treating them
-> as independent double-counts structure. See the
-> `SDSSBAOLikelihood` docstring.
-
-Version **v0.9.0** is a performance pass, driven by profiling rather
-than guesswork. The big one: evaluating `PlanckLikelihood` was
-dominated by two integrals (the sound horizon and the comoving
-distance to z\*) computed with `scipy.integrate.quad` -- an *adaptive
-scalar* quadrature that calls the (already fully vectorized)
-integrand at one z at a time, several hundred times per call. Both
-are now evaluated on a fixed, vectorized grid (`scipy.integrate.simpson`)
-instead -- one array-valued call instead of hundreds of scalar ones.
-Getting this right took two tries: the first grid (linear in the
-substituted variable) looked fine across randomized-parameter testing
-but turned out to badly under-resolve the sound-horizon integral's
-approach to its asymptote at realistic (Planck-fiducial-like)
-parameter values specifically -- caught by comparing end-to-end
-`PlanckLikelihood` output at a fixed point against the original
-`quad`-based result, not just spot-checking the integral in
-isolation. A log-spaced grid fixes it, verified to <1e-6 relative
-error against `quad` across dozens of randomized and
-literature-realistic parameter sets, across all 6 models. **Net
-effect: ~8x faster evaluation of a joint CC+DESI+Pantheon+Planck
-likelihood.** The distance-integrator's interpolation grid
-(`cosmology.numerics.integrals`) was also shrunk several-fold
-(verified: still >100x more accurate than any dataset's measurement
-precision needs) for a smaller additional gain that applies to every
-fit, Planck or not.
-
-Version **v0.10.0** splits MCMC sampling out of `Fitter` and into a
-dedicated `stats.sampler` module: `EnsembleSampler` (the existing
-`emcee`-backed walker initialization/run logic, unchanged in
-behavior) now implements a small `BaseSampler` interface, so the
-sampling backend is a swappable component rather than logic
-inlined in `Fitter.run_mcmc`, and `run_mcmc()` gains a `moves=`
-argument to pass through custom `emcee` proposals (e.g.
-`emcee.moves.DEMove()` for strongly correlated posteriors). It also
-adds a consolidated result interface (`stats.results`): `fitter.result`
-returns a `FitResult` bundling the best-fit point (`BestFitResult`)
-and MCMC posterior summary/convergence (`MCMCResult`) that were
-previously only available piecemeal via `best_fit_params`,
-`best_fit_chi2`, `summary()`, `convergence()`, with a single
-readable `repr` and `FitResult.save_json()` / `.load_json()` for
-keeping a fit's headline numbers without pickling the `emcee`
-sampler. Both are purely additive -- every existing `Fitter`
-method/attribute (`run_mcmc()`, `best_fit()`, `summary()`,
-`convergence()`, `samples_dict()`, `.sampler`, `.best_fit_result`,
-...) is unchanged.
-
-Version **v0.11.0** adds support for custom, not-in-the-literature
-models: `define_model()` (`cosmology.custom`) builds a usable
-`Cosmology` subclass from a single `E(z)` function -- which alone is
-enough to fit against every built-in dataset/likelihood and produce
-every plot except `w_of_z()`/`deceleration()` (an optional `dEdz=`
-enables the latter, else a numerical finite-difference fallback is
-used) -- plus any new parameters the model needs beyond the standard
-set (`H0`, `Omega_m`, `Omega_k`, `w0`, `wa`, ...), each declared
-inline with a default and prior bounds. The same mechanism is also
-available by subclassing `Cosmology` directly and declaring an
-`EXTRA_PARAMS` class attribute (`Cosmology.__init_subclass__` builds
-a matching parameter dataclass and property automatically); this is
-what `define_model` does under the hood. Required generalizing
-`Fitter` to read the parameter container off the model
-(`model.PARAMS_CLASS`) instead of hardcoding
-`CosmologyParameters` -- every built-in model is unaffected (none
-declare `EXTRA_PARAMS`), verified against all six.
-
-Version **v0.12.0** adds a graphical interface: a
-[Streamlit](https://streamlit.io) app (`app/streamlit_app.py`,
-optional `pip install -e ".[gui]"`) for ticking datasets, picking a
-built-in model or writing a custom `E(z)` as an expression, editing
-free parameters/bounds in a table, and running the fit + rendering
-plots with one click -- a pure UI layer over the existing
-`Fitter`/`FitPlotter` API, with no changes to either. The one new
-library addition is `model_from_expression()`
-(`cosmology.custom`), a thin wrapper around `define_model()` that
-takes `E`/`w`/`dEdz` as expression strings (e.g.
-`"sqrt(Omega_m*(1+z)**3 + ...)"`) instead of Python callables --
-evaluated with builtins stripped and only whitelisted `numpy` math
-plus the model's own parameters reachable, appropriate for a
-locally-run tool.
-
-Version **v0.13.0** adds model comparison plots: every
-`fitter.plots.*` figure (`hz`, `deceleration`, `w_of_z`,
-`hubble_diagram`, `des_hubble_diagram`, `bao_distances`,
-`sdss_bao_distances`) gets a `compare_*` counterpart that overlays
-this fit's curve with one or more other models' curves on the same
-data/axes -- the "model A vs model B" figures cosmology papers use,
-rather than only being able to look at models one at a time or
-compare them statistically (AIC/BIC/LRT) without a picture of what
-the difference actually looks like. `other_fits=None` (the default)
-auto-compares against a quick best-fit-only LCDM reference built
-from the same datasets; passing an already-fit `Fitter`, or a list
-of them, compares against exactly those instead, for an arbitrary
-N-model figure. Every `compare_*` method reuses the corresponding
-single-model method's existing evaluation logic (posterior-predictive
-bands, per-fit analytic SN offsets, ...) rather than duplicating it,
-and works for any model -- built-in or
-[custom](#custom-models) -- since it only depends on
-`Fitter`/`Cosmology`'s existing generic interface. The
-`cpl_mcmc_analysis` notebook's CPL vs. LCDM section now includes
-these alongside its existing AIC/BIC/likelihood-ratio comparison.
-
-Version **v0.14.0** adds multi-core MCMC: `fitter.run_mcmc(n_processes=...)`
-evaluates the ensemble's walkers across multiple CPU cores. This
-isn't emcee's own naive recipe (pairing a raw `multiprocessing.Pool`
-with `Fitter`'s already-built, data-carrying log-posterior) -- for a
-dataset like Pantheon+ (a ~1600x1600 dense covariance matrix),
-re-pickling and sending that to a worker on every single step
-measured *slower* than one process (~19ms to pickle vs. ~2ms to
-evaluate). Instead, each worker process builds its own `Fitter` once
-(from a small, cheap-to-pickle recipe), via the pool's `initializer`,
-and only a length-`ndim` float vector crosses the process boundary
-per evaluation after that; workers also pin their own BLAS thread
-pool to 1 (via the new `threadpoolctl` dependency) to avoid
-oversubscribing the machine. Net effect, measured on an 8-core
-machine for a 4-dataset CPL fit: ~2.4x, well under `n_processes`x
-(per-step IPC has its own cost) but a real, significant speedup. Only
-works for models picklable by reference (every built-in model; not a
-dynamically-built `define_model()`/`model_from_expression()` model,
-which raises a clear error rather than an obscure pickling failure
-if `n_processes` is given), and is most reliable on Linux/macOS
-(multiprocessing from a Windows notebook is fragile for reasons
-outside this library's control). The new `examples/cpl_mcmc_tfd42.ipynb`
-notebook is a publication-scale variant of `cpl_mcmc_analysis.ipynb`
-using this: all four datasets (including Planck, which makes `rd`
-and `Omega_b` constrainable and lets them join the free parameters
-too) and a much longer chain (`nwalkers=64`, `nsteps=12000`), run in
-parallel across every available core.
-
-Version **v0.15.0** fixes `n_processes` on Python 3.14: it changed
-`multiprocessing`'s default start method on Linux from `fork` to
-`forkserver` (matching what macOS/Windows already used), which made
-`run_mcmc(n_processes=...)` crash outright as a plain script
-(`forkserver`/`spawn` require every process-spawning call to sit
-behind an `if __name__ == "__main__":` guard) and, even inside a
-Jupyter kernel where that particular crash doesn't surface, measured
-no speedup at all. `Fitter._mcmc_pool` now explicitly requests the
-`fork` context rather than relying on whatever the interpreter's
-default happens to be -- still available on Linux/macOS even where
-it's no longer automatic, and with neither of the above problems.
-This version also brings the graphical interface up to parity with
-`cpl_mcmc_tfd42.ipynb`: the GUI can now configure and fit multiple
-models at once (built-in or custom) sharing one set of datasets, with
-a statistical comparison tab (AIC/BIC, and a likelihood-ratio test
-when exactly two models are properly nested), every `compare_*`
-figure alongside the existing single-model ones, and the CPL-family
-w(z)=-1-crossing/LCDM-distance posterior diagnostics -- so everything
-that notebook does is now also reachable with zero code. Every figure
-also gets a download button (SVG/PNG/PDF, picked once per session and
-applied to all of them) -- the browser's own save dialog is what lets
-you choose where it goes.
-
-**Resolved (v0.18.0): the "no speedup inside Jupyter" limitation was
-a misdiagnosis.** Multiprocessing was never the problem, and it was
-never specific to notebooks. The real cause was the *per-evaluation*
-cost: every likelihood evaluation solved the Pantheon+ covariance
-with a Cholesky triangular solve (`cho_solve`), and a triangular
-solve is an inherently sequential recurrence -- each element depends
-on the one before it -- so BLAS cannot thread it and worker processes
-contend on memory bandwidth instead of scaling. The whole MCMC was
-therefore pinned near one core's throughput in *every* environment;
-a plain script only looked better because that is where
-`n_processes` was actually being passed.
-
-The covariance is constant, so `DenseCovariance` now precomputes an
-explicit inverse once (validated against the original matrix, and
-falling back to the Cholesky path if it fails that check) and
-`solve()` is a symmetric mat-vec, which BLAS *does* thread. Measured
-on the bundled 1624x1624 Pantheon+ covariance:
-
-| | per solve | 8-process scaling |
-|---|---|---|
-| `cho_solve` (before) | 1.70 ms | 4.8x |
-| mat-vec, 1 BLAS thread | 0.80 ms | 7.5x |
-| mat-vec, threaded BLAS | 0.18 ms | -- |
-
-End result for a 3-dataset CPL chain on an 8-core machine: the
-single-process path went from 1.1x to **7.9x** core utilization and
-roughly halved in wall time, *without any multiprocessing at all* --
-and it measures the same in a plain script, in Jupyter Lab, in VS
-Code, and under `nbconvert`. chi2 is unchanged to ~1e-11 relative.
-
-`n_processes` now also defaults to `"auto"`, so notebooks get
-multi-core behaviour without passing anything: it uses every core the
-process is *allowed* to run on (`os.sched_getaffinity`, not
-`os.cpu_count()` -- the two differ inside a container, cgroup, or
-SLURM allocation, and oversizing the pool there makes things slower),
-but only when the run is long enough to earn back worker startup, and
-it silently stays single-process for a `define_model()` model rather
-than raising. The chain is unaffected: the proposal RNG lives in the
-main process, so a given `seed` gives bit-identical results at any
-`n_processes` (verified).
-
-Version **v0.16.0** adds modified-gravity models -- **FQExponential**
-(f(Q) gravity), **FRTLinear** (f(R,T) gravity), and **FRHuSawicki**
-(f(R) gravity) -- a real category beyond dark-energy-on-top-of-GR
-reparametrizations (LCDM/wCDM/CPL/JBP/BA) or a unified fluid (GCG):
-these modify the gravitational field equations themselves.
-**Background (E(z)) level only** -- CosmoFit's datasets (CC, BAO,
-SNe, Planck distance priors) are all background/expansion-history
-probes, and growth-of-structure data (fσ8/RSD) plus the perturbation
-machinery to use it isn't implemented, so that's the honest ceiling
-of what's testable here for now. Both FQExponential's and FRTLinear's
-Friedmann equations were derived and verified directly against
-primary sources (Anagnostopoulos, Basilakos & Saridakis 2021,
-arXiv:2104.15123, for f(Q); Harko, Lobo, Nojiri & Odintsov 2011,
-arXiv:1104.2669, for f(R,T)) rather than taken from a single
-secondary source -- one transcription (a sign error in FQExponential's
-Lambert-W closure formula) was caught this way, by a numerical
-closure self-check (`E(z=0)` should equal 1 by construction; it
-didn't, until the sign was fixed) that's now a permanent part of the
-model's test coverage. **FRHuSawicki's background is identical to
-LCDM's by construction** -- the standard "designer f(R)" approach
-builds f(R) to reproduce an assumed target background, so `f_R0`/`n`
-are present as parameters but don't affect `E(z)` at all; fitting
-them against these datasets won't meaningfully constrain them. This
-is stated explicitly in the class docstring and shown as a visible
-warning next to the model picker in the GUI -- included for
-completeness rather than silently omitted, but not silently
-overstated either. All three plug into the existing `EXTRA_PARAMS`
-mechanism (built for `define_model()`/custom models), so `Fitter`,
-every plot including `compare_*`, and the GUI's multi-model
-comparison all work with them with no further changes.
-
-Version **v0.17.0** adds growth-of-structure: the "phase 2" v0.16.0
-explicitly deferred, since a background-only treatment left
-FRHuSawicki's `f_R0`/`n` genuinely untestable (its background *is*
-LCDM's by construction). A new `cosmology.calculators.growth.GrowthCalculator`
-solves the standard sub-horizon, quasi-static linear growth ODE
-(`D'' + (2+dlnH/dN)D' - (3/2)Omega_m(a) mu(a,k) D = 0`) for every
-model via a `Cosmology.mu(a,k)` hook (default 1, i.e. standard GR
-growth -- LCDM/wCDM/CPL/JBP/BA/GCG all get this for free), exposing
-`fitter.cosmology.background.{growth_rate,sigma8,fsigma8}(z)`, plus
-a new `sigma8` cosmological parameter and two new datasets/likelihoods:
-`"fsigma8"` (the "Gold-2018" RSD growth-rate compilation, Sagredo,
-Nesseris & Sapone 2018, arXiv:1806.10822, 22 points, with the same
-Alcock-Paczynski correction the reference likelihood applies) and
-`"s8"` (a single Gaussian S8 = sigma8*sqrt(Omega_m/0.3) constraint,
-KiDS-1000 or DES Y3). Each of the three modified-gravity models now
-has a real, cited `mu(a,k)`: **FQExponential** uses the settled
-sub-horizon result G_eff/G_N = 1/f_Q (Barros, Barreiro, Koivisto &
-Nunes 2020, arXiv:2004.07867); **FRTLinear** uses
-`mu = 1 + 3*beta` (the same coupling already in its own `E(z)^2`,
-stated explicitly as a simplification rather than a full covariant
-perturbation derivation -- see the class docstring); and
-**FRHuSawicki** gets the standard chameleon-screened, scale- and
-time-dependent `mu(a,k)` (Pogosian & Silvestri 2008, arXiv:0709.0296),
-derived here directly from this model's own background rather than
-transcribed, held at a fixed fiducial pivot `k=0.1` h/Mpc since
-CosmoFit's fsigma8 data are single per-z points, not a P(k) shape --
-`f_R0`/`n` are still inert for background-only fits, but now
-genuinely shape `"fsigma8"`/`"s8"` predictions (verified end-to-end:
-a short FRHuSawicki fit against `"fsigma8"` alone now gives `f_R0` a
-real, visibly informative posterior, not a flat one spanning the
-whole prior). `fitter.plots.growth()`/`compare_growth()` add the
-fsigma8(z) diagram alongside the existing figures, and the GUI picks
-up both new datasets/the new plot automatically through the same
-`DATASET_REGISTRY`/`EXTRA_PARAMS` mechanism every other dataset/model
-already goes through.
-
-Version **v0.19.0** fixes a real scientific error in the Planck
-distance-prior likelihood. Evaluated at *Planck's own best-fit
-LCDM* -- where a correct implementation must return chi2 ~ 0 -- the
-old code returned **chi2 ~ 100 for 3 data points**, with `l_A` off by
-**-8.9 sigma** (`R` and `omega_b_h2` were fine at 0.13 and 0.07
-sigma, which is what localized it to the sound horizon `r_s(z*)`).
-
-The cause was not a bug in the physics but a **definitional
-mismatch**, which is the classic trap with compressed likelihoods.
-These priors are not a measurement of the sky; they are a summary of
-Planck's own fit, computed by Chen, Huang & Wang (2019) under a
-specific set of conventions. CosmoFit was computing a *more detailed*
-prediction than the compression assumed -- radiation as photons plus
-3.046 massless neutrinos (`omega_r = 4.18e-5`) where CHW19 define
-`Omega_r = Omega_m/(1+z_eq)` (0.8% lower, massive neutrinos left in
-`Omega_m`), and `z*` from the Hu & Sugiyama (1996) fitting formula
-where CHW19 take it from the Planck chains, i.e. from CAMB. HS96 was
-calibrated against 1990s recombination physics and runs 0.22% high
-for Planck-like parameters (1091.9 vs CAMB's 1089.9); `l_A` is
-sensitive enough to `z*` that this alone is a ~4 sigma shift. Being
-*more* physical than the data's own definitions is still wrong when
-the data is a compression.
-
-`RecombinationCalculator` now follows CHW19 Eqs. (1)-(6) exactly, and
-`z*` comes from a fit calibrated directly against **CAMB 2.0.1** over
-a 12x14 grid in (`omega_b`, `omega_cb`) covering far more than the
-Planck posterior, accurate to **0.0018%** in `z*` (~0.04 sigma of the
-`l_A` prior). The radiation term is also renormalized properly:
-adding `Omega_r(1+z)^4` on top of a model's `E(z)` left
-`E(0)^2 = 1 + Omega_r`, over-closing the universe; the correction
-reuses each model's own dark-energy evolution, so it stays exact for
-curved and non-LCDM models alike. The same fiducial check now gives
-`l_A` +0.54 sigma, `R` -0.03 sigma, **chi2 = 0.39**.
-
-Cross-checked two independent ways: against CAMB (`z*` to 0.002%),
-and against a separate `scipy.quad` implementation of the CHW19
-recipe across flat/open/closed LCDM and CPL (`R` and `l_A` to
-<0.01 sigma). Per-evaluation cost is unchanged.
-
-**This changes results.** The bias did not show up as a bad fit --
-the sampler absorbed it by shifting parameters, which is exactly what
-makes this kind of error dangerous. Refitting CC+DESI+Pantheon+ +
-Planck:
-
-| | old | new |
-|---|---|---|
-| LCDM `H0` | 68.04 | **67.39** |
-| LCDM `Omega_m` | 0.3118 | **0.3149** |
-| CPL `w0` | -0.973 | **-0.881** |
-| CPL `wa` | -0.000 | **-0.298** |
-
-The CPL case is the headline: the old code put `wa` at essentially
-zero -- perfectly consistent with a cosmological constant -- while
-the corrected code prefers evolving dark energy, in the same
-direction and of comparable size to DESI's own published w0waCDM
-result. Any CPL/JBP/BA conclusion drawn from a Planck-including fit
-made with v0.18.0 or earlier should be regenerated.
-
-> **Note:** don't combine two different `"s8"` versions in the same
-> fit (default is `"kids1000"`; pass
-> `dataset_kwargs={"s8": {"version": "des_y3"}}` for the other) --
-> they're independent survey constraints, not a joint one. See the
-> `S8Likelihood` docstring.
-
-Version **v0.20.0** makes MCMC chains persistent. Until now a chain
-lived only in memory: closing the notebook, or adding one more plot
-to the bottom of a script, meant sampling the whole posterior again
-from step zero -- hours, to recompute samples that hadn't changed.
-`run_mcmc(save="chains/fit.h5")` now writes the chain to HDF5 as it
-is sampled (emcee's own `HDFBackend`, plus a `cosmofit` metadata
-group), and picks it back up on the next call instead of re-running
-it. `nsteps` counts the *total* length to reach, so re-running an
-unchanged script samples nothing, raising `nsteps` samples only the
-difference, and an interrupted run keeps every step it had already
-taken. `Fitter.from_chain("chains/fit.h5")` reopens a finished run in
-a later session -- model, datasets, free parameters, priors and fixed
-values all come back out of the file -- and
-`CosmoFit.stats.chains.open_chain()` reads the posterior with no
-dataset loaded at all.
-
-Resuming is exact, not approximate: emcee's proposal RNG state is
-stored with the walkers, so a chain sampled in four sittings is
-bit-identical to the same chain sampled in one (verified directly, as
-is multi-core `n_processes` writing through the same file). The
-metadata is also what keeps it *safe* -- a resume whose model,
-datasets, free parameters, prior bounds or fixed parameter values
-differ from the stored chain's is refused, naming exactly what
-differs, rather than silently welding samples from two different
-posteriors into one array. The GUI uses the same machinery
-(`fitter.chain_id()`, a stable hash of the posterior, as the
-filename), so adding a model to a comparison no longer re-runs the
-models already fitted. `h5py` is now a dependency.
-
-Version **v0.21.0** adds the w0-wa dark-energy plane
-(`fitter.plots.w0_wa_plane()`, and `compare_w0_wa_plane()` for
-several posteriors at once): 2D credible contours over the
-phantom/quintessence/quintom-A/quintom-B regions with ΛCDM marked at
-(-1, 0) -- the figure the DESI evolving-dark-energy results are
-argued in. The classification behind it is available on its own as
-`cpl_diagnostics.classify_region()` /
-`cpl_diagnostics.region_fractions()`, which turns "the contours sit
-in the quintom-B region" into a posterior probability. Contour levels
-are stated as 2D credible probabilities (68%/95% of the samples), not
-sigmas, since in two dimensions the familiar 1D contours enclose only
-39%/86.5%.
-
-The same release fixes a reporting bug in the GUI's w0-wa
-diagnostics: it printed the Mahalanobis distance D of the ΛCDM point
-with a σ suffix. In 2D, D is not a number of sigma (D² follows χ² with
-2 degrees of freedom), so this overstated the tension -- D = 2.20
-reads as "2.2σ" but is really 1.70σ. The library was corrected in
-v0.19.0; the GUI now reports `sigma` (with the confidence level, and D
-labelled as what it is) too.
-
-Version **v0.22.0** is a figure-typography pass: everything a plot
-says is now written the way a paper would write it, and a few labels
-that were quietly *wrong* are fixed.
-
-Parameter names reach every axis and corner-plot title as LaTeX
-(`$\Omega_b$`, `$r_d$`, `$\sigma_8$`) instead of as Python
-identifiers -- the labels were always declared on the parameter
-container, the plots just weren't reading them. Model names do the
-same: legends show `ΛCDM`, `wCDM`, `f(R)` Hu-Sawicki via a new
-`Cosmology.MODEL_LABEL` / `plot_label()` (with `plain_name()` for
-tables, dropdowns and JSON, where raw LaTeX would be shown
-literally), and `define_model(..., label=...)` lets a custom model
-supply its own. Corner-plot titles now size their precision per
-parameter, so `Omega_b` reads `0.0491 +0.0011 -0.0011` instead of
-corner's default `0.05 +0.00 -0.00`.
-
-Three labels were misleading rather than merely plain:
-
-- **The Pantheon+ Hubble diagram's y axis claimed to be
-  `mu = m_B - M_B`.** It is neither: the plotted data is the
-  corrected *apparent* magnitude `m_b_corr` (~11-27 mag, not a
-  distance modulus's ~33-46), and `M_B` is analytically
-  marginalized out by default, so it cannot appear in an axis
-  label. Now `$m_B$ [mag]`, with the model curve's legend entry
-  saying where its normalization came from
-  (`Model ($M_B$ marginalized)`).
-- **The BAO panels were titled `D_V/r_s` while their y axis said
-  `r_d`.** Both denote the sound horizon at the drag epoch; the
-  `rs` spelling comes from DESI's own data file, which
-  `MODEL_MAP`'s keys keep, but the code divides by `rd` and now so
-  do the titles.
-- **The Planck pull plot's ticks were the raw dataset identifiers**
-  (`lA`, `omega_b_h2`); they now render as `$\ell_A$`,
-  `$\omega_b h^2$`.
-
-Dataset combinations in legends also spell themselves out
-(`CC + DESI + Pantheon+`, via `stats.dataset_label`) rather than
-joining registry keys. No numerical result changes from any of this --
-it is labels, titles and legends only.
-
-The DES-SN5YR Hubble diagram is also legible for the first time. That
-release ships 81 supernovae (of 1820) with `mu_err` between 5 and 468
-mag -- entries the survey de-weights rather than removes -- and
-matplotlib autoscales an errorbar plot to contain every whisker, so
-the panel spanned +/-500 mag with the actual 35-45 mag Hubble diagram
-compressed into a sliver of it. Panels are now scaled by the
-measurements rather than by their largest error bars, and a bar may
-only stretch the view if it is extreme both as a fraction of the
-data's spread *and* as a multiple of that dataset's median error --
-which caps nothing at all on CC, DESI, Pantheon+ or fsigma8, where
-matplotlib's own limits are reproduced exactly. The 81 points stay on
-the plot, drawn without the whiskers that no longer fit and counted
-in the legend.
-
-One functional bug surfaced while testing the above and is fixed here
-too: **`FitResult.save_json()` (and the GUI's JSON download) failed
-for any fit that used `run_mcmc(save=...)`**, with
-`TypeError: Object of type int64 is not JSON serializable`. Reading a
-chain's step count back through an HDF5 attribute yields `np.int64`
-rather than `int`, and `json` rejects it (`np.float64` slips through
-only because it subclasses `float`). The counters are now cast at the
-source, and both JSON writers coerce numpy scalars rather than
-failing on a save.
-
-The package structure may continue to evolve before the first stable **v1.0.0** release.
+**v1.0.0** is the first stable release. `main` had been deliberately
+held at v0.22.0 while everything since was published as `-dev`
+pre-releases from the `dev` branch; it now carries all of it. What
+that release meant, and what it took, is in the
+[Roadmap](#roadmap).
 
 ---
 
 ## Roadmap
 
-### v1.0.0
+Most of what this section used to list has been built. What is left:
 
-* Stable public API
-* Complete documentation
-* Production-ready release
+### Datasets
+
+* **Strong-lensing time delays** (TDCOSMO / H0LiCOW) -- the one genuinely
+  independent probe of `H0` still missing, and the third leg of the H0
+  tension alongside the CMB and the distance ladder. Its per-lens
+  likelihoods are skewed log-normals, which the tabulated machinery
+  already here would handle.
+* **DESI DR1/DR2 full-shape** -- deliberately *not* planned. DESI publish
+  MCMC chains and the inputs to their modelling pipeline, but no
+  compressed Gaussian summary, so using it means implementing an EFT
+  model with its own nuisance parameters. That is outside a
+  background-plus-linear-growth library, and it is not cheaply
+  validatable. See the `2d59fe7` commit message.
+
+### Physics
+
+* **Massive neutrinos and `N_eff` in each model's own `E(z)`.** They
+  reach the Boltzmann backend and the sound horizon and are treated
+  exactly there, but the models' `E(z)` counts massive neutrinos inside
+  `Omega_m` as pure matter -- right below z ~ 100, and increasingly wrong
+  above it.
+
+  Worth saying what this is *not*, because the three places that consume
+  `E(z)` above z ~ 100 are each already handled. The sound horizon
+  integrates the exact Fermi-Dirac density. The compressed Planck priors
+  deliberately keep massive neutrinos inside `Omega_m` at every redshift,
+  because a prediction has to share the compression's definitions rather
+  than improve on them -- see `likelihoods/planck.py` on what mixing
+  conventions costs. And the growth ODE solves a matter-plus-dark-energy
+  equation, so starting it deep in *that* matter era is self-consistent.
+  So this is narrower than it looks, and doing it carelessly would break
+  agreements the library has validated.
+* **`Sum m_nu` as a fitted parameter.** Everything needed is in place;
+  what is missing is enough growth-suppression signal to constrain it.
+  The compressed Planck priors cannot supply it -- they are blind to
+  `m_nu` by construction, and `Fitter` says so.
+* **`f(R)` growth.** The background is solved from the action, but `mu`
+  there is scale-dependent -- a Compton wavelength enters -- so it is
+  refused rather than given a scale-free answer. `FRHuSawicki` carries
+  the standard form if that is what you need.
+
+### Performance
+
+* **Batched log-posterior** (`emcee`'s `vectorize=True`): evaluating every
+  walker in one call rather than one at a time. The one structural lever
+  left -- worth perhaps 2-4x, and the only one that helps inside a
+  Jupyter kernel, where `n_processes` does not. It needs a batch axis
+  through every calculator, so it is a real refactor rather than a flag.
+
+### v1.0.0 -- what it took
+
+This section used to be three bullet points. All three are done, and
+each is now held by a test rather than by intention.
+
+**Stable public API.** Nothing was holding it: every other test
+imports what it happens to need, so a name could be renamed, moved
+between subpackages or dropped from `__all__` and the suite would go
+on passing as long as *some* path to the object still existed.
+`tests/test_public_api.py` types the surface out by hand -- 64 names
+-- and asserts the set in both directions. Writing it down found two
+names that had already drifted out of `CosmoFit.cosmology` while
+every one of their siblings was re-exported: `ModelConfigurationError`,
+which is the one exception a user is asked to tell apart from an
+ordinary failure, and `GrowthCalculator`.
+
+**Complete documentation.** The release history is in
+**[CHANGELOG.md](CHANGELOG.md)** -- it had stopped at v0.25.0, so
+fourteen releases, including the whole of `CosmoFit.theory`, existed
+only as GitHub release notes. And there is an API reference under
+[`docs/`](docs/), built by CI with warnings as errors. Getting it
+there fixed ten docstrings that rendered wrong on the page:
+equations parsed as bullet lists, `Parameters` sections holding
+prose, and `|beta|` read as a substitution reference.
+
+**Test coverage across the whole library, not only the newest parts.**
+**93%**, from 79%, across **697 tests**. The phrase turned out to be
+exactly right -- `theory`, the newest subpackage, was at 86-94%
+while the oldest code was not:
+
+| | was | now |
+|---|---|---|
+| `plots/plotter.py` | 16% | 94% |
+| `stats/cpl_diagnostics.py` | 37% | 100% |
+| `stats/results.py` | 58% | 97% |
+| `stats/chains.py` | 64% | 92% |
+| `cosmology/core/parameters.py` | 67% | 96% |
+| `likelihoods/joint.py` | 70% | 100% |
+| `stats/priors.py` | 73% | 100% |
+| `data/covariance.py` | 78% | 93% |
+| `stats/posterior.py` | 85% | 100% |
+
+**And the package is typed.** `py.typed` ships, which tells every
+downstream type checker to trust these annotations -- so it had to be
+true first. It was 58 of 201 public callables fully annotated; it is
+**201 of 201**. Three tests hold it: that everything is annotated,
+that every annotation *resolves* (including the ones deferred to
+`TYPE_CHECKING`, which is what a checker sees and `get_type_hints`
+cannot), and that ten of `Fitter`'s methods actually return what they
+say they do.
+
+That last test is there because six annotations turned out to be
+false -- three of them written years before this release, three of
+them written *during* it. `Fitter.best_fit` said `BestFitResult` and
+returns scipy's `OptimizeResult`; `run_mcmc` said `MCMCResult` and
+returns emcee's `EnsembleSampler`; `load_chain` said `MCMCResult` and
+returns a `StoredSampler`. Once `py.typed` ships, a wrong annotation
+stops being a private mistake and becomes something other people's
+tools repeat with confidence.
+
+### Publishing
+
+The library is not on PyPI yet, and the API reference is not
+deployed yet. Both have workflows, both are `workflow_dispatch`
+only, and that is the design rather than a placeholder: a version
+number, once used, can never be reused, and a site once deployed is
+public under this repository's name. Neither belongs on a tag-push
+trigger where it would happen as a side effect of something else.
+
+`publish` builds, runs `twine check --strict`, and uploads through
+PyPI's Trusted Publishing -- GitHub mints a short-lived OIDC token
+and PyPI accepts it in place of an API token, so no long-lived
+secret lives in this repository. It offers TestPyPI first and
+defaults to it. `pages` deploys the site; run it before `publish`,
+so the `Documentation` link in PyPI's sidebar is live rather than a
+404.
+
+The release was rehearsed before either existed: `cosmofit` is free
+on both indexes, both artifacts pass `twine check --strict`, the
+wheel is 22 MB against PyPI's 100 MB limit, and it was installed
+into a clean virtual environment outside this source tree and fitted
+LCDM to CC+DESI+Pantheon++Planck -- 1671 points, H0 = 67.5,
+Omega_m = 0.313 -- with `py.typed` present and the `theory` extra
+correctly absent. That rehearsal is what found two of the six false
+annotations, and what found that the sdist was missing
+`CITATION.cff`.
+
+## Contributing
+
+**[CONTRIBUTING.md](CONTRIBUTING.md)** -- how to get set up, why there
+is no code formatter, and what a finished change looks like here.
+The short version of the last one: a test that fails before the fix,
+and a validation against something that does not share the machinery
+being validated.
 
 ---
 
@@ -1039,6 +1099,10 @@ cosmological models and statistical methods -- see
 methodology paper used, with links, and where each is used in the
 code. If you use CosmoFit in a publication, cite the underlying
 data/method papers relevant to what you used.
+
+[CITATION.cff](CITATION.cff) describes the software itself, if you
+also want to cite the library -- but the papers behind whatever you
+actually used matter more.
 
 ---
 

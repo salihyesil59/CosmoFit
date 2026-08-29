@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -24,8 +28,8 @@ class CPL(Cosmology):
 
     def w(
         self,
-        z,
-    ):
+        z: Redshift,
+    ) -> Array:
         """
         Dark-energy equation of state.
         """
@@ -48,8 +52,8 @@ class CPL(Cosmology):
 
     def fde(
         self,
-        z,
-    ):
+        z: Redshift,
+    ) -> Array:
         """
         Dark-energy density evolution factor.
 
@@ -87,8 +91,8 @@ class CPL(Cosmology):
 
     def E(
         self,
-        z,
-    ):
+        z: Redshift,
+    ) -> Array:
         """
         Dimensionless Hubble parameter.
         """
@@ -100,7 +104,7 @@ class CPL(Cosmology):
 
         return np.sqrt(
             self.Omega_m
-            * (1.0 + z) ** 3
+            * cube(1.0 + z)
             +
             self.Omega_k
             * (1.0 + z) ** 2
@@ -113,8 +117,8 @@ class CPL(Cosmology):
 
     def dEdz(
         self,
-        z,
-    ):
+        z: Redshift,
+    ) -> Array:
         """
         Derivative of E(z).
         """
@@ -167,8 +171,8 @@ class CPL(Cosmology):
 
     def Omega_de(
         self,
-        z,
-    ):
+        z: Redshift,
+    ) -> Array:
         """
         Dark-energy density parameter.
         """

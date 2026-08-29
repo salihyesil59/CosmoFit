@@ -1,0 +1,2 @@
+# 1-sigma uncertainty on r_s/D_V(z=0.106), Beutler et al. (2011).
+0.015

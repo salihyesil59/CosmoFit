@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -34,7 +38,7 @@ class JBP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
         """
         Dark-energy equation of state.
         """
@@ -45,7 +49,7 @@ class JBP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def fde(self, z):
+    def fde(self, z: Redshift) -> Array:
         """
         Dark-energy density evolution factor.
 
@@ -69,7 +73,7 @@ class JBP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter.
         """
@@ -77,14 +81,14 @@ class JBP(Cosmology):
         z = np.asarray(z, dtype=float)
 
         return np.sqrt(
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
             + self.Omega_k * (1.0 + z) ** 2
             + self.Omega_de0 * self.fde(z)
         )
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z).
         """
@@ -97,7 +101,7 @@ class JBP(Cosmology):
         # above -- equivalently 3(1+w0)/(1+z) + 3 wa z/(1+z)^3.
         dlnf_dz = (
             3.0 * (1.0 + self.w0) / (1.0 + z)
-            + 3.0 * self.wa * z / (1.0 + z) ** 3
+            + 3.0 * self.wa * z / cube(1.0 + z)
         )
 
         dE2_dz = (
@@ -110,7 +114,7 @@ class JBP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         Dark-energy density parameter.
         """

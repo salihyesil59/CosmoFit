@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -63,8 +67,8 @@ class FRTLinear(Cosmology):
     not the same derivation). Scale-independent (``k`` accepted for
     interface consistency, ignored). beta=0 (GR) gives mu=1 exactly.
 
-    Parameters
-    ----------
+    Notes
+    -----
     Adds ``Omega_L`` (the Lambda-like component's density parameter,
     default 0.7, independent of ``Omega_m``) and ``beta`` (the
     dimensionless matter-geometry coupling, default 0.0 = GR) via
@@ -84,7 +88,7 @@ class FRTLinear(Cosmology):
 
     #: ``beta``'s bounds are deliberately narrow: this is a weak-
     #: coupling perturbation around GR (beta=0), and literature fits
-    #: of this model find it consistent with |beta| of a few percent
+    #: of this model find it consistent with ``|beta|`` of a few percent
     #: -- values of order 1 aren't just "strongly coupled", they can
     #: make E(z)^2 negative (unphysical) at moderate-to-high z for
     #: otherwise-ordinary Omega_m/Omega_L, since (1+3*beta) and
@@ -103,7 +107,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter.
         """
@@ -112,13 +116,13 @@ class FRTLinear(Cosmology):
 
         return np.sqrt(
             self.Omega_k * (1.0 + z) ** 2
-            + (1.0 + 3.0 * self.beta) * self.Omega_m * (1.0 + z) ** 3
+            + (1.0 + 3.0 * self.beta) * self.Omega_m * cube(1.0 + z)
             + (1.0 + 4.0 * self.beta) * self.Omega_L
         )
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z).
         """
@@ -134,7 +138,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         Effective dark-energy density (the Lambda-like component,
         rescaled by the matter-geometry coupling -- constant in z,
@@ -147,7 +151,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def mu(self, a, k=None):
+    def mu(self, a: Redshift, k: float | None = None) -> Array:
         """
         Effective gravitational coupling, mu(a) = 1 + 3*beta -- see
         the class docstring for the (stated-simplification) caveat.

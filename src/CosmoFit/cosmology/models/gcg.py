@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -21,7 +25,7 @@ class GCG(Cosmology):
         p = -A / rho^alpha
 
     that unifies dark matter and dark energy: it behaves like
-    pressureless dust at early times (large rho, small |p/rho|)
+    pressureless dust at early times (large rho, small ``|p/rho|``)
     and like a cosmological constant at late times (rho -> const),
     interpolating between the two as the universe expands. The
     ``Omega_m`` parameter here is therefore ordinary *baryonic +
@@ -29,12 +33,12 @@ class GCG(Cosmology):
     GCG fluid's own dust-like contribution.
 
     Density evolution (closed-form solution of the GCG continuity
-    equation):
+    equation)::
 
         rho_GCG(z) / rho_GCG(0)
             = [ A_s + (1 - A_s) (1+z)^(3(1+alpha)) ]^(1/(1+alpha))
 
-    Effective equation of state:
+    Effective equation of state::
 
         w(z) = -A_s / [ A_s + (1-A_s)(1+z)^(3(1+alpha)) ]
                * (1+z)^(3(1+alpha)) ... equivalently
@@ -46,8 +50,8 @@ class GCG(Cosmology):
     for any alpha); alpha = 1 is the original ("pure") Chaplygin
     gas of Kamenshchik, Moschella & Pasquier (2001).
 
-    Parameters
-    ----------
+    Notes
+    -----
     Uses the shared ``A_s`` and ``alpha`` fields of
     :class:`~cosmology.core.parameters.CosmologyParameters`
     (ignored by every other model, the same way LCDM ignores
@@ -80,7 +84,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
         """
         Effective dark-energy equation of state.
         """
@@ -95,7 +99,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def fde(self, z):
+    def fde(self, z: Redshift) -> Array:
         """
         GCG density evolution factor.
 
@@ -111,7 +115,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter.
 
@@ -123,14 +127,14 @@ class GCG(Cosmology):
         z = np.asarray(z, dtype=float)
 
         return np.sqrt(
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
             + self.Omega_k * (1.0 + z) ** 2
             + self.Omega_de0 * self.fde(z)
         )
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z).
         """
@@ -159,7 +163,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         GCG effective density parameter.
         """
