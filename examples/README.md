@@ -1,8 +1,9 @@
 # CosmoFit Examples
 
 Every notebook here is **Colab-ready**: click a badge and
-*Runtime → Run all*, no local setup. They are also plain notebooks —
-`pip install -e .` from the repository root and run them anywhere.
+*Runtime → Run all*, no local setup — the first cell installs the
+released package. They are also plain notebooks: `pip install
+cosmofit` and run them anywhere.
 
 New here? Start with
 [`01-getting-started/quickstart.ipynb`](01-getting-started/quickstart.ipynb).
@@ -71,8 +72,11 @@ in their setup cell:
 |---|---|---|
 | `theory` | `models_from_an_action`, `scalar_field_models` | `sympy`, for deriving Friedmann equations |
 | `evidence` | `evidence_and_model_selection`, `tension_statistics` | `dynesty`, for nested sampling |
-| `cmb` | `cmb_from_scratch`, `s8_tension_cmb` | `camb`, for the from-scratch CMB spectrum |
+| `cmb` | `cmb_from_scratch`, `dataset_zoo`, `s8_tension_cmb` | `camb`, for the from-scratch CMB spectrum |
 
 ```bash
-pip install -e ".[theory,evidence,cmb]"
+pip install "cosmofit[theory,evidence,cmb]"
 ```
+
+Each notebook's first cell installs the extras it needs on its own,
+so this is only for running them locally in one environment.
