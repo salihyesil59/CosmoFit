@@ -324,7 +324,7 @@ class BaseParameters:
     @classmethod
     def names(cls) -> list[str]:
         """Return the parameter names."""
-        return [field.name for field in fields(cls)]
+        return [entry.name for entry in fields(cls)]
 
     @classmethod
     def ndim(cls) -> int:
@@ -337,9 +337,9 @@ class BaseParameters:
 
         defaults = {}
 
-        for field in fields(cls):
-            if field.default is not MISSING:
-                defaults[field.name] = field.default
+        for entry in fields(cls):
+            if entry.default is not MISSING:
+                defaults[entry.name] = entry.default
 
         return defaults
 

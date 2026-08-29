@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CPL, CosmologyParameters
+from CosmoFit import LCDM, CPL
 from CosmoFit.cosmology.calculators.sound_horizon import (
     NU_ENERGY_FACTOR,
     neutrino_density_ratio,

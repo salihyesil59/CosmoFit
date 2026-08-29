@@ -16,7 +16,7 @@ import warnings
 import numpy as np
 import pytest
 
-from scipy.integrate import cumulative_trapezoid, quad
+from scipy.integrate import cumulative_trapezoid
 
 from CosmoFit import ADE, RDE, Fitter
 

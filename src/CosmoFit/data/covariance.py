@@ -64,15 +64,6 @@ class CovarianceBase(ABC):
 
     # --------------------------------------------------------
 
-    def __repr__(self):
-
-        return (
-            f"{self.__class__.__name__}"
-            f"(n={self.n})"
-        )
-
-    # --------------------------------------------------------
-
     def __str__(
         self,
     ) -> str:
@@ -290,7 +281,7 @@ class DenseCovariance(CovarianceBase):
         except np.linalg.LinAlgError:
 
             return False
-            
+
     # ---------------------------------------------------------
 
     @property
@@ -634,7 +625,7 @@ class DiagonalCovariance(CovarianceBase):
 
         )
 
-    
+
 # ============================================================
 # Factory
 # ============================================================
