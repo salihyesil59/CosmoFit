@@ -20,7 +20,7 @@ No new capability. This closes a gap in what was *tested*, corrects
 two error messages that had fallen behind, and walks back a Roadmap
 claim the previous release had itself added. **501 tests.**
 
-#### The two things a runtime-built model cannot do
+### The two things a runtime-built model cannot do
 
 Three routes now produce a `Cosmology` subclass that exists only in
 the session that made it -- `define_model` (an `E(z)` function),
@@ -45,7 +45,7 @@ works** -- rebuilt the same way, the chain reloads and gives back the
 same posterior to 1e-12. A message promising a fix that does not work
 is worse than no message.
 
-#### A Roadmap entry walked back
+### A Roadmap entry walked back
 
 `v0.39.1` rewrote the Roadmap, and one of the entries it *added*
 claimed more than it should have. It said the models' own `E(z)`
@@ -68,7 +68,7 @@ Neither commit adds a model: the first closes two ways a theory-built
 model could give a wrong answer with nothing said, and the second
 catches the documentation up with four releases of work. 491 tests.
 
-#### Growth of structure, where a theory model was silent
+### Growth of structure, where a theory model was silent
 
 Two failures of the same kind -- the answer is wrong, and nothing says
 so.
@@ -106,7 +106,7 @@ Checked along the way and found correct: `compute_rd=True` works for
 every kind of theory model, since it uses the early-universe densities
 rather than the late-time `E(z)` and so never reaches past `z_init`.
 
-#### The documentation had fallen four releases behind
+### The documentation had fallen four releases behind
 
 An audit rather than a feature, and it found things a reader would
 have been misled by. The Roadmap listed **five delivered features as
@@ -126,7 +126,7 @@ Housekeeping over two capabilities the notes recorded as "should work,
 but untested" -- and one of them turned out not to work at all. 484
 tests.
 
-#### Scalar-tensor gravity, which four places already said worked
+### Scalar-tensor gravity, which four places already said worked
 
 The minisuperspace docstring, `reduce_order`'s error message,
 `fields.py` and the README all stated that a non-minimally coupled
@@ -158,7 +158,7 @@ returns LCDM to 1e-9 with the closure recovering `3 Omega_de0`; and
 `xi` of either sign moves `E(z)` by more than 1e-4 with constraint
 drift below 1e-10.
 
-#### Multi-field actions
+### Multi-field actions
 
 The other untested claim, and this one already worked. Two exponential
 quintessence fields reduce to two equations of motion, integrate
@@ -173,7 +173,7 @@ thing to type. A general `f(R)` builds, with nothing to ask for:
 `Action` detects that the action is nonlinear in `R` and routes there
 itself. 478 tests.
 
-#### Why it needed a different reduction
+### Why it needed a different reduction
 
 The ordinary reduction removes the `addot` in the Einstein-Hilbert
 term by integrating by parts, which is legitimate only while the
@@ -197,7 +197,7 @@ returns `R = 6(2H^2 + H H')`, an explicit `H'`; the constraint is
 linear in `R'`, giving an explicit `R'`. Two first-order equations in
 `(H, R)`.
 
-#### It integrates backwards, and `theory.fields` does not
+### It integrates backwards, and `theory.fields` does not
 
 Not an inconsistency, and measured rather than asserted. A scalar
 field integrated backwards runs away -- the Hubble friction that damps
@@ -207,7 +207,7 @@ z = 1100, amplification below 1. So there is no shooting here and no
 early initial condition, and `closure=` is refused rather than
 accepted and quietly ignored -- there is nothing left for it to fix.
 
-#### The accuracy measure had to change too
+### The accuracy measure had to change too
 
 In `theory.fields` the Friedmann constraint is a *first integral* that
 the integration never imposes after the initial conditions, so its
@@ -283,7 +283,7 @@ notebooks in a flat directory, covering the analyses the library had
 grown out of rather than what it can do. Sixteen notebooks now, in
 five sections with an index. 463 tests.
 
-#### Seven new notebooks
+### Seven new notebooks
 
 Every one executed end to end against real data, with short chains
 (~3000 steps, except where the model itself is expensive and the
@@ -318,7 +318,7 @@ notebook says why).
   sigma": Gaussian, sample-based, N-dimensional, and suspiciousness,
   which divides the prior dependence out.
 
-#### `dataset_zoo` covers all 21 datasets
+### `dataset_zoo` covers all 21 datasets
 
 It covered eight, and said "all eight" -- written when that was true
 and left behind by thirteen additions since. Three things the old one
@@ -331,7 +331,7 @@ are **sixteen conflicting pairs**, against the two the old notebook
 named by hand, read from `CONFLICTING_DATASETS` itself so the notebook
 cannot drift from the code.
 
-#### Three bugs the examples turned up
+### Three bugs the examples turned up
 
 All of the kind that only surface when someone follows the
 documentation rather than the tests.
@@ -375,7 +375,7 @@ rather than solved redshift by redshift. It no longer refuses. Each
 field adds two parameters: its value and `dphi/dN` at `z_init`. 458
 tests.
 
-#### Where the equations come from
+### Where the equations come from
 
 Nothing further was typed in. The Friedmann constraint is a **first
 integral** of the equations of motion, so rather than separately
@@ -387,7 +387,7 @@ constraint as an *independent* check, imposed only in the initial
 conditions and never again, so its drift measures the integration
 error rather than restating the tolerance. It stays at 1.7e-13.
 
-#### A design decision, got wrong first
+### A design decision, got wrong first
 
 The field's state is set at `z_init` (default 3000), not today. The
 first version set it at `a = 1`, which is far more convenient: `H = 1`
@@ -410,7 +410,7 @@ early and typically frozen, the system is integrated forwards, and
 `E(0) = 1` becomes a **shooting** condition on `closure=`. Forwards is
 also the numerically stable direction.
 
-#### Validation: Copeland, Liddle & Wands (1998)
+### Validation: Copeland, Liddle & Wands (1998)
 
 Their late-time attractors for an exponential potential are exact
 functions of the slope alone, so there is nothing to tune. On a matter
@@ -429,7 +429,7 @@ statement about the model rather than as a stalled integrator. A
 constant potential pins the other end -- a cosmological constant
 written as a field, reproducing `LCDM` to 1e-10.
 
-#### Two things measured rather than assumed
+### Two things measured rather than assumed
 
 **Comparing integrators at equal tolerance is the wrong comparison.**
 Radau looked clearly best that way. At equal *accuracy*, which is the
@@ -460,7 +460,7 @@ rather than from an `E(z)`, the inference tools needed to judge
 whether a model's improvement is real, and two new dark-energy models.
 20 models (was 18), 439 tests (was 354).
 
-#### Models from an action
+### Models from an action
 
 Every model in `cosmology.models` encodes the *result* of somebody's
 derivation: an `E(z)` transcribed from a paper. `define_model` lowered
@@ -516,7 +516,7 @@ root.
 `sympy` is a new optional extra; CI asserts the minimal install still
 works without it.
 
-#### Bayesian evidence, profile likelihoods and Fisher matrices
+### Bayesian evidence, profile likelihoods and Fisher matrices
 
 Three things the notebooks kept building by hand or disclaiming:
 `stats.nested` (dynesty), `Fitter.profile()` and `Fitter.fisher()`.
@@ -549,7 +549,7 @@ Four bugs these surfaced, three of them found by an answer that was
   with a tolerance so nested-sampling convergence noise does not trip
   it.
 
-#### A free neutrino mass now warns when nothing can see it
+### A free neutrino mass now warns when nothing can see it
 
 The compressed Planck distance priors are **blind to `m_nu` by
 construction**: their `z_star` is a fitting formula calibrated at the
@@ -561,7 +561,7 @@ properly with the full CMB, the 95% profile bound is 0.039 eV against
 a published Bayesian 0.064 eV, and the three candidate reasons for the
 gap are flagged as unresolved rather than papered over.
 
-#### Agegraphic and Ricci dark energy
+### Agegraphic and Ricci dark energy
 
 Two more holographic models, validated against the same paper as
 `HDE`. RDE's `gamma = 0.538` and `Omega_m0 = 0.2173` sit inside both
@@ -594,7 +594,7 @@ running between **1.8x and 29x faster** depending on the fit. Two of
 the changes also made the code **more accurate**, which is the part
 worth reading.
 
-#### The profile was not where I expected
+### The profile was not where I expected
 
 A growth fit with **68 data points** cost 27 times what one with
 **1869** did. That was the whole finding, and everything else followed
@@ -633,7 +633,7 @@ before assembling coefficients that are four lines of algebra: 43
 microseconds against 13. `cosmology.refresh()` -- paid by every fit on
 every step -- went from 99 to 48.
 
-#### Two places this got more accurate, not less
+### Two places this got more accurate, not less
 
 **The distance integral.** `chi(z)` was a plain trapezoid fitted with
 a shape-preserving Pchip, which spent most of its build time deriving
@@ -652,7 +652,7 @@ from 2.5e-07 to **2.8e-09** and `r_d` from 3.2e-09 to **3.4e-11**,
 both roughly twice as fast. A uniform-grid rule on the substituted
 integrand is simply a better rule than a general one on the original.
 
-#### What was measured and rejected
+### What was measured and rejected
 
 **jax** -- its win comes from JIT-ing and fusing a whole computation,
 which would mean rewriting every model's `E(z)` in jax primitives.
@@ -665,7 +665,7 @@ chi-squared; not for sale in a library whose recent conclusions turned
 on a `Delta chi2` of 0.30. **A symmetric `dsymv`** -- 15x *slower*,
 because SciPy copies the C-contiguous matrix to Fortran order first.
 
-#### A wrong turn, recorded
+### A wrong turn, recorded
 
 cProfile attributed ~150 microseconds per evaluation to `simpson`. I
 wrote a direct replacement, found it worth 1.4, concluded the profiler
@@ -682,7 +682,7 @@ Mostly about **BAO that is not a Gaussian**, one new model, and four
 bugs -- three of which were found by an answer that was impossible
 rather than merely surprising. 21 datasets, 18 models, 317 tests.
 
-#### BAO released as a likelihood surface
+### BAO released as a likelihood surface
 
 Every BAO dataset here used to be a mean and a covariance. Three of
 eBOSS DR16's are not, and in each case the collaboration released a
@@ -727,7 +727,7 @@ step where that plateau starts, reaching a log of **+146** against a
 node maximum of 0. That path is linear, and a test asserts the
 no-overshoot property directly.
 
-#### `sdss_fsbao`, and a gap it uncovered
+### `sdss_fsbao`, and a gap it uncovered
 
 The SDSS BAO **+ full-shape** consensus: `D_M/r_d`, `D_H/r_d` *and*
 `fsigma8` at four redshifts, with the covariance between them.
@@ -750,7 +750,7 @@ an EFT model with its nuisance parameters. That is well outside a
 background-plus-linear-growth library and could not be validated
 cheaply.
 
-#### Holographic dark energy
+### Holographic dark energy
 
 The holographic principle bounds the energy in a region by its
 boundary area, giving `rho_DE = 3c^2 M_p^2 / L^2`; Li (2004) showed
@@ -772,7 +772,7 @@ a = 1e5: nothing asks for z < 0, but a model defined by the future
 should be answerable about it. Flat only, and it says so -- curvature
 changes the causal structure the holographic bound is applied to.
 
-#### Four bugs
+### Four bugs
 
 `best_fit()` settling in local minima; a NaN parameter vector crashing
 from inside `refresh()`; `likelihood_ratio_test` reporting an
@@ -782,7 +782,7 @@ convergence noise -- a 32-fit scan returned five negatives between
 optimizers reach the same minimum by different routes, and warning
 about those trains the reader to ignore the warning.
 
-#### Two notebooks
+### Two notebooks
 
 **The LsCDM result in `lscdm_mcmc.ipynb` is a DESI result.** Section 8
 had found the transition-redshift constraint as a *cliff* --
@@ -811,7 +811,7 @@ cells land on `w0 > -1` and `wa < 0`.
 telescope, and closes the loophole that let the whole thing be tested
 against nothing. 230 tests (from 188), 17 datasets.
 
-#### The Planck 2018 likelihood, all four parts
+### The Planck 2018 likelihood, all four parts
 
 `v0.25.0` shipped one component of four. The CMB is now complete --
 **652 data points**, each part validated against a published number
@@ -842,7 +842,7 @@ by construction. A chi-squared check at Planck's best fit therefore
 passes whether or not it was implemented, and the tests check it away
 from there.
 
-#### ACT DR6 lensing
+### ACT DR6 lensing
 
 A second, independent reconstruction -- different telescope, different
 sky, different pipeline, and tighter than Planck's: **2.3% on the
@@ -858,7 +858,7 @@ wrong and nothing crashes: the theory comes out uniformly off, a fit
 absorbs it into the amplitude, and the posterior looks ordinary and
 sits somewhere else -- `A_lens` would read 0.65 or 1.6 instead of 1.
 
-#### sigma8 derived instead of fitted
+### sigma8 derived instead of fitted
 
 `sigma8` was defined **twice** -- the free parameter the growth
 machinery normalizes with, and CAMB's derived value from the primordial
@@ -869,7 +869,7 @@ CMB *predict* growth rather than accommodate it: with `sigma8` free,
 an `S8` measurement is reproduced to chi-squared ~ 0 and nothing has
 been tested, because a free parameter slid onto it.
 
-#### `best_fit()` was returning its starting point
+### `best_fit()` was returning its starting point
 
 The most serious bug in this release, and it was silent. L-BFGS-B
 estimates gradients by finite differences with a step of ~1.5e-8. For
@@ -890,7 +890,7 @@ the caller has taken control. Deliberately narrow, because a larger
 step is *not* uniformly better -- on CPL with CC+DESI+Planck it finds
 a minimum 2.75 worse.
 
-#### Infrastructure
+### Infrastructure
 
 **Continuous integration**, finally. Two jobs: the full suite with
 every extra across Python 3.11-3.13, and a `minimal` job installing
@@ -911,7 +911,7 @@ other would not raise; it would move the two in opposite directions by
 a fraction of a percent, comfortably inside the range where a fit
 still looks plausible and is wrong.
 
-#### `examples/s8_tension_cmb.ipynb`
+### `examples/s8_tension_cmb.ipynb`
 
 The S8 tension posed from the CMB side, using everything above: all
 652 Planck points, `sigma8` derived, and **neither weak-lensing
@@ -991,7 +991,7 @@ generated from the same dictionaries the widgets use, so a dataset
 added to the library without a note shows up as a blank row rather
 than silently.
 
-#### Two bugs, and the first GUI tests
+### Two bugs, and the first GUI tests
 
 `st.checkbox` was being given both a `value=` and a session-state
 entry under the same key -- the one thing Streamlit explicitly warns
@@ -1022,7 +1022,7 @@ routes its own check through it, so the two cannot drift apart.
 Computes the BAO sound horizon `r_d` from the
 physical densities instead of fitting it.
 
-#### What was wrong with fitting it
+### What was wrong with fitting it
 
 Nothing, exactly -- treating `r_d` as a free nuisance parameter is a
 defensible and common choice, and it makes BAO immune to any
@@ -1037,7 +1037,7 @@ free parameter. It now does the integral:
     r_d = int_{z_d}^inf c_s(z)/H(z) dz,
     c_s = c / sqrt(3(1 + R_b)),  R_b = 3 omega_b/(4 omega_gamma) a
 
-#### What is actually computed, and what is not
+### What is actually computed, and what is not
 
 **Computed from first principles:** photon density from `T_CMB`;
 massless neutrinos; the baryon loading; the integral itself.
@@ -1070,7 +1070,7 @@ directly against CAMB, over a 5850-point grid spanning `omega_b` in
 > modern integral is exactly the convention error v0.19.0 documents
 > at length, in a different place.
 
-#### Accuracy
+### Accuracy
 
 Against CAMB's `rdrag` over that whole grid:
 
@@ -1086,7 +1086,7 @@ case is ~50 times smaller than the best data's error bar and the
 typical case ~500 times. A trimmed copy of that grid ships as a test
 fixture, so the comparison runs without CAMB installed.
 
-#### `r_d` depends on less than you might expect
+### `r_d` depends on less than you might expect
 
 The integral runs entirely through the radiation- and
 matter-dominated eras, so **`r_d` does not depend on `H0`, on
@@ -1100,7 +1100,7 @@ not accept. And the cache keys on the densities alone, so an MCMC
 step that moves only `w0` reuses it -- which matters, because the BAO
 likelihoods ask for `r_d` once per data point.
 
-#### Using it
+### Using it
 
 Off by default: switching a fitted nuisance parameter into a derived
 quantity changes every BAO prediction, and that is a choice about the
@@ -1152,7 +1152,7 @@ tension is diagnosed.
 way cannot be resumed the other. The GUI gets a checkbox, which
 un-ticks `rd` for you and points at the BBN dataset if it is missing.
 
-#### One bug this surfaced
+### One bug this surfaced
 
 Nothing in the growth machinery: `Fitter` now also refuses
 `compute_rd=True` together with a free `rd`, which was previously
@@ -1170,7 +1170,7 @@ began: six new datasets, eight new cosmological models, the first
 test suite, and -- the headline -- **the CMB computed from scratch
 rather than compressed**.
 
-#### Planck, uncompressed
+### Planck, uncompressed
 
 Until now "Planck" meant three numbers: the distance priors
 (R, l_A, omega_b h^2). That is fast, dependency-free and works for
@@ -1242,7 +1242,7 @@ unless the new `"tau"` dataset is included.
 > literature. Renaming the GCG one would invalidate every saved
 > chain that names it.
 
-#### Six new datasets
+### Six new datasets
 
 - **DESI DR2 BAO (2025)**, `dataset_kwargs={"desi": {"version": "desi2025"}}` --
   three years of observations, >14 million galaxies and quasars,
@@ -1292,7 +1292,7 @@ The BBN prior is more than an extra data point: BAO measures
 a CMB-independent route to H0 -- exactly how the DESI "BAO + BBN"
 constraints are produced.
 
-#### Overlapping datasets now warn
+### Overlapping datasets now warn
 
 Every "don't combine X and Y" rule in this README was, until now,
 written down only in a docstring, where it protected nobody who did
@@ -1308,7 +1308,7 @@ with Pantheon+ or DES-SN5YR, and `"planck"` must not be combined with
 `"planck_lite"` (the distance priors are a compression of exactly
 those bandpowers -- that is the entire CMB dataset twice).
 
-#### Eight new models
+### Eight new models
 
 Grouped by what they actually change, since that decides what can be
 done with them:
@@ -1342,7 +1342,7 @@ self-accelerating branch gravity is *weaker* (`mu = 0.72` today,
 matching the literature), and the bundled fsigma8 data feels it
 directly.
 
-#### A matter-scaling bug this surfaced
+### A matter-scaling bug this surfaced
 
 RunningVacuum and IDE both change how *matter* dilutes -- that is
 their whole content. But `GrowthCalculator` read `Omega_m(a)` off
@@ -1353,7 +1353,7 @@ inconsistent, and silent. `Cosmology` now has an overridable
 model inherits unchanged. No existing result changes; the two new
 models get a growth history that is actually theirs.
 
-#### The first test suite
+### The first test suite
 
 The library had no tests. It now has **130**, running in ~10 s, and
 they are aimed at the failure mode this project actually has:

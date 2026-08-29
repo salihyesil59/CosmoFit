@@ -18,6 +18,8 @@ class GEDE(Cosmology):
     r"""
     Generalized Emergent Dark Energy (Li & Shafieloo 2020).
 
+    ::
+
         Omega_de(z) = Omega_de0
                       * [1 - tanh(Delta log10((1+z)/(1+z_t)))]
                       / [1 + tanh(Delta log10(1 + z_t))]

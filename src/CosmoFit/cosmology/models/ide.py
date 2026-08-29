@@ -24,11 +24,13 @@ class IDE(Cosmology):
 
     The continuity equations,
 
+    ::
+
         rho_de' + 3(1+w0) rho_de = -3 xi rho_de
         rho_c'  + 3 rho_c        = +3 xi rho_de      (' = d/dln a)
 
     have a closed-form solution, so this model costs no numerical
-    integration:
+    integration::
 
         E(z)^2 = (Omega_m - C) (1+z)^3
                  + (Omega_de0 + C) (1+z)^{3(1+w0+xi)}

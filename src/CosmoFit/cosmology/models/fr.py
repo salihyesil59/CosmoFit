@@ -79,8 +79,8 @@ class FRHuSawicki(LCDM):
     those datasets (alongside or instead of the background ones) to
     actually constrain them.
 
-    Parameters
-    ----------
+    Notes
+    -----
     Adds ``f_R0`` (present-day scalaron value, default -1e-6,
     typically negative and small -- see the reference for viability
     bounds) and ``n`` (default 1) via ``EXTRA_PARAMS``. Neither

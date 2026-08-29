@@ -11,6 +11,10 @@ dist/
 venv/
 env/
 
+# Sphinx
+docs/_build/
+docs/api/generated/
+
 # Jupyter
 .ipynb_checkpoints/
 
