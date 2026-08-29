@@ -57,6 +57,8 @@ from CosmoFit import (
     PlanckLensingLikelihood,
     ACTDR6LensingLikelihood,
     FSigma8Likelihood,
+    EBOSSELGLikelihood,
+    EBOSSLyaLikelihood,
 )
 from CosmoFit import available_versions, dataset_reference
 
@@ -950,6 +952,7 @@ PLOT_LABELS = {
     "w0_wa_plane": "w0-wa dark-energy plane",
     "deceleration": "Deceleration parameter q(z)",
     "growth": "Growth rate fsigma8(z)",
+    "eboss_surface": "eBOSS likelihood surface (released grid)",
 }
 
 #: Model-comparison figures (Fitter.plots.compare_<name>(other_fits=...)).
@@ -1534,6 +1537,15 @@ def _available_plots(fit: Fitter) -> list[str]:
         if any(isinstance(lk, cls) for lk in fit.likelihoods):
             methods.append(method)
 
+    # The two released likelihood *surfaces*, which go down different
+    # branches of the same method -- a 1-D curve and a 2-D contour
+    # set. Worth offering because they are the figure that shows why
+    # a Gaussian summary of these two would be wrong.
+    for cls in (EBOSSELGLikelihood, EBOSSLyaLikelihood):
+        if any(isinstance(lk, cls) for lk in fit.likelihoods):
+            methods.append("eboss_surface")
+            break
+
     if hasattr(fit.cosmology, "w"):
         methods.append("w_of_z")
 
@@ -1876,6 +1888,463 @@ def _render_posterior(fit: Fitter) -> None:
 
 # ------------------------------------------------------------
 
+def _render_profile(fit: Fitter, label: str) -> None:
+    """
+    Profile likelihood: chi2 minimized over every *other* free
+    parameter, at each fixed value of one.
+
+    The honest tool where Wilks' theorem does not apply -- a
+    parameter against a prior edge, or a surface with a plateau,
+    where the marginal posterior and the profile say different
+    things and the marginal is the one that smooths a real feature
+    away.
+    """
+
+    import numpy as np
+
+    free = list(fit.free_params)
+
+    if not free:
+        st.info("This fit has no free parameters to profile.")
+        return
+
+    col1, col2, col3 = st.columns([2, 1, 1])
+
+    with col1:
+        name = st.selectbox(
+            "Parameter", options=free, key=f"profile_param_{label}",
+        )
+
+    index = free.index(name)
+
+    centre = float(fit.result.best_fit.params[name])
+
+    sigma = None
+
+    if fit.result.mcmc is not None:
+        entry = fit.result.mcmc.summary.get(name)
+        if entry:
+            sigma = 0.5 * (entry["plus"] + entry["minus"])
+
+    if not sigma or not np.isfinite(sigma) or sigma <= 0.0:
+        lo, hi = fit.prior.lower[index], fit.prior.upper[index]
+        sigma = 0.05 * (hi - lo)
+
+    with col2:
+        width = st.number_input(
+            "Half-width (σ)", min_value=1.0, max_value=8.0, value=3.0,
+            step=0.5, key=f"profile_width_{label}",
+            help="How far either side of the best fit to scan, in "
+                 "units of this parameter's own posterior width.",
+        )
+
+    with col3:
+        n_points = st.number_input(
+            "Points", min_value=5, max_value=61, value=15, step=2,
+            key=f"profile_points_{label}",
+            help="Each point is a full re-minimization over every "
+                 "other free parameter, so this is the cost.",
+        )
+
+    if not st.button(
+        f"Profile `{name}`", key=f"profile_run_{label}", width="stretch",
+    ):
+        st.caption(
+            f"{int(n_points)} re-minimizations over the other "
+            f"{len(free) - 1} parameter(s). Each point warm-starts "
+            f"from the previous one, so this is far cheaper than "
+            f"{int(n_points)} cold fits."
+        )
+        return
+
+    values = np.linspace(
+        centre - width * sigma, centre + width * sigma, int(n_points),
+    )
+
+    # Stay inside the prior: a profile point outside it has an
+    # infinite chi2 and tells you about the box, not the likelihood.
+    values = values[
+        (values >= fit.prior.lower[index]) & (values <= fit.prior.upper[index])
+    ]
+
+    if values.size < 3:
+        st.warning(
+            "That range falls almost entirely outside this "
+            "parameter's prior. Widen the prior or narrow the scan.",
+            icon="⚠️",
+        )
+        return
+
+    with st.spinner(f"Profiling {name} at {values.size} points..."):
+        profile = fit.profile(name, values)
+
+    delta = np.asarray(profile["delta_chi2"], dtype=float)
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+
+    ax.plot(profile["values"], delta, lw=1.8, marker="o", ms=3)
+
+    ax.axhline(1.0, ls="--", lw=1.0, color="0.5")
+    ax.axhline(4.0, ls=":", lw=1.0, color="0.7")
+    ax.axvline(centre, ls="-", lw=1.0, color="0.8")
+
+    ax.set_xlabel(name)
+    ax.set_ylabel(r"$\Delta\chi^2$")
+    ax.set_ylim(bottom=0.0)
+
+    fig.tight_layout()
+
+    st.pyplot(fig)
+
+    plt.close(fig)
+
+    # The Delta chi2 = 1 crossings, which is the interval a profile
+    # actually reports -- not a standard deviation of anything.
+    crossings = []
+
+    for i in range(len(delta) - 1):
+        if (delta[i] - 1.0) * (delta[i + 1] - 1.0) < 0.0:
+            x0, x1 = profile["values"][i], profile["values"][i + 1]
+            y0, y1 = delta[i], delta[i + 1]
+            crossings.append(x0 + (1.0 - y0) * (x1 - x0) / (y1 - y0))
+
+    minimum = float(profile["values"][int(np.argmin(delta))])
+
+    if len(crossings) == 2:
+        st.success(
+            f"**{name} = {minimum:.4g}**  "
+            f"(−{minimum - crossings[0]:.3g} / +{crossings[1] - minimum:.3g})"
+            f"  — from the Δχ² = 1 crossings",
+            icon="📐",
+        )
+    else:
+        st.info(
+            "Δχ² does not cross 1 on both sides of this range, so "
+            "there is no two-sided interval to quote. That is a "
+            "result rather than a failure: it is what a parameter "
+            "against a prior edge, or one the data barely constrain, "
+            "looks like. Widen the scan to see which.",
+            icon="ℹ️",
+        )
+
+
+# ------------------------------------------------------------
+
+def _render_fisher(fit: Fitter, label: str) -> None:
+    """
+    Fisher errors, and -- where a chain exists -- the ratio to what
+    the chain found.
+
+    That ratio is the whole point of showing it here. A Fisher
+    matrix is a *Gaussian approximation to the posterior*: cheap
+    where an MCMC is not (~2n² evaluations against millions), good
+    for a near-elliptical posterior, and poor for a parameter against
+    a prior edge or a plateau. The only way to know which you have is
+    to compare.
+    """
+
+    import numpy as np
+
+    if not st.button(
+        "Compute the Fisher matrix", key=f"fisher_run_{label}",
+        width="stretch",
+    ):
+        st.caption(
+            f"About {2 * fit.ndim ** 2} likelihood evaluations -- "
+            f"seconds, against the chain above."
+        )
+        return
+
+    with st.spinner("Differentiating chi2 at the best fit..."):
+        fisher = fit.fisher()
+
+    rows = []
+
+    summary = fit.result.mcmc.summary if fit.result.mcmc else {}
+
+    for name, value, error in zip(
+        fisher["free_params"], fisher["theta"], fisher["errors"],
+    ):
+        row = {
+            "Parameter": name,
+            "Best fit": float(value),
+            "Fisher σ": float(error),
+        }
+
+        entry = summary.get(name)
+
+        if entry:
+            mcmc_sigma = 0.5 * (entry["plus"] + entry["minus"])
+            row["MCMC σ"] = float(mcmc_sigma)
+            row["ratio"] = (
+                float(error / mcmc_sigma) if mcmc_sigma else float("nan")
+            )
+
+        rows.append(row)
+
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
+    if "ratio" in rows[0]:
+
+        ratios = np.array([r["ratio"] for r in rows], dtype=float)
+
+        worst = float(np.max(np.abs(np.log(ratios[np.isfinite(ratios)]))))
+
+        if worst < 0.22:  # within ~25% either way
+            st.success(
+                "The Gaussian approximation holds here -- every error "
+                "bar within ~25% of the chain's.",
+                icon="✅",
+            )
+        else:
+            st.warning(
+                "At least one Fisher error bar differs from the "
+                "chain's by more than 25%. That is the approximation "
+                "failing rather than the chain being wrong: the "
+                "posterior is not elliptical in that direction. "
+                "Quote the chain, or a profile likelihood.",
+                icon="⚠️",
+            )
+
+
+# ------------------------------------------------------------
+
+def _render_evidence(fits: list[Fitter], labels: list[str]) -> None:
+    """
+    Bayesian evidence by nested sampling, and the Bayes factor
+    between two models.
+
+    Kept behind a button and a cost estimate because this is the one
+    thing in the app that can run for minutes: nested sampling
+    explores the whole prior volume rather than the posterior peak,
+    which is exactly what makes it able to compare models at all.
+    """
+
+    try:
+        from CosmoFit.stats.nested import run_nested
+        from CosmoFit.stats import evidence as evidence_mod
+    except ModuleNotFoundError:
+        st.warning(
+            "Nested sampling needs **dynesty**, an optional "
+            "dependency:\n\n```\npip install 'cosmofit[evidence]'\n```",
+            icon="📦",
+        )
+        return
+
+    st.caption(
+        "The evidence integrates the likelihood over the *prior*, so "
+        "a Bayes factor is a statement about the priors as much as "
+        "about the models -- an extra parameter that does nothing is "
+        "penalised by the volume it was given. That is the Occam "
+        "factor AIC and BIC only approximate, and it is why the three "
+        "can disagree."
+    )
+
+    n_live = st.number_input(
+        "Live points", min_value=100, max_value=2000, value=400, step=100,
+        key="evidence_nlive",
+        help="More is a tighter ln Z and a longer run. 400 is enough "
+             "for the two- to four-parameter fits this app runs.",
+    )
+
+    if not st.button("Run nested sampling", width="stretch"):
+        st.caption(
+            f"Roughly 10⁴–10⁵ likelihood evaluations per model, "
+            f"for {len(fits)} model(s). Minutes, not seconds."
+        )
+        return
+
+    results = {}
+
+    progress = st.progress(0.0, text="Sampling...")
+
+    for i, (label, fit) in enumerate(zip(labels, fits)):
+
+        progress.progress(
+            i / len(fits), text=f"Nested sampling {label} ({i + 1}/{len(fits)})",
+        )
+
+        results[label] = run_nested(
+            fit.logpost, fit.prior, fit.free_params,
+            n_live=int(n_live), progress=False,
+        )
+
+    progress.empty()
+
+    st.session_state["evidence_results"] = results
+
+    st.dataframe(
+        pd.DataFrame([
+            {
+                "model": label,
+                "ln Z": result.log_evidence,
+                "± ": result.log_evidence_error,
+                "k": len(result.free_params),
+                "evaluations": result.n_evaluations,
+            }
+            for label, result in results.items()
+        ]),
+        hide_index=True, width="stretch",
+    )
+
+    if len(results) >= 2:
+
+        st.markdown("**Bayes factors**, against the first model:")
+
+        null_label = labels[0]
+
+        rows = []
+
+        for label in labels[1:]:
+
+            factor = evidence_mod.bayes_factor(
+                results[label], results[null_label],
+            )
+
+            rows.append({
+                "model": label,
+                "vs": null_label,
+                "ln B": factor["ln_B"],
+                "±": factor["ln_B_error"],
+                "verdict": factor["interpretation"],
+            })
+
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+
+        st.caption(
+            "Positive `ln B` favours the model in the first column. "
+            "The labels are Kass & Raftery's."
+        )
+
+
+# ------------------------------------------------------------
+
+def _render_tension(fits: list[Fitter], labels: list[str]) -> None:
+    """
+    How far apart two posteriors are, by two definitions that
+    disagree exactly when it matters.
+
+    The Gaussian one is the number everybody quotes. The
+    sample-based one makes no Gaussian assumption -- it pairs the two
+    sets of samples at random and asks where zero falls in the
+    distribution of the difference -- so a skewed or double-peaked
+    posterior, which is where "how many sigma" quietly stops meaning
+    anything, still gets an honest answer.
+    """
+
+    import numpy as np
+
+    from CosmoFit.stats import tension as tension_mod
+
+    with_chains = [
+        (label, fit) for label, fit in zip(labels, fits)
+        if fit.sampler is not None
+    ]
+
+    if len(with_chains) < 2:
+        st.info(
+            "Two fits with chains are needed to compare posteriors. "
+            "Add a second model above.",
+            icon="ℹ️",
+        )
+        return
+
+    shared = set(with_chains[0][1].free_params)
+
+    for _, fit in with_chains[1:]:
+        shared &= set(fit.free_params)
+
+    if not shared:
+        st.info(
+            "These fits share no free parameter, so there is nothing "
+            "to compare them on.",
+            icon="ℹ️",
+        )
+        return
+
+    col1, col2, col3 = st.columns(3)
+
+    names = [label for label, _ in with_chains]
+
+    with col1:
+        first = st.selectbox("First", options=names, key="tension_a")
+
+    with col2:
+        second = st.selectbox(
+            "Second", options=[n for n in names if n != first],
+            key="tension_b",
+        )
+
+    with col3:
+        parameter = st.selectbox(
+            "Parameter", options=sorted(shared), key="tension_param",
+        )
+
+    fit_a = dict(with_chains)[first]
+    fit_b = dict(with_chains)[second]
+
+    samples_a = fit_a.flat_samples()[:, fit_a.free_params.index(parameter)]
+    samples_b = fit_b.flat_samples()[:, fit_b.free_params.index(parameter)]
+
+    summary_a = fit_a.summary()[parameter]
+    summary_b = fit_b.summary()[parameter]
+
+    gaussian = tension_mod.gaussian_tension(
+        summary_a["median"], 0.5 * (summary_a["plus"] + summary_a["minus"]),
+        summary_b["median"], 0.5 * (summary_b["plus"] + summary_b["minus"]),
+    )
+
+    sampled = tension_mod.sample_tension(samples_a, samples_b)
+
+    cols = st.columns(2)
+
+    cols[0].metric(
+        "Gaussian", f"{gaussian['n_sigma']:.2f}σ",
+        help="Assumes both posteriors are Gaussian and independent.",
+    )
+    cols[1].metric(
+        "Sample-based", f"{sampled['n_sigma']:.2f}σ",
+        help="No Gaussian assumption: where zero falls in the "
+             "distribution of the paired difference.",
+    )
+
+    st.caption(
+        f"{parameter}:  {first} = {summary_a['median']:.4g} "
+        f"(+{summary_a['plus']:.3g}/−{summary_a['minus']:.3g})   ·   "
+        f"{second} = {summary_b['median']:.4g} "
+        f"(+{summary_b['plus']:.3g}/−{summary_b['minus']:.3g})"
+    )
+
+    if abs(gaussian["n_sigma"] - sampled["n_sigma"]) > 0.5:
+        st.warning(
+            "The two disagree by more than half a sigma, which means "
+            "at least one of these posteriors is not Gaussian. Quote "
+            "the sample-based number.",
+            icon="⚠️",
+        )
+
+    fig, ax = plt.subplots(figsize=(7.2, 3.6))
+
+    difference = (
+        np.random.default_rng(0).choice(samples_a, size=100000)
+        - np.random.default_rng(1).choice(samples_b, size=100000)
+    )
+
+    ax.hist(difference, bins=120, histtype="step", lw=1.6)
+    ax.axvline(0.0, color="0.3", lw=1.4)
+
+    ax.set_xlabel(f"{parameter}  ({first} − {second})")
+    ax.set_ylabel("posterior samples")
+
+    fig.tight_layout()
+
+    st.pyplot(fig)
+
+    plt.close(fig)
+
+
+# ------------------------------------------------------------
+
 def _render_figure(fig, base_name: str, fmt_label: str, key: str) -> None:
     """
     Render a matplotlib figure plus a download button exporting it
@@ -2162,9 +2631,25 @@ with st.sidebar:
                 "Parallel processes", min_value=1,
                 max_value=usable_cpu_count(), value=1, step=1,
                 help="Evaluate walkers across multiple CPU cores. "
-                     "Only works for built-in models, not a Custom "
-                     "one -- leave at 1 if any model below is Custom.",
+                     "Only works for built-in models -- a model you "
+                     "built here, from an expression or from an "
+                     "action, exists only in this session and cannot "
+                     "be sent to a worker process. CosmoFit detects "
+                     "that and stays single-process rather than "
+                     "failing.",
             ))
+
+        best_fit_restarts = int(st.number_input(
+            "Best-fit restarts", min_value=0, max_value=32, value=0, step=1,
+            help="After the chain, the best fit is found by an "
+                 "optimizer, and an optimizer converges into whichever "
+                 "basin it started in. Restarts draw that many further "
+                 "starting points from the prior and keep the best "
+                 "result. Worth setting when a model fits *worse* than "
+                 "the one it contains as a special case -- an "
+                 "impossible answer, and how this was found. Costs one "
+                 "extra optimization each; nothing during sampling.",
+        ))
 
     st.markdown("### 💾 Saved chains")
 
@@ -2944,7 +3429,7 @@ if run_clicked:
                     n_processes=n_processes, callback=_on_step,
                     save=save,
                 )
-                fit.best_fit()
+                fit.best_fit(restarts=int(best_fit_restarts))
 
                 # A fully-cached model never runs a step, so
                 # `_on_step` never fires -- move the bar on itself,
@@ -3005,7 +3490,7 @@ if fits:
     multi = len(fits) >= 2
 
     tab_names = (["⚖️ Comparison"] if multi else []) + [
-        "📈 Best fit", "🎲 MCMC posterior", "🖼️ Plots",
+        "📈 Best fit", "🎲 MCMC posterior", "🔬 Inference", "🖼️ Plots",
     ]
     tabs = st.tabs(tab_names)
     tab_iter = iter(tabs)
@@ -3087,6 +3572,48 @@ if fits:
             _render_posterior(fits[fit_labels.index(choice)])
         else:
             _render_posterior(fits[0])
+
+    with next(tab_iter):
+
+        st.caption(
+            "Four questions an MCMC posterior on its own does not "
+            "answer. Each is a separate calculation and each is "
+            "behind its own button, because two of them cost real "
+            "time."
+        )
+
+        profile_tab, fisher_tab, evidence_tab, tension_tab = st.tabs([
+            "Profile likelihood", "Fisher matrix",
+            "Bayesian evidence", "Tension",
+        ])
+
+        with profile_tab:
+            if multi:
+                choice = st.selectbox(
+                    "Model", options=fit_labels, key="profile_model_choice",
+                )
+                chosen = fits[fit_labels.index(choice)]
+            else:
+                choice, chosen = fit_labels[0], fits[0]
+
+            _render_profile(chosen, choice)
+
+        with fisher_tab:
+            if multi:
+                choice = st.selectbox(
+                    "Model", options=fit_labels, key="fisher_model_choice",
+                )
+                chosen = fits[fit_labels.index(choice)]
+            else:
+                choice, chosen = fit_labels[0], fits[0]
+
+            _render_fisher(chosen, choice)
+
+        with evidence_tab:
+            _render_evidence(fits, fit_labels)
+
+        with tension_tab:
+            _render_tension(fits, fit_labels)
 
     with next(tab_iter):
 
