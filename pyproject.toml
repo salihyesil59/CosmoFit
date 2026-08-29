@@ -107,8 +107,9 @@ Homepage = "https://github.com/salihyesil59/CosmoFit"
 Repository = "https://github.com/salihyesil59/CosmoFit"
 Issues = "https://github.com/salihyesil59/CosmoFit/issues"
 
-# Live only once the `pages` workflow has been run at least once.
-# Run it before publishing, or this is a 404 in PyPI's sidebar.
+# Deployed by the `pages` workflow, which is manual -- so run it
+# before `publish`, or a new release points PyPI's sidebar at a
+# stale site.
 Documentation = "https://salihyesil59.github.io/CosmoFit/"
 Changelog = "https://github.com/salihyesil59/CosmoFit/blob/main/CHANGELOG.md"
 Examples = "https://github.com/salihyesil59/CosmoFit/tree/main/examples"
