@@ -29,13 +29,13 @@ narrative:
 
 - the [README](readme.md) for what the library is, what is in it, and
   the physics behind each piece;
-- the [notebooks](https://github.com/salihyesil59/CosmoFit/tree/dev/examples)
+- the [notebooks](https://github.com/salihyesil59/CosmoFit/tree/main/examples)
   -- seventeen of them, in five sections, every one executed end to
   end against real data and Colab-ready;
 - the [changelog](changelog.md) for how it got here, including how
   several of the bugs were found rather than only that they were
   fixed;
-- [REFERENCES.md](https://github.com/salihyesil59/CosmoFit/blob/dev/REFERENCES.md)
+- [REFERENCES.md](https://github.com/salihyesil59/CosmoFit/blob/main/REFERENCES.md)
   for every dataset, model and method paper, with links and where each
   is used in the code.
 

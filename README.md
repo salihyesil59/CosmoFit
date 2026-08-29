@@ -6,7 +6,7 @@
 
 The project is designed to make cosmological analyses simple, reproducible, and extensible while remaining flexible for research applications.
 
-> **Current Version:** v0.22.0
+> **Current Version:** v1.0.0
 
 ---
 
@@ -933,10 +933,11 @@ Where it stands today:
 | tests | **697** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/) |
 
-`main` is deliberately held at **v0.22.0**; everything since has been
-published as a `-dev` pre-release from the `dev` branch. The package
-structure may still evolve before the first stable **v1.0.0** -- see
-the [Roadmap](#roadmap) for what that release is waiting on.
+**v1.0.0** is the first stable release. `main` had been deliberately
+held at v0.22.0 while everything since was published as `-dev`
+pre-releases from the `dev` branch; it now carries all of it. What
+that release meant, and what it took, is in the
+[Roadmap](#roadmap).
 
 ---
 
@@ -993,35 +994,35 @@ Most of what this section used to list has been built. What is left:
   Jupyter kernel, where `n_processes` does not. It needs a batch axis
   through every calculator, so it is a real refactor rather than a flag.
 
-### v1.0.0
+### v1.0.0 -- what it took
 
-This section used to be three bullet points. Here is where each of
-them stands.
+This section used to be three bullet points. All three are done, and
+each is now held by a test rather than by intention.
 
-**Stable public API.** Done. Nothing was holding it: every other test
+**Stable public API.** Nothing was holding it: every other test
 imports what it happens to need, so a name could be renamed, moved
 between subpackages or dropped from `__all__` and the suite would go
 on passing as long as *some* path to the object still existed.
-`tests/test_public_api.py` now types the surface out by hand -- 64
-names -- and asserts the set in both directions. Writing it down
-found two names that had already drifted out of `CosmoFit.cosmology`
-while every one of their siblings was re-exported:
-`ModelConfigurationError`, which is the one exception a user is asked
-to tell apart from an ordinary failure, and `GrowthCalculator`.
+`tests/test_public_api.py` types the surface out by hand -- 64 names
+-- and asserts the set in both directions. Writing it down found two
+names that had already drifted out of `CosmoFit.cosmology` while
+every one of their siblings was re-exported: `ModelConfigurationError`,
+which is the one exception a user is asked to tell apart from an
+ordinary failure, and `GrowthCalculator`.
 
-**Complete documentation.** Done, in two halves. The release history
-is in **[CHANGELOG.md](CHANGELOG.md)** -- it had stopped at v0.25.0,
-so fourteen releases, including the whole of `CosmoFit.theory`,
-existed only as GitHub release notes. And there is an API reference
-under [`docs/`](docs/), built by CI with warnings as errors. Getting
-it there fixed ten docstrings that rendered wrong on the page:
+**Complete documentation.** The release history is in
+**[CHANGELOG.md](CHANGELOG.md)** -- it had stopped at v0.25.0, so
+fourteen releases, including the whole of `CosmoFit.theory`, existed
+only as GitHub release notes. And there is an API reference under
+[`docs/`](docs/), built by CI with warnings as errors. Getting it
+there fixed ten docstrings that rendered wrong on the page:
 equations parsed as bullet lists, `Parameters` sections holding
 prose, and `|beta|` read as a substitution reference.
 
 **Test coverage across the whole library, not only the newest parts.**
-Done: **93%**, from 79%, across **697 tests**. The phrase turned out
-to be exactly right -- `theory`, the newest subpackage, was at
-86-94% while the oldest code was not:
+**93%**, from 79%, across **697 tests**. The phrase turned out to be
+exactly right -- `theory`, the newest subpackage, was at 86-94%
+while the oldest code was not:
 
 | | was | now |
 |---|---|---|
@@ -1038,60 +1039,47 @@ to be exactly right -- `theory`, the newest subpackage, was at
 **And the package is typed.** `py.typed` ships, which tells every
 downstream type checker to trust these annotations -- so it had to be
 true first. It was 58 of 201 public callables fully annotated; it is
-**201 of 201** now, and two tests hold it there: one that every
-annotation resolves (including the ones deferred to `TYPE_CHECKING`,
-which is what a checker sees and `get_type_hints` cannot), and one
-that nothing on the public surface is left unannotated. Adding a
-public method without annotating it fails the suite.
+**201 of 201**. Three tests hold it: that everything is annotated,
+that every annotation *resolves* (including the ones deferred to
+`TYPE_CHECKING`, which is what a checker sees and `get_type_hints`
+cannot), and that ten of `Fitter`'s methods actually return what they
+say they do.
 
-`CosmoFit.typing` spells out the two aliases the whole surface is
-written in. `E(0.5)` returns `np.float64` and `E([0.1, 0.2])` returns
-an `ndarray`, so annotating the return as `np.ndarray` alone would
-have been wrong for the commonest call in the library.
+That last test is there because six annotations turned out to be
+false -- three of them written years before this release, three of
+them written *during* it. `Fitter.best_fit` said `BestFitResult` and
+returns scipy's `OptimizeResult`; `run_mcmc` said `MCMCResult` and
+returns emcee's `EnsembleSampler`; `load_chain` said `MCMCResult` and
+returns a `StoredSampler`. Once `py.typed` ships, a wrong annotation
+stops being a private mistake and becomes something other people's
+tools repeat with confidence.
 
-Getting there also found four annotations that were simply false --
-`load_chain` declared `MCMCResult` and returns a `StoredSampler`,
-`theory.fields.build_system` declared one object and returns two --
-which is exactly the class of thing `py.typed` would have started
-telling other people's type checkers.
+### Publishing
 
-What is left before the version number changes is not physics:
+The library is not on PyPI yet, and the API reference is not
+deployed yet. Both have workflows, both are `workflow_dispatch`
+only, and that is the design rather than a placeholder: a version
+number, once used, can never be reused, and a site once deployed is
+public under this repository's name. Neither belongs on a tag-push
+trigger where it would happen as a side effect of something else.
 
-Everything that could be prepared has been, and verified rather than
-assumed:
+`publish` builds, runs `twine check --strict`, and uploads through
+PyPI's Trusted Publishing -- GitHub mints a short-lived OIDC token
+and PyPI accepts it in place of an API token, so no long-lived
+secret lives in this repository. It offers TestPyPI first and
+defaults to it. `pages` deploys the site; run it before `publish`,
+so the `Documentation` link in PyPI's sidebar is live rather than a
+404.
 
-* the name `cosmofit` is free on PyPI and TestPyPI;
-* both artifacts build and pass `twine check --strict`, and the
-  wheel is 22 MB against PyPI's 100 MB per-file limit -- the
-  Pantheon+ covariance is 10 MB of that on its own;
-* the sdist carries the bundled data *and* `CITATION.cff`,
-  `REFERENCES.md` and the changelog, which it did not before there
-  was a `MANIFEST.in`;
-* the wheel was installed into a clean virtual environment, outside
-  this source tree, and fits ΛCDM to CC+DESI+Pantheon++Planck
-  (1671 points, H₀ = 67.5, Ω_m = 0.313) with `py.typed` present and
-  the `theory` extra correctly absent;
-* GitHub Pages is enabled, with Actions as the source.
-
-**Run `pages` before `publish`**, so the `Documentation` link in
-PyPI's sidebar is live rather than a 404.
-
-What is left is three things nobody but the maintainer can do:
-
-* **A Trusted Publisher on PyPI.** The `publish` workflow uploads
-  through OIDC rather than an API token, so there is no secret to
-  add here -- but PyPI has to be told to trust this repository, this
-  workflow filename, and the environment name. Until then the
-  workflow will run and be rejected at the last step.
-* **Running the two workflows.** Both are `workflow_dispatch` only,
-  deliberately: a version number, once used, can never be reused,
-  and a site once deployed is public under this repository's name.
-  `publish` offers TestPyPI first and defaults to it.
-* **`main` catching up.** It is deliberately at v0.22.0, and moving
-  it *is* the v1.0.0 moment rather than a chore that follows one.
-  When it does, the `Changelog` and `Examples` entries in
-  `[project.urls]` move from `dev` to `main` with it -- they point
-  at `dev` today because `main` does not have those files.
+The release was rehearsed before either existed: `cosmofit` is free
+on both indexes, both artifacts pass `twine check --strict`, the
+wheel is 22 MB against PyPI's 100 MB limit, and it was installed
+into a clean virtual environment outside this source tree and fitted
+LCDM to CC+DESI+Pantheon++Planck -- 1671 points, H0 = 67.5,
+Omega_m = 0.313 -- with `py.typed` present and the `theory` extra
+correctly absent. That rehearsal is what found two of the six false
+annotations, and what found that the sdist was missing
+`CITATION.cff`.
 
 ## Contributing
 

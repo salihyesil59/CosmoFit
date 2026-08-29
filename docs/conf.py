@@ -135,6 +135,6 @@ html_static_path = []
 
 html_theme_options = {
     "source_repository": "https://github.com/salihyesil59/CosmoFit/",
-    "source_branch": "dev",
+    "source_branch": "main",
     "source_directory": "docs/",
 }
