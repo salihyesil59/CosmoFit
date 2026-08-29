@@ -1608,7 +1608,6 @@ class FitPlotter:
         )
 
         # What a Gaussian summary would have claimed instead.
-        peak = data.peak[0]
         ax.plot(
             x, ((x - 18.33) / 0.6) ** 2,
             color=COLOR_REFERENCE, lw=1.4, ls="--",

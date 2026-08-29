@@ -84,7 +84,7 @@ field's initial conditions are set early rather than today.
 """
 
 try:
-    import sympy as _sympy
+    import sympy as _sympy  # noqa: F401  (an availability probe)
 
 except ModuleNotFoundError as _exc:  # pragma: no cover
     raise ModuleNotFoundError(

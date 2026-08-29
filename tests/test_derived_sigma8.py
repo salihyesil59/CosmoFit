@@ -84,7 +84,7 @@ def test_deriving_without_a_backend_says_why():
 
     with pytest.raises(ValueError, match="no Boltzmann backend"):
 
-        model.sigma8
+        model.sigma8  # noqa: B018  (the access is the assertion)
 
 
 @requires_camb

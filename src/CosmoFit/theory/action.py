@@ -1948,8 +1948,6 @@ class _ShootingClosure:
             self._seed = x0
             return x0
 
-        first = (x0, f0)
-
         # The second point for the secant. With a remembered
         # slope this is already a Newton step; without one it is
         # an offset big enough to move H(0) measurably and small

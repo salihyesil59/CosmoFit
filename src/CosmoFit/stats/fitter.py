@@ -2366,8 +2366,6 @@ class Fitter:
         it is left to the caller -- ``restarts`` is the lever.
         """
 
-        from scipy.optimize import minimize
-
         if x0 is None:
 
             if self.sampler is not None:

@@ -2251,7 +2251,6 @@ def load_fsigma8(
     sigma = data[:, 2]
     HdAz = data[:, 3]
 
-    n = len(z)
     cov = np.diag(sigma ** 2)
 
     for block in entry.get("blocks", ()):
