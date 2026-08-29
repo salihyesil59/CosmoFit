@@ -549,3 +549,193 @@ def test_a_model_derived_from_an_action_fits_end_to_end():
     assert 60.0 < fits[0].result.best_fit.params["H0"] < 80.0
 
     assert 0.1 < fits[0].result.best_fit.params["Omega_m"] < 0.6
+
+
+# ============================================================
+# The inference tab
+# ============================================================
+#
+# Profile likelihoods, Fisher matrices, Bayesian evidence and
+# tension statistics all landed in the library three releases before
+# the GUI had any of them. Each is behind its own button because two
+# of them cost real time, which is also what makes them awkward to
+# test: the button has to be found and clicked, and the thing it
+# renders has to be checked, not merely the absence of an exception.
+
+
+def _fitted(datasets_preset: str = "Late-time background (default)") -> AppTest:
+    """A single ΛCDM fit, run, with the results tabs rendered."""
+
+    app = _apply_preset(_fresh(timeout=900.0), datasets_preset)
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    return app
+
+
+def _click(app: AppTest, label: str) -> AppTest:
+
+    matches = [b for b in app.button if b.label == label]
+
+    assert matches, f"no button labelled {label!r}"
+
+    return matches[0].click().run()
+
+
+def test_the_inference_tab_exists_after_a_fit():
+
+    app = _fitted()
+
+    names = [name for tab in app.tabs for name in [tab.label]]
+
+    assert any("Inference" in str(name) for name in names), names
+
+
+def test_the_fisher_matrix_is_computed_and_compared_to_the_chain():
+    """
+    The comparison is the point of showing it. A Fisher matrix is a
+    Gaussian approximation to the posterior -- cheap where an MCMC is
+    not, good for a near-elliptical posterior, poor against a prior
+    edge -- and the only way to know which you have is the ratio.
+    """
+
+    app = _click(_fitted(), "Compute the Fisher matrix")
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    frames = [f.value for f in app.dataframe]
+
+    fisher = [f for f in frames if "Fisher σ" in f.columns]
+
+    assert fisher, "no Fisher table rendered"
+
+    table = fisher[0]
+
+    assert set(table["Parameter"]) == {"H0", "Omega_m"}
+
+    assert (table["Fisher σ"] > 0).all()
+
+    # The chain ran, so the comparison columns have to be there.
+    assert "MCMC σ" in table.columns
+    assert "ratio" in table.columns
+
+    # Short chains are noisy, but not *that* noisy: an order of
+    # magnitude apart would mean the two are not measuring the same
+    # thing at all.
+    assert ((table["ratio"] > 0.2) & (table["ratio"] < 5.0)).all()
+
+
+def test_a_profile_likelihood_runs_and_reports_an_interval():
+    """
+    Widget → `Fitter.profile` → a Δχ² curve and the crossings that
+    are the interval a profile actually reports. Not a standard
+    deviation of anything, which is the reason it is offered
+    separately from the posterior.
+    """
+
+    app = _fitted()
+
+    points = [
+        n for n in app.number_input if n.label == "Points"
+    ]
+
+    assert points, "the profile point count is missing"
+
+    app = points[0].set_value(7).run()
+
+    app = _click(app, "Profile `H0`")
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    assert not app.error, [e.value for e in app.error]
+
+    # Either an interval or the explicit statement that there is not
+    # one -- both are results, and silence would not be. (`AppTest`
+    # has no accessor for a `st.pyplot` figure, so the verdict is
+    # what there is to check.)
+    messages = _messages(app) + "".join(m.value for m in app.success)
+
+    assert "Δχ²" in messages, messages[-400:]
+
+
+def test_tension_needs_two_posteriors_and_says_so():
+    """
+    With one model there is nothing to compare, and the tab has to
+    say that rather than render an empty figure or raise.
+    """
+
+    app = _fitted()
+
+    assert "Two fits with chains" in _messages(app)
+
+
+def test_tension_between_two_models_reports_both_definitions():
+    """
+    The Gaussian number is the one everybody quotes; the
+    sample-based one makes no Gaussian assumption. Showing both is
+    the point -- they disagree exactly when the first has stopped
+    meaning anything.
+    """
+
+    app = _apply_preset(_fresh(timeout=900.0), "Late-time background (default)")
+
+    # A second model, so there are two posteriors to compare.
+    add = [b for b in app.button if "Add" in b.label]
+
+    assert add, [b.label for b in app.button]
+
+    app = add[0].click().run()
+
+    pickers = [s for s in app.selectbox if s.label == "Cosmology"]
+
+    assert len(pickers) == 2, "second model slot did not appear"
+
+    option = next(o for o in pickers[1].options if o.startswith("WCDM "))
+
+    app = pickers[1].set_value(option).run()
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    labels = [m.label for m in app.metric]
+
+    assert "Gaussian" in labels
+    assert "Sample-based" in labels
+
+    values = {m.label: m.value for m in app.metric}
+
+    for key in ("Gaussian", "Sample-based"):
+        assert values[key].endswith("σ"), values[key]
+        assert float(values[key].removesuffix("σ")) >= 0.0
+
+
+def test_best_fit_restarts_are_offered_and_used():
+    """
+    `restarts` exists because a model once fit *worse* than the one
+    it contains as a special case -- an impossible answer, and the
+    optimizer converging into the wrong basin. It was reachable only
+    from Python.
+    """
+
+    app = _fresh()
+
+    restarts = [
+        n for n in app.number_input if n.label == "Best-fit restarts"
+    ]
+
+    assert restarts, "the restarts control is missing"
+
+    assert restarts[0].value == 0
+
+    app = restarts[0].set_value(1).run()
+
+    app = _apply_preset(app, "Late-time background (default)")
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    assert app.session_state["fits"][0].result.best_fit is not None
