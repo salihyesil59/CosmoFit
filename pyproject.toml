@@ -106,6 +106,10 @@ dependencies = [
 Homepage = "https://github.com/salihyesil59/CosmoFit"
 Repository = "https://github.com/salihyesil59/CosmoFit"
 Issues = "https://github.com/salihyesil59/CosmoFit/issues"
+
+# Live only once the `pages` workflow has been run at least once.
+# Run it before publishing, or this is a 404 in PyPI's sidebar.
+Documentation = "https://salihyesil59.github.io/CosmoFit/"
 # `dev`, not `main`, because `main` is deliberately held at v0.22.0
 # and does not have these files yet. Both move to `main` when it
 # catches up at v1.0.0 -- listed in the Roadmap so it is not

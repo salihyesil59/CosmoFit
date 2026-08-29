@@ -51,6 +51,10 @@ if TYPE_CHECKING:
     # `dynesty` is an optional extra and `stats.nested` imports it,
     # so this cannot be a runtime import -- but a type checker needs
     # the name for `run_nested`'s return.
+    import emcee
+
+    from scipy.optimize import OptimizeResult
+
     from CosmoFit.stats.nested import NestedResult
 
 from CosmoFit.cosmology.core.base import Cosmology
@@ -1060,7 +1064,7 @@ class Fitter:
         n_processes: int | str = "auto",
         save: PathLike | ChainFile | None = None,
         resume: bool | str = "auto",
-    ) -> MCMCResult:
+    ) -> emcee.EnsembleSampler:
         """
         Run an ``emcee`` ensemble MCMC, via
         :class:`~stats.sampler.EnsembleSampler`.
@@ -2297,7 +2301,7 @@ class Fitter:
                  bounds: Sequence[tuple[float, float]] | None = None,
                  eps: float | None = None,
                  method: str = "L-BFGS-B", restarts: int = 0,
-                 seed: int | None = None) -> BestFitResult:
+                 seed: int | None = None) -> OptimizeResult:
         """
         Maximum-likelihood point via ``scipy.optimize.minimize``
         (L-BFGS-B), starting either from ``x0``, from the

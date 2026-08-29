@@ -97,6 +97,49 @@ of pushing a tag. Someone has to open the workflow and run it, and
 each needs one thing set up on the other side first -- a Trusted
 Publisher on PyPI, Pages enabled here.
 
+### The release, rehearsed
+
+Everything that could be checked before a first publish was, rather
+than being left to find out on the day:
+
+* `cosmofit` is free on PyPI and TestPyPI.
+* Both artifacts pass `twine check --strict`. The wheel is 22 MB
+  against PyPI's 100 MB per-file limit -- 10 MB of it the Pantheon+
+  covariance -- so no limit increase is needed.
+* **The sdist was incomplete**, and nothing would have said so. The
+  bundled data travels because it lives inside the package, but
+  `CITATION.cff`, `REFERENCES.md`, `CHANGELOG.md` and
+  `CONTRIBUTING.md` sit at the repository root and were simply
+  absent. A `MANIFEST.in` adds them and prunes `docs/`, `examples/`,
+  `app/` and `tools/`, which have no business in a source
+  distribution. The citation file is the one that matters: this
+  library bundles other people's data and implements other people's
+  methods, and the file saying how to credit them should travel with
+  the source rather than living only on a web page.
+* **The wheel was installed into a clean virtual environment**,
+  outside this source tree, and fitted ΛCDM to
+  CC+DESI+Pantheon++Planck -- 1671 points, H₀ = 67.5, Ω_m = 0.313 --
+  with `py.typed` present and the `theory` extra correctly absent and
+  correctly explaining itself.
+
+That last check earned its place immediately: it found a **fifth
+false annotation**, and then a sixth. `Fitter.best_fit` was declared
+`-> BestFitResult` and returns scipy's `OptimizeResult`;
+`Fitter.run_mcmc` was declared `-> MCMCResult` and returns emcee's
+`EnsembleSampler`. Both were wrong the same way -- named after the
+object that lands on `fitter.result` rather than the one handed back
+-- and neither mypy nor the resolution test could see it, because
+scipy and emcee both return `Any`.
+
+So there is now a test that **calls** ten of `Fitter`'s methods and
+compares what comes back against what was declared. With `py.typed`
+shipped, a wrong annotation is no longer a private mistake; it is
+something other people's type checkers repeat with confidence.
+
+GitHub Pages is enabled with Actions as the source, which fixes the
+documentation URL, so `[project.urls]` gains a `Documentation` entry.
+Run `pages` before `publish` and it is live rather than a 404.
+
 ## v0.40.0
 
 Everything the Roadmap listed for **v1.0.0**, worked through against

@@ -27,6 +27,7 @@ from pathlib import Path
 import pytest
 
 import CosmoFit
+from CosmoFit import LCDM, Fitter
 
 
 # ============================================================
@@ -384,6 +385,81 @@ def test_the_public_surface_is_completely_annotated():
                 unannotated.append(f"{label}: parameter '{name}'")
 
     assert not unannotated, "\n".join(unannotated)
+
+
+def test_declared_return_types_are_what_is_actually_returned():
+    """
+    The annotations checked above are checked for *resolving*, not
+    for being true. A wrong one is worse than none once `py.typed`
+    ships, because it is then something downstream type checkers
+    repeat with confidence.
+
+    Two of these were wrong when they were first written, and both
+    were wrong the same way -- named after the object that lands on
+    `fitter.result` rather than the one handed back:
+
+    * `best_fit` returns scipy's `OptimizeResult`, while
+      `BestFitResult` is what `fitter.result.best_fit` holds;
+    * `run_mcmc` returns emcee's `EnsembleSampler`, while
+      `MCMCResult` is what `fitter.result.mcmc` holds.
+
+    Neither mypy nor the resolution test could catch that -- scipy
+    and emcee both hand back `Any` -- so this calls them and looks.
+    """
+
+    import emcee
+    from scipy.optimize import OptimizeResult
+
+    from CosmoFit import CosmologyParameters  # noqa: F401  (import check)
+    from CosmoFit.stats import fitter as fitter_module
+
+    fit = Fitter(
+        model=LCDM,
+        datasets=["cc"],
+        free_params=["H0", "Omega_m"],
+        initial={"H0": 70.0, "Omega_m": 0.3},
+    )
+
+    calls = [
+        ("best_fit", lambda: fit.best_fit()),
+        ("run_mcmc", lambda: fit.run_mcmc(
+            nwalkers=8, nsteps=40, burnin=5, progress=False,
+        )),
+        ("summary", lambda: fit.summary()),
+        ("flat_samples", lambda: fit.flat_samples()),
+        ("convergence", lambda: fit.convergence()),
+        ("samples_dict", lambda: fit.samples_dict()),
+        ("chi2", lambda: fit.chi2()),
+        ("chi2_breakdown", lambda: fit.chi2_breakdown()),
+        ("chain_id", lambda: fit.chain_id()),
+        ("fisher", lambda: fit.fisher()),
+    ]
+
+    namespace = {
+        **vars(fitter_module),
+        **_type_checking_namespace(fitter_module),
+        "emcee": emcee,
+        "OptimizeResult": OptimizeResult,
+    }
+
+    wrong = []
+
+    for name, call in calls:
+
+        declared = typing.get_type_hints(
+            getattr(Fitter, name), globalns=namespace,
+        )["return"]
+
+        returned = call()
+
+        if not isinstance(returned, declared):
+            wrong.append(
+                f"Fitter.{name}: declared {declared}, "
+                f"returned {type(returned).__module__}."
+                f"{type(returned).__name__}"
+            )
+
+    assert not wrong, "\n".join(wrong)
 
 
 def test_the_py_typed_marker_is_shipped():
