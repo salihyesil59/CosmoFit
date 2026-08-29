@@ -930,7 +930,7 @@ Where it stands today:
 |---|---|
 | datasets | **21**, from cosmic chronometers to the from-scratch CMB |
 | models | **20** written out by hand, plus three routes to one that is not here |
-| tests | **696** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
+| tests | **697** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/) |
 
 `main` is deliberately held at **v0.22.0**; everything since has been
@@ -1019,7 +1019,7 @@ equations parsed as bullet lists, `Parameters` sections holding
 prose, and `|beta|` read as a substitution reference.
 
 **Test coverage across the whole library, not only the newest parts.**
-Done: **93%**, from 79%, across **696 tests**. The phrase turned out
+Done: **93%**, from 79%, across **697 tests**. The phrase turned out
 to be exactly right -- `theory`, the newest subpackage, was at
 86-94% while the oldest code was not:
 
@@ -1057,25 +1057,41 @@ telling other people's type checkers.
 
 What is left before the version number changes is not physics:
 
-* **PyPI.** Installation is still `git clone`. Everything needed is
-  in place -- URLs, classifiers, an SPDX license expression, and a
-  `publish` workflow that builds, runs `twine check --strict` and
-  uploads through PyPI's Trusted Publishing, so no long-lived token
-  lives in this repository. It is **`workflow_dispatch` only**: a
-  version number, once used, can never be reused, so nothing about
-  publishing should be able to happen as a side effect of a push.
-  Someone has to run it, after setting up the Trusted Publisher on
-  PyPI's side.
-* **Where the API reference is published.** Same shape: a `pages`
-  workflow that deploys to GitHub Pages, manual-only, and needing
-  Pages enabled for the repository first. The `tests` workflow
-  already builds the site with warnings as errors on every push, so
-  this only deploys what that build has proved is fine.
+Everything that could be prepared has been, and verified rather than
+assumed:
+
+* the name `cosmofit` is free on PyPI and TestPyPI;
+* both artifacts build and pass `twine check --strict`, and the
+  wheel is 22 MB against PyPI's 100 MB per-file limit -- the
+  Pantheon+ covariance is 10 MB of that on its own;
+* the sdist carries the bundled data *and* `CITATION.cff`,
+  `REFERENCES.md` and the changelog, which it did not before there
+  was a `MANIFEST.in`;
+* the wheel was installed into a clean virtual environment, outside
+  this source tree, and fits ΛCDM to CC+DESI+Pantheon++Planck
+  (1671 points, H₀ = 67.5, Ω_m = 0.313) with `py.typed` present and
+  the `theory` extra correctly absent;
+* GitHub Pages is enabled, with Actions as the source.
+
+**Run `pages` before `publish`**, so the `Documentation` link in
+PyPI's sidebar is live rather than a 404.
+
+What is left is three things nobody but the maintainer can do:
+
+* **A Trusted Publisher on PyPI.** The `publish` workflow uploads
+  through OIDC rather than an API token, so there is no secret to
+  add here -- but PyPI has to be told to trust this repository, this
+  workflow filename, and the environment name. Until then the
+  workflow will run and be rejected at the last step.
+* **Running the two workflows.** Both are `workflow_dispatch` only,
+  deliberately: a version number, once used, can never be reused,
+  and a site once deployed is public under this repository's name.
+  `publish` offers TestPyPI first and defaults to it.
 * **`main` catching up.** It is deliberately at v0.22.0, and moving
-  it is the actual v1.0.0 moment. When it does, the `Changelog` and
-  `Examples` entries in `[project.urls]` move from `dev` to `main`
-  with it -- they point at `dev` today because `main` does not have
-  those files.
+  it *is* the v1.0.0 moment rather than a chore that follows one.
+  When it does, the `Changelog` and `Examples` entries in
+  `[project.urls]` move from `dev` to `main` with it -- they point
+  at `dev` today because `main` does not have those files.
 
 ## Contributing
 
