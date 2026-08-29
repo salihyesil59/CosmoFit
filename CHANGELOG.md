@@ -14,7 +14,7 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v0.40.0
 
 Everything the Roadmap listed for **v1.0.0**, worked through against
 what the repository actually measured rather than against
