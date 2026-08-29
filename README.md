@@ -1057,15 +1057,25 @@ telling other people's type checkers.
 
 What is left before the version number changes is not physics:
 
-* **PyPI.** Installation is still `git clone`. The metadata is ready
-  -- URLs, classifiers, an SPDX license expression -- and CI runs
-  `twine check` on the built wheel. Publishing is a decision rather
-  than a task.
-* **`main` catching up.** It is deliberately at v0.22.0. When it
-  moves, the `Changelog` and `Examples` entries in `[project.urls]`
-  move from `dev` to `main` with it.
-* **Where the API reference is published.** CI builds it and uploads
-  it as an artifact; it does not deploy it anywhere.
+* **PyPI.** Installation is still `git clone`. Everything needed is
+  in place -- URLs, classifiers, an SPDX license expression, and a
+  `publish` workflow that builds, runs `twine check --strict` and
+  uploads through PyPI's Trusted Publishing, so no long-lived token
+  lives in this repository. It is **`workflow_dispatch` only**: a
+  version number, once used, can never be reused, so nothing about
+  publishing should be able to happen as a side effect of a push.
+  Someone has to run it, after setting up the Trusted Publisher on
+  PyPI's side.
+* **Where the API reference is published.** Same shape: a `pages`
+  workflow that deploys to GitHub Pages, manual-only, and needing
+  Pages enabled for the repository first. The `tests` workflow
+  already builds the site with warnings as errors on every push, so
+  this only deploys what that build has proved is fine.
+* **`main` catching up.** It is deliberately at v0.22.0, and moving
+  it is the actual v1.0.0 moment. When it does, the `Changelog` and
+  `Examples` entries in `[project.urls]` move from `dev` to `main`
+  with it -- they point at `dev` today because `main` does not have
+  those files.
 
 ## Contributing
 
