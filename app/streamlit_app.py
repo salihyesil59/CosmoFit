@@ -59,6 +59,22 @@ from CosmoFit import (
     FSigma8Likelihood,
 )
 from CosmoFit import available_versions, dataset_reference
+
+# `CosmoFit.theory` needs sympy, which is an optional extra. The GUI
+# offers the "From an action" model route only when it is installed,
+# and says how to get it when it is not -- rather than presenting a
+# dropdown entry that fails the moment it is chosen.
+try:
+    from CosmoFit.theory import Action, GEOMETRIES, STANDARD_FLUIDS
+
+    HAVE_THEORY = True
+
+except ModuleNotFoundError:
+
+    Action = None
+    GEOMETRIES = ()
+    STANDARD_FLUIDS = {}
+    HAVE_THEORY = False
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 from CosmoFit.stats.chains import ChainFile, StoredSampler
 from CosmoFit.stats.results import _json_default
@@ -112,6 +128,81 @@ MODEL_GROUPS = [
     ("Modified gravity",
      ["FQExponential", "FRTLinear", "FRHuSawicki"]),
 ]
+
+#: The two routes to a model the library does not ship. `Custom`
+#: takes an ``E(z)`` -- the *result* of a derivation somebody did by
+#: hand. `From an action` takes the input instead: a gravitational
+#: Lagrangian, from which `CosmoFit.theory` derives the Friedmann
+#: equation itself.
+CUSTOM_CHOICE = "Custom"
+ACTION_CHOICE = "From an action"
+
+#: Worked actions offered as starting points, so the box is never
+#: blank. Each is (label, gravity, geometry, params, closure, growth,
+#: fields) -- the same arguments `CosmoFit.theory.Action` takes.
+ACTION_PRESETS = {
+    "— start blank —": None,
+    "General Relativity + Λ (rederives ΛCDM)": dict(
+        gravity="R - 2*Lam",
+        geometry="metric",
+        params="Lam = 2.1, 0.0, 6.0, $\\Lambda$",
+        closure="Lam",
+        growth="gr",
+        fields="",
+    ),
+    "Power-law f(T)  ·  Bengochea & Ferraro (2009)": dict(
+        gravity="T + A0*(-T)**b",
+        geometry="teleparallel",
+        params=(
+            "A0 = -4.2, -30.0, 0.0, $A_0$\n"
+            "b = 0.0, -2.0, 0.9, $b$"
+        ),
+        closure="A0",
+        growth="quasi_static",
+        fields="",
+    ),
+    "Exponential f(Q)  ·  reproduces FQExponential": dict(
+        gravity="Q*exp(lam*Q0/Q)",
+        geometry="symmetric",
+        params="lam = 0.1, 0.0, 0.9, $\\lambda$",
+        closure="lam",
+        growth="quasi_static",
+        fields="",
+    ),
+    "Starobinsky f(R) = R - 2Λ + αR²": dict(
+        gravity="R - 2*Lam + alpha_fr*R**2",
+        geometry="metric",
+        params=(
+            "Lam = 2.1, 0.0, 6.0, $\\Lambda$\n"
+            "alpha_fr = 0.001, 0.000001, 1.0, $\\alpha$"
+        ),
+        closure="",
+        growth="gr",
+        fields="",
+    ),
+    "Exponential quintessence  ·  a rolling scalar field": dict(
+        gravity="R",
+        geometry="metric",
+        params=(
+            "V0 = 2.1, 0.05, 50.0, $V_0$\n"
+            "lam = 0.5, 0.0, 1.7, $\\lambda$"
+        ),
+        closure="V0",
+        growth="gr",
+        fields="phi = X - V0*exp(-lam*phi)",
+    ),
+    "Scalar-tensor  ·  F(φ)R, gravity's strength rolls": dict(
+        gravity="(1 + xi*phi**2)*R",
+        geometry="metric",
+        params=(
+            "xi = 0.02, -0.5, 0.5, $\\xi$\n"
+            "V0 = 2.1, 0.05, 20.0, $V_0$"
+        ),
+        closure="V0",
+        growth="quasi_static",
+        fields="phi = X - V0",
+    ),
+}
 
 #: One paragraph per model: what it is, what its extra parameters
 #: mean, and which parameter values collapse it back to ΛCDM.
@@ -992,12 +1083,13 @@ def _relevant_parameters(model_choice, model_cls, datasets, compute_rd,
 
     The union of what the model's E(z) uses, what its own
     ``EXTRA_PARAMS`` add, and what the ticked datasets require. A
-    ``Custom`` model is opaque -- its expression could reference
-    anything -- so everything is reported relevant rather than
-    guessing and hiding something it needs.
+    model the user built -- from an expression or from an action --
+    is opaque, since it could reference anything, so everything is
+    reported relevant rather than guessing and hiding something it
+    needs.
     """
 
-    if model_choice == "Custom":
+    if model_choice in (CUSTOM_CHOICE, ACTION_CHOICE):
         params_cls = getattr(model_cls, "PARAMS_CLASS", None)
         return set(params_cls.names()) if params_cls else set()
 
@@ -1192,6 +1284,134 @@ def _parse_extra_params(text: str) -> dict:
 
 # ------------------------------------------------------------
 
+def _parse_fields(text: str) -> dict:
+    """
+    Parse the scalar-field box:
+
+        phi = X - V0*exp(-lam*phi)
+
+    into the ``fields`` dict :class:`CosmoFit.theory.Action` takes:
+    field name -> Lagrangian density ``L(X, phi)``, with ``X`` the
+    kinetic scalar. More than one line is more than one field.
+    """
+
+    fields = {}
+
+    for line_no, raw in enumerate(text.splitlines(), start=1):
+
+        line = raw.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        if "=" not in line:
+            raise ValueError(
+                f"Field line {line_no}: expected "
+                f"'name = L(X, name)', got {raw!r}"
+            )
+
+        name, lagrangian = line.split("=", 1)
+
+        name = name.strip()
+        lagrangian = lagrangian.strip()
+
+        if not name or not lagrangian:
+            raise ValueError(
+                f"Field line {line_no}: both a name and a Lagrangian "
+                f"are needed, got {raw!r}"
+            )
+
+        fields[name] = lagrangian
+
+    return fields
+
+
+# ------------------------------------------------------------
+
+@st.cache_resource(show_spinner=False, max_entries=32)
+def _action_and_model(
+    name: str,
+    gravity: str,
+    geometry: str | None,
+    fluids: tuple,
+    params_text: str,
+    closure: str,
+    growth: str,
+    fields_text: str,
+    z_init: float,
+):
+    """
+    Build an :class:`~CosmoFit.theory.Action` and the model class it
+    derives, returning both.
+
+    Cached on the definition itself, because Streamlit re-runs the
+    whole script on every widget interaction and this is the one
+    genuinely expensive thing in it. Reducing the action, varying the
+    lapse and solving the constraint is symbolic work -- and a field
+    action additionally compiles an integrator -- where everything
+    else on this page is a dictionary lookup.
+
+    Both objects come back from one call so the page can show the
+    Friedmann equation that was derived without deriving it twice.
+    """
+
+    action = Action(
+        gravity,
+        geometry=geometry,
+        fluids=tuple(fluids),
+        params=_parse_extra_params(params_text),
+        closure=closure or None,
+        growth=growth,
+        fields=_parse_fields(fields_text) or None,
+        z_init=float(z_init),
+    )
+
+    return action, action.build(name)
+
+
+# ------------------------------------------------------------
+
+def _action_widgets(slot: int) -> tuple:
+    """
+    This slot's action widgets, as the argument tuple
+    :func:`_action_and_model` is keyed on.
+
+    Reading them in one place is what keeps the cache key and the
+    thing built from it in step -- a second reader that forgot one
+    widget would return a stale model for a changed definition,
+    which is exactly the failure a cache is good at hiding.
+    """
+
+    gravity = st.session_state.get(f"action_gravity_{slot}", "").strip()
+
+    if not gravity:
+        raise ValueError(
+            "Enter a gravitational Lagrangian -- `R - 2*Lam` is "
+            "General Relativity with a cosmological constant."
+        )
+
+    geometry = st.session_state.get(f"action_geometry_{slot}", "auto")
+
+    return (
+        (
+            st.session_state.get(f"action_name_{slot}", "").strip()
+            or f"Action{slot + 1}"
+        ),
+        gravity,
+        None if geometry == "auto" else geometry,
+        tuple(
+            st.session_state.get(f"action_fluids_{slot}", None) or ("matter",)
+        ),
+        st.session_state.get(f"action_params_{slot}", ""),
+        st.session_state.get(f"action_closure_{slot}", "").strip(),
+        st.session_state.get(f"action_growth_{slot}", "gr"),
+        st.session_state.get(f"action_fields_{slot}", ""),
+        float(st.session_state.get(f"action_zinit_{slot}", 3000.0)),
+    )
+
+
+# ------------------------------------------------------------
+
 def _build_model_class(slot: int, model_choice: str):
     """
     Resolve one model slot's widgets into a ``Cosmology`` subclass,
@@ -1199,7 +1419,17 @@ def _build_model_class(slot: int, model_choice: str):
     definition.
     """
 
-    if model_choice != "Custom":
+    if model_choice == ACTION_CHOICE:
+
+        if not HAVE_THEORY:
+            raise ValueError(
+                "Deriving a model from an action needs sympy: "
+                "pip install 'cosmofit[theory]'."
+            )
+
+        return _action_and_model(*_action_widgets(slot))[1]
+
+    if model_choice != CUSTOM_CHOICE:
         return BUILTIN_MODELS[model_choice]
 
     name = st.session_state.get(f"custom_name_{slot}", "").strip() or f"Custom{slot + 1}"
@@ -2143,8 +2373,10 @@ for i in range(n_models):
                 display = f"{name}  ·  {group_label}"
                 model_options.append(display)
                 option_to_model[display] = name
-        model_options.append("Custom")
-        option_to_model["Custom"] = "Custom"
+        for extra in (CUSTOM_CHOICE, ACTION_CHOICE):
+            display = f"{extra}  ·  Not in the library"
+            model_options.append(display)
+            option_to_model[display] = extra
 
         model_display = st.selectbox(
             "Cosmology", options=model_options,
@@ -2169,7 +2401,7 @@ for i in range(n_models):
         if model_choice in BACKGROUND_DEGENERATE_MODELS:
             st.warning(BACKGROUND_DEGENERATE_MODELS[model_choice], icon="⚠️")
 
-        if model_choice == "Custom":
+        if model_choice == CUSTOM_CHOICE:
 
             col1, col2 = st.columns([1, 2])
             with col1:
@@ -2230,6 +2462,189 @@ for i in range(n_models):
                     help="name = default, lower, upper[, label]",
                 )
 
+        elif model_choice == ACTION_CHOICE:
+
+            if not HAVE_THEORY:
+
+                st.warning(
+                    "Deriving a model from an action needs **sympy**, "
+                    "an optional dependency:\n\n"
+                    "```\npip install 'cosmofit[theory]'\n```\n\n"
+                    "Nothing else in the library needs it -- models "
+                    "written directly as `E(z)` (including **Custom** "
+                    "above) work without it.",
+                    icon="📦",
+                )
+
+            else:
+
+                st.caption(
+                    "Give the **action**, not the answer. `CosmoFit.theory` "
+                    "writes FLRW with an explicit lapse, reduces the action "
+                    "to a point-like Lagrangian, varies the lapse to get the "
+                    "Friedmann *constraint*, and solves it for `E(z)`. What "
+                    "comes back is an ordinary model that every dataset and "
+                    "plot here already understands."
+                )
+
+                # Above the widgets it writes to, for the same reason
+                # the dataset preset is: the values land before those
+                # widgets are created and are picked up on this pass.
+                preset_choice = st.selectbox(
+                    "Start from a worked example",
+                    options=list(ACTION_PRESETS),
+                    key=f"action_preset_{i}",
+                    help="Each is a real model. Applying one overwrites "
+                         "the boxes below; edit them afterwards.",
+                )
+
+                preset = ACTION_PRESETS.get(preset_choice)
+
+                if preset and st.button(
+                    "Load this action", key=f"action_load_{i}", width="stretch",
+                ):
+                    st.session_state[f"action_gravity_{i}"] = preset["gravity"]
+                    st.session_state[f"action_geometry_{i}"] = preset["geometry"]
+                    st.session_state[f"action_params_{i}"] = preset["params"]
+                    st.session_state[f"action_closure_{i}"] = preset["closure"]
+                    st.session_state[f"action_growth_{i}"] = preset["growth"]
+                    st.session_state[f"action_fields_{i}"] = preset["fields"]
+
+                col1, col2 = st.columns([1, 1])
+
+                with col1:
+                    st.text_input(
+                        "Model name", value=f"Action{i + 1}",
+                        key=f"action_name_{i}",
+                    )
+
+                with col2:
+                    st.selectbox(
+                        "Geometry",
+                        options=["auto", *GEOMETRIES],
+                        key=f"action_geometry_{i}",
+                        help=(
+                            "Curvature (`R`), torsion (`T`) or "
+                            "non-metricity (`Q`) -- three formulations "
+                            "that agree in General Relativity and part "
+                            "company once `f` is deformed. `auto` reads "
+                            "it off whichever scalar appears below. The "
+                            "sign convention is fixed by requiring an "
+                            "undeformed `f` to reproduce GR exactly."
+                        ),
+                    )
+
+                st.text_input(
+                    "Gravitational Lagrangian  f", key=f"action_gravity_{i}",
+                    placeholder="R - 2*Lam",
+                    help=(
+                        "An expression in the geometry scalar (`R`, `T` "
+                        "or `Q`), the standard cosmological parameters, "
+                        "any parameter declared below, and any scalar "
+                        "field. `R0`/`T0`/`Q0` are the scalar's value "
+                        "today, which is how the f(Q) literature writes "
+                        "its models. Just `R` is General Relativity."
+                    ),
+                )
+
+                st.text_area(
+                    "Parameters (one per line)", key=f"action_params_{i}",
+                    height=80,
+                    placeholder="Lam = 2.1, 0.0, 6.0, $\\Lambda$",
+                    help="name = default, lower, upper[, label]",
+                )
+
+                col3, col4 = st.columns([1, 1])
+
+                with col3:
+                    st.text_input(
+                        "Closure parameter (optional)",
+                        key=f"action_closure_{i}",
+                        placeholder="Lam",
+                        help=(
+                            "The one parameter fixed by requiring "
+                            "`E(0) = 1` rather than fitted. In ΛCDM this "
+                            "is what makes `Omega_de0 = 1 - Omega_m`. "
+                            "Leave blank if the action satisfies the "
+                            "condition on its own -- it is checked "
+                            "either way, and an action that predicts "
+                            "`E(0) != 1` is refused rather than fitted, "
+                            "since it would get every distance wrong by "
+                            "a constant factor while looking healthy."
+                        ),
+                    )
+
+                with col4:
+                    st.selectbox(
+                        "Growth of structure",
+                        options=["gr", "quasi_static"],
+                        key=f"action_growth_{i}",
+                        help=(
+                            "`gr` leaves μ = 1. `quasi_static` asks for "
+                            "the sub-horizon result -- μ = 1/f' for a "
+                            "deformed f(T)/f(Q), or the scalar-tensor "
+                            "form for a field coupled to curvature. It "
+                            "is an *additional* physical assumption on "
+                            "top of the action, which is why it has to "
+                            "be asked for. Only matters if you fit "
+                            "`fsigma8` or `s8`."
+                        ),
+                    )
+
+                with st.expander("Scalar fields, fluids, and z_init"):
+
+                    st.text_area(
+                        "Scalar fields (one per line, optional)",
+                        key=f"action_fields_{i}", height=80,
+                        placeholder="phi = X - V0*exp(-lam*phi)",
+                        help=(
+                            "`name = L(X, name)`, with `X` the kinetic "
+                            "scalar -- `X - V(phi)` is quintessence, any "
+                            "other `L(X, phi)` is k-essence. A field's "
+                            "name is also in scope in the Lagrangian "
+                            "above, which is how scalar-tensor gravity "
+                            "is written: `(1 + xi*phi**2)*R` couples the "
+                            "field to curvature rather than adding it on "
+                            "top of GR. A field action is *integrated* "
+                            "rather than solved redshift by redshift, so "
+                            "it is slower (~40 ms a point against ~150 "
+                            "µs) and needs a closure parameter."
+                        ),
+                    )
+
+                    col5, col6 = st.columns([1, 1])
+
+                    with col5:
+                        st.multiselect(
+                            "Fluids",
+                            options=list(STANDARD_FLUIDS),
+                            default=["matter"],
+                            key=f"action_fluids_{i}",
+                            help="What else is in the universe besides "
+                                 "whatever the action itself provides.",
+                        )
+
+                    with col6:
+                        st.number_input(
+                            "z_init (fields only)",
+                            min_value=10.0, max_value=100000.0,
+                            value=3000.0, step=500.0,
+                            key=f"action_zinit_{i}",
+                            help=(
+                                "Where a field's initial conditions are "
+                                "set, and the earliest redshift the "
+                                "model can be asked about. Early rather "
+                                "than today on purpose: integrating "
+                                "*backwards* from a field at rest now "
+                                "turns Hubble friction into "
+                                "anti-friction and gives a "
+                                "kinetic-dominated past that is not a "
+                                "universe. The growth ODE starts at "
+                                "z = 9999, so raise this above that to "
+                                "fit `fsigma8`."
+                            ),
+                        )
+
         try:
             model_cls = _build_model_class(i, model_choice)
         except Exception as exc:
@@ -2242,6 +2657,58 @@ for i in range(n_models):
             continue
 
         model_classes.append(model_cls)
+
+        # ------------------------------------------------------
+        # The equation the action turned into
+        # ------------------------------------------------------
+        #
+        # Worth showing rather than hiding: for most of these
+        # actions the Friedmann equation is the thing somebody
+        # would otherwise have spent an afternoon deriving, and
+        # seeing it is how you check the library understood the
+        # Lagrangian you meant.
+
+        if model_choice == ACTION_CHOICE and HAVE_THEORY:
+
+            with st.expander("The Friedmann equation this derives"):
+
+                try:
+                    import sympy as _sp
+
+                    action = _action_and_model(*_action_widgets(i))[0]
+                    expr, E2, _z = action.constraint()
+
+                    st.caption(
+                        "Varying the lapse gives a *constraint* rather "
+                        "than an evolution equation -- that is what "
+                        "makes it the Friedmann equation. It vanishes "
+                        "on-shell; `E2` is the squared dimensionless "
+                        "Hubble rate."
+                    )
+
+                    st.latex(_sp.latex(_sp.Eq(expr, 0)))
+
+                    if action.is_fourth_order:
+                        st.caption(
+                            "Nonlinear in `R`, so this is a "
+                            "**fourth-order** theory: it is reduced by "
+                            "a Lagrange multiplier and integrated, and "
+                            "carries `R_0`, the Ricci scalar today -- "
+                            "an initial condition General Relativity "
+                            "does not have."
+                        )
+
+                    elif action.fields:
+                        st.caption(
+                            f"Carries {len(action.fields)} dynamical "
+                            f"field(s), so the history is **integrated** "
+                            f"from z = {action.z_init:g} with `E(0) = 1` "
+                            f"as a shooting condition, not solved "
+                            f"redshift by redshift."
+                        )
+
+                except Exception as exc:
+                    st.caption(f"Could not render it: {exc}")
 
         # ------------------------------------------------------
         # What this model can be asked to do
