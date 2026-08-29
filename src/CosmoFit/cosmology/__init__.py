@@ -1,4 +1,9 @@
-from .core import Cosmology, CosmologyParameters, constants
+from .core import (
+    Cosmology,
+    CosmologyParameters,
+    ModelConfigurationError,
+    constants,
+)
 from .models import (
     LCDM,
     WCDM,
@@ -27,12 +32,14 @@ from .calculators import (
     DistanceCalculator,
     SoundHorizon,
     RecombinationCalculator,
+    GrowthCalculator,
 )
 from .custom import define_model, model_from_expression
 
 __all__ = [
     "Cosmology",
     "CosmologyParameters",
+    "ModelConfigurationError",
     "constants",
     "LCDM",
     "WCDM",
@@ -59,6 +66,7 @@ __all__ = [
     "DistanceCalculator",
     "SoundHorizon",
     "RecombinationCalculator",
+    "GrowthCalculator",
     "define_model",
     "model_from_expression",
 ]

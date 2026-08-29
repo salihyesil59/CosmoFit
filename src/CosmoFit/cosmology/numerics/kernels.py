@@ -33,18 +33,18 @@ running both.
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 
 
-try:
-
-    from numba import njit
-
-    HAVE_NUMBA = True
-
-except ImportError:  # pragma: no cover - exercised by the minimal CI job
-
-    HAVE_NUMBA = False
+# Whether numba is installed, answered without importing it.
+#
+# `import numba` costs ~115 ms, which is 17% of what `import CosmoFit`
+# used to cost -- paid by every user who has the `speed` extra, on
+# every import, for a kernel that only a growth fit ever calls. The
+# spec lookup is a filesystem check and costs nothing.
+HAVE_NUMBA = importlib.util.find_spec("numba") is not None
 
 
 def _rk4_growth_python(friction_0, source_0, friction_1, source_1,
@@ -89,14 +89,29 @@ def _rk4_growth_python(friction_0, source_0, friction_1, source_1,
     return D, P
 
 
-if HAVE_NUMBA:
+_compiled = None
 
-    # `cache=True` writes the compiled kernel next to the module, so
-    # the ~300 ms of LLVM work happens once per install rather than
-    # once per process. numba degrades to recompiling if the
-    # directory is not writable.
-    rk4_growth = njit(cache=True)(_rk4_growth_python)
 
-else:  # pragma: no cover - exercised by the minimal CI job
+def rk4_growth(*args):
+    """
+    The compiled kernel, imported and JIT-decorated on first call.
 
-    rk4_growth = None
+    Callers must check :data:`HAVE_NUMBA` first -- this raises
+    ``ImportError`` without it, deliberately, rather than silently
+    running the uncompiled loop, which is *slower* than the prefix
+    product the caller would otherwise have used.
+    """
+
+    global _compiled
+
+    if _compiled is None:
+
+        # `cache=True` writes the compiled kernel next to the module,
+        # so the ~300 ms of LLVM work happens once per install rather
+        # than once per process. numba degrades to recompiling if the
+        # directory is not writable.
+        from numba import njit
+
+        _compiled = njit(cache=True)(_rk4_growth_python)
+
+    return _compiled(*args)
