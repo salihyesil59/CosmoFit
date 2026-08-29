@@ -112,12 +112,18 @@ def _parameter_table(app: AppTest):
 
 def _messages(app: AppTest) -> str:
     """
-    Every error, warning and caption the page is currently showing,
-    as one searchable string.
+    Every error, warning, info and caption the page is currently
+    showing, as one searchable string.
+
+    `st.info` is in there because that is what an incomplete model
+    definition renders as -- "not ready yet -- ..." is guidance
+    rather than a failure, and leaving it out made this helper
+    silently blind to a whole class of message.
     """
 
     parts = [e.value for e in app.error]
     parts += [w.value for w in app.warning]
+    parts += [i.value for i in app.info]
     parts += [c.value for c in app.caption]
 
     return "\n".join(parts)
@@ -383,3 +389,163 @@ def test_guide_lists_every_dataset_and_model():
     assert len(model_guide[0]) == len(model_names)
 
     assert (model_guide[0]["Reference"].str.len() > 0).all()
+
+
+# ============================================================
+# Models from an action
+# ============================================================
+#
+# The GUI's second route to a model the library does not ship. The
+# first (`Custom`) takes an `E(z)` -- the result of a derivation
+# somebody did by hand. This one takes the input instead, and the
+# whole point is that the user never writes `E(z)` at all.
+
+requires_sympy = pytest.mark.skipif(
+    __import__("importlib.util", fromlist=["util"]).find_spec("sympy") is None,
+    reason="sympy not installed (optional 'theory' extra)",
+)
+
+
+def _select_action(app: AppTest) -> AppTest:
+
+    return _select_model(app, "From an action")
+
+
+def _load_action_preset(app: AppTest, name: str) -> AppTest:
+
+    picker = [
+        s for s in app.selectbox if s.label == "Start from a worked example"
+    ][0]
+
+    picker.set_value(name).run()
+
+    button = [b for b in app.button if b.label == "Load this action"][0]
+
+    return button.click().run()
+
+
+@requires_sympy
+def test_the_action_route_is_offered():
+
+    app = _fresh()
+
+    picker = [s for s in app.selectbox if s.label == "Cosmology"][0]
+
+    assert any(o.startswith("From an action ") for o in picker.options)
+
+    app = _select_action(app)
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    labels = [t.label for t in app.text_input] + [
+        t.label for t in app.text_area
+    ]
+
+    assert "Gravitational Lagrangian  f" in labels
+    assert "Parameters (one per line)" in labels
+
+
+@requires_sympy
+def test_a_preset_writes_the_action_it_names():
+    """
+    Same contract as the dataset presets: it has to set what it says,
+    and it has to leave the page in a state that builds.
+    """
+
+    app = _load_action_preset(
+        _select_action(_fresh()),
+        "Power-law f(T)  ·  Bengochea & Ferraro (2009)",
+    )
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    state = app.session_state
+
+    assert state["action_gravity_0"] == "T + A0*(-T)**b"
+    assert state["action_geometry_0"] == "teleparallel"
+    assert state["action_closure_0"] == "A0"
+    assert state["action_growth_0"] == "quasi_static"
+    assert "A0 =" in state["action_params_0"]
+    assert "b =" in state["action_params_0"]
+
+
+@requires_sympy
+def test_an_empty_action_says_what_is_missing_rather_than_crashing():
+    """
+    The dropdown can be selected before anything has been typed into
+    it, which is the state every user is in for the first second.
+    """
+
+    app = _select_action(_fresh())
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    assert "gravitational Lagrangian" in _messages(app)
+
+
+@requires_sympy
+def test_the_derived_friedmann_equation_is_shown():
+    """
+    The reason to give an action rather than an `E(z)`: the equation
+    is derived for you, and seeing it is how you check the library
+    understood the Lagrangian you meant.
+    """
+
+    app = _load_action_preset(
+        _select_action(_fresh()),
+        "Exponential f(Q)  ·  reproduces FQExponential",
+    )
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    rendered = "\n".join(latex.value for latex in app.latex)
+
+    # The transcendental f(Q) constraint carries an exponential of
+    # lambda over E^2; a background-only expansion would not.
+    assert "lam" in rendered
+    assert "E_{2}" in rendered or "E2" in rendered
+
+
+@requires_sympy
+def test_a_model_derived_from_an_action_fits_end_to_end():
+    """
+    Widget → `Action` → `Cosmology` subclass → `Fitter` → rendered
+    table, with no `E(z)` typed anywhere.
+
+    ΛCDM from `R - 2*Lam` is the one to run: it is the cheapest
+    action here, and the library already has a hand-written ΛCDM to
+    be wrong against if the derivation goes astray.
+    """
+
+    app = _fresh(timeout=900.0)
+
+    app = _apply_preset(app, "Late-time background (default)")
+
+    app = _load_action_preset(
+        _select_action(app), "General Relativity + Λ (rederives ΛCDM)",
+    )
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+    assert not app.error, [e.value for e in app.error]
+
+    frames = [f.value for f in app.dataframe]
+
+    breakdown = [f for f in frames if "dataset" in f.columns]
+
+    assert breakdown, "no per-dataset chi2 table rendered"
+
+    assert (breakdown[0]["χ²"] >= 0).all()
+
+    # A derived ΛCDM is still ΛCDM: the fit has to land somewhere a
+    # background fit lands, not merely finish.
+    fits = app.session_state["fits"]
+
+    assert len(fits) == 1
+
+    assert 60.0 < fits[0].result.best_fit.params["H0"] < 80.0
+
+    assert 0.1 < fits[0].result.best_fit.params["Omega_m"] < 0.6
