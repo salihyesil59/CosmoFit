@@ -81,6 +81,22 @@ mypy reports 81 remaining errors, all inside function bodies rather
 than in the signatures `py.typed` is a promise about. It is in the
 `dev` extra so a contributor can run it; CI does not gate on it yet.
 
+### Two workflows that nothing can trigger by accident
+
+`publish` builds, runs `twine check --strict`, and uploads to PyPI
+through Trusted Publishing -- GitHub mints a short-lived OIDC token
+and PyPI accepts it in place of an API token, so no long-lived secret
+lives in this repository at all. `pages` deploys the API reference to
+GitHub Pages.
+
+Both are **`workflow_dispatch` only**, and that is the design rather
+than a placeholder. A version number, once published, can never be
+reused; a site, once deployed, is on the public internet under this
+repository's name. Neither should be able to happen as a side effect
+of pushing a tag. Someone has to open the workflow and run it, and
+each needs one thing set up on the other side first -- a Trusted
+Publisher on PyPI, Pages enabled here.
+
 ## v0.40.0
 
 Everything the Roadmap listed for **v1.0.0**, worked through against
