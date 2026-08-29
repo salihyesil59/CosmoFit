@@ -1,9 +1,9 @@
 # Changelog
 
-Newest first. Every numbered version below was published as a GitHub
-release; from `v0.25.0` onwards those are `-dev` pre-releases cut
-from the `dev` branch, while `main` deliberately stays at `v0.22.0`
-until the first stable release. Version numbers bumped in flight but never
+Newest first. Every version below was published as a GitHub release.
+From `v0.25.0` to `v0.40.0` those are `-dev` pre-releases cut from
+the `dev` branch, while `main` stayed at `v0.22.0`; **`v1.0.0` is
+where `main` catches up with all of it**. Version numbers bumped in flight but never
 released are folded into the release that carried them.
 
 The record starts at `v0.3.0` -- `v0.1` and `v0.2.0` predate it. The
@@ -14,7 +14,16 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v1.0.0
+
+The first stable release, and the point where `main` catches up with
+sixty-four commits of `dev`.
+
+What makes it 1.0.0 is not a feature. It is that the three things the
+Roadmap had listed since the beginning -- a stable public API,
+complete documentation, test coverage across the whole library --
+are done and *held there by tests* rather than by intention. The
+rest of this entry is the last of that work.
 
 ### The GUI catches up with three releases
 
@@ -139,6 +148,25 @@ something other people's type checkers repeat with confidence.
 GitHub Pages is enabled with Actions as the source, which fixes the
 documentation URL, so `[project.urls]` gains a `Documentation` entry.
 Run `pages` before `publish` and it is live rather than a 404.
+
+### `main` catches up
+
+Sixty-four commits, and the reason this is 1.0.0 rather than 0.41.
+`main` had been deliberately frozen at `v0.22.0` since August while
+everything went out as `-dev` pre-releases; it now carries all of it.
+
+That freeze had one consequence nobody had noticed: a
+`workflow_dispatch` workflow is only visible to GitHub if the file
+exists on the **default branch**. `tests` worked because it is
+push-triggered, but `publish` and `pages` returned 404 to every
+attempt to run them. They could not have been run at all until
+`main` moved -- so the last item on the Roadmap turned out to be a
+prerequisite for the two before it rather than a tidy-up after them.
+
+The `Changelog` and `Examples` entries in `[project.urls]` move from
+`dev` to `main` with it, as does the "edit this page" link in the
+API reference. `Development Status` goes from `4 - Beta` to
+`5 - Production/Stable`.
 
 ## v0.40.0
 
