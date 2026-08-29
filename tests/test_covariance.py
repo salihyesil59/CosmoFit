@@ -188,9 +188,15 @@ def test_a_matrix_that_is_not_positive_definite_is_refused():
     `LinAlgError`; the explicit `ValueError` in `__init__` guards the
     case where the factorization succeeds and the determinant is
     still non-positive.
+
+    The exception *type* is the contract; its wording is not. SciPy
+    says "2-th leading minor of the array is not positive definite"
+    in some versions and "Internal potrf return info = [2] for slices
+    [0]." in others, and matching either one makes this test a
+    statement about which SciPy is installed.
     """
 
-    with pytest.raises(np.linalg.LinAlgError, match="positive definite"):
+    with pytest.raises(np.linalg.LinAlgError):
         DenseCovariance(np.array([[1.0, 2.0], [2.0, 1.0]]))
 
 
