@@ -930,7 +930,7 @@ Where it stands today:
 |---|---|
 | datasets | **21**, from cosmic chronometers to the from-scratch CMB |
 | models | **20** written out by hand, plus three routes to one that is not here |
-| tests | **681** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
+| tests | **696** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/) |
 
 `main` is deliberately held at **v0.22.0**; everything since has been
@@ -1019,7 +1019,7 @@ equations parsed as bullet lists, `Parameters` sections holding
 prose, and `|beta|` read as a substitution reference.
 
 **Test coverage across the whole library, not only the newest parts.**
-Done: **93%**, from 79%, across **681 tests**. The phrase turned out
+Done: **93%**, from 79%, across **696 tests**. The phrase turned out
 to be exactly right -- `theory`, the newest subpackage, was at
 86-94% while the oldest code was not:
 
@@ -1035,17 +1035,28 @@ to be exactly right -- `theory`, the newest subpackage, was at
 | `data/covariance.py` | 78% | 93% |
 | `stats/posterior.py` | 85% | 100% |
 
+**And the package is typed.** `py.typed` ships, which tells every
+downstream type checker to trust these annotations -- so it had to be
+true first. It was 58 of 201 public callables fully annotated; it is
+**201 of 201** now, and two tests hold it there: one that every
+annotation resolves (including the ones deferred to `TYPE_CHECKING`,
+which is what a checker sees and `get_type_hints` cannot), and one
+that nothing on the public surface is left unannotated. Adding a
+public method without annotating it fails the suite.
+
+`CosmoFit.typing` spells out the two aliases the whole surface is
+written in. `E(0.5)` returns `np.float64` and `E([0.1, 0.2])` returns
+an `ndarray`, so annotating the return as `np.ndarray` alone would
+have been wrong for the commonest call in the library.
+
+Getting there also found four annotations that were simply false --
+`load_chain` declared `MCMCResult` and returns a `StoredSampler`,
+`theory.fields.build_system` declared one object and returns two --
+which is exactly the class of thing `py.typed` would have started
+telling other people's type checkers.
+
 What is left before the version number changes is not physics:
 
-* **`py.typed`.** Every annotation on the public surface resolves,
-  and a test asserts it -- these modules use
-  `from __future__ import annotations`, so a wrong one is invisible
-  until something calls `get_type_hints`, which nothing did. But only
-  58 of 201 public callables are *fully* annotated, and the missing
-  ones are the most-used: every model's `E`, `dEdz`, `Omega_de` and
-  `w`. Shipping the marker in that state would tell a type checker to
-  trust a package whose core methods return `Any`, which hides errors
-  rather than catching them.
 * **PyPI.** Installation is still `git clone`. The metadata is ready
   -- URLs, classifiers, an SPDX license expression -- and CI runs
   `twine check` on the built wheel. Publishing is a decision rather

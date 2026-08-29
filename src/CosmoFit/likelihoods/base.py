@@ -9,6 +9,8 @@ from abc import abstractmethod
 
 import numpy as np
 
+from CosmoFit.typing import Array
+
 from .covariance import make_covariance
 
 
@@ -84,7 +86,7 @@ class BaseLikelihood(ABC):
     @abstractmethod
     def model(
         self,
-    ):
+    ) -> Array:
         """
         Return theoretical predictions.
         """
@@ -107,7 +109,7 @@ class BaseLikelihood(ABC):
 
     def predictions(
         self,
-    ):
+    ) -> Array:
         """
         Alias for model().
         """

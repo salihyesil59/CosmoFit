@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core import Cosmology
@@ -133,7 +135,7 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -173,7 +175,7 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -199,7 +201,7 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
         """
         Dark-energy equation of state, constant at ``w0``.
 
@@ -223,7 +225,7 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -231,7 +233,7 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_matter(self, z):
+    def Omega_matter(self, z: Redshift) -> Array:
         r"""
         ``(Omega_m - C)(1+z)^3 + C (1+z)^{3(1+w0+xi)}`` -- the
         matter density with the interaction's transfer term

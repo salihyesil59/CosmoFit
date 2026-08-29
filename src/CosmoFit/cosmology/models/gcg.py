@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core import Cosmology
@@ -82,7 +84,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
         """
         Effective dark-energy equation of state.
         """
@@ -97,7 +99,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def fde(self, z):
+    def fde(self, z: Redshift) -> Array:
         """
         GCG density evolution factor.
 
@@ -113,7 +115,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter.
 
@@ -132,7 +134,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z).
         """
@@ -161,7 +163,7 @@ class GCG(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         GCG effective density parameter.
         """

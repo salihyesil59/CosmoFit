@@ -8,6 +8,8 @@ import numpy as np
 
 from .lcdm import LCDM
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.core import constants
 
 
@@ -116,7 +118,7 @@ class FRHuSawicki(LCDM):
 
     # ---------------------------------------------------------
 
-    def mu(self, a, k=None):
+    def mu(self, a: Redshift, k: float | None = None) -> Array:
         """
         Chameleon-screened effective gravitational coupling
         G_eff(a,k)/G_N -- see the class docstring for the

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 from scipy.special import lambertw
 
@@ -145,7 +147,7 @@ class FQExponential(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter (solves the transcendental
         Friedmann equation -- see the class docstring).
@@ -155,7 +157,7 @@ class FQExponential(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z), by implicit differentiation of the
         Friedmann relation (closed-form given E(z), no extra
@@ -177,7 +179,7 @@ class FQExponential(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         Effective/geometric dark-energy density -- see the class
         docstring for why this isn't a real second fluid here.
@@ -189,7 +191,7 @@ class FQExponential(Cosmology):
 
     # ---------------------------------------------------------
 
-    def mu(self, a, k=None):
+    def mu(self, a: Redshift, k: float | None = None) -> Array:
         """
         Effective gravitational coupling G_eff/G_N = 1/f_Q -- see
         the class docstring for the derivation.

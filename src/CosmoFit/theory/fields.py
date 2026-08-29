@@ -309,7 +309,7 @@ class FieldSystem:
 
 # ------------------------------------------------------------
 
-def build_system(action) -> FieldSystem:
+def build_system(action) -> tuple[FieldSystem, list]:
     """
     Assemble the :class:`FieldSystem` of an :class:`~theory.action.Action`.
 

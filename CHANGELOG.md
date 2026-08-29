@@ -14,6 +14,73 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### The GUI catches up with three releases
+
+`CosmoFit.theory` landed in `v0.36.0` and the GUI had no route to it.
+It offered one way to a model the library does not ship -- `Custom`,
+which takes an `E(z)`, the *result* of a derivation somebody did by
+hand. **Now it takes the input instead**: a gravitational Lagrangian,
+from which the library derives the Friedmann equation and shows it.
+Six worked examples to start from, covering every route the module
+has -- algebraic, root-solved, Lagrange-multiplier and integrated --
+and each a real model rather than a syntax demonstration.
+
+A new **Inference** tab, for four things the library grew in
+`v0.36.0` and the app had none of: profile likelihoods (reported as
+the Δχ² = 1 crossings, which is what a profile actually measures),
+Fisher matrices *with the ratio to the chain* (the comparison is the
+point -- it is a Gaussian approximation, and that is the only way to
+know whether it holds here), Bayesian evidence by nested sampling,
+and tension by two definitions that disagree exactly when the
+Gaussian one has stopped meaning anything.
+
+Two smaller gaps: the `eboss_surface` figure, which is what shows why
+a Gaussian summary of the two tabulated eBOSS datasets would be
+wrong; and `best_fit(restarts=)`, which exists because ΛsCDM once fit
+*worse* than the ΛCDM it contains.
+
+And two ways the GUI could hand somebody a result that looks like a
+measurement and is not. **ADE derives `Omega_m`** and the parameter
+table ticked it anyway, so choosing that model put the app straight
+into the state `Fitter` warns about -- a posterior that is the prior
+back again. **And the warning itself was invisible**: `Fitter` warns
+through `warnings`, which in a Streamlit app means stderr, which
+means nowhere. The run loop catches them and renders them now, so
+every guard the library grows later shows up without the GUI
+restating any of it.
+
+### The package is typed
+
+`py.typed` ships. That tells every downstream type checker to trust
+these annotations, so it had to be true first: **201 of 201** public
+callables fully annotated, from 58. `CosmoFit.typing` spells out the
+two aliases the whole surface is written in -- `E(0.5)` returns
+`np.float64` and `E([0.1, 0.2])` returns an `ndarray`, so annotating
+the return as `np.ndarray` alone would have been wrong for the
+commonest call in the library.
+
+Two tests hold it there: every annotation resolves, *including* the
+ones deferred to `TYPE_CHECKING` (which is what a checker sees and
+`get_type_hints` cannot -- `matplotlib.figure` costs 0.65 s to
+import, more than the rest of the library, and nobody who never draws
+a figure should pay it), and nothing on the public surface is left
+unannotated.
+
+Running mypy over it for the first time found four annotations that
+were simply **false**: `load_chain` declared `MCMCResult` and returns
+a `StoredSampler`, `theory.fields.build_system` declared one object
+and returns two, `BaseLikelihood.model` declared an array where
+`S8Likelihood` returns a number, and `EnsembleSampler.run` narrows
+its base class's `**kwargs` into named parameters. All corrected --
+which is exactly the class of thing `py.typed` would otherwise have
+started telling other people's type checkers.
+
+mypy reports 81 remaining errors, all inside function bodies rather
+than in the signatures `py.typed` is a promise about. It is in the
+`dev` extra so a contributor can run it; CI does not gate on it yet.
+
 ## v0.40.0
 
 Everything the Roadmap listed for **v1.0.0**, worked through against

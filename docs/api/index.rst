@@ -129,6 +129,13 @@ Datasets
    available_versions
    dataset_reference
 
+Types
+-----
+
+.. automodule:: CosmoFit.typing
+   :members:
+   :no-index:
+
 Subpackages
 -----------
 

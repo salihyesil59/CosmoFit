@@ -28,6 +28,8 @@ from typing import Optional
 
 import numpy as np
 
+from CosmoFit.typing import PathLike
+
 
 def _json_default(value):
     """
@@ -190,7 +192,7 @@ class FitResult:
 
     # ------------------------------------------------------------
 
-    def save_json(self, path) -> None:
+    def save_json(self, path: PathLike) -> None:
         """
         Serialize to JSON: model/dataset/parameter names, the
         best-fit point and chi2/AIC/BIC, and the MCMC posterior

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core import Cosmology
@@ -130,7 +132,7 @@ class DGP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -152,7 +154,7 @@ class DGP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -180,7 +182,7 @@ class DGP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         r"""
         The *effective* dark-energy density this model's expansion
         history would be attributed to, if one insisted on writing
@@ -212,7 +214,7 @@ class DGP(Cosmology):
 
     # ---------------------------------------------------------
 
-    def mu(self, a, k=None):
+    def mu(self, a: Redshift, k: float | None = None) -> Array:
         r"""
         Effective gravitational coupling ``G_eff/G_N`` on the
         self-accelerating branch,

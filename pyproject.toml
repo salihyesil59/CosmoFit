@@ -129,6 +129,7 @@ Examples = "https://github.com/salihyesil59/CosmoFit/tree/dev/examples"
 dev = [
     "pytest",
     "ruff",
+    "mypy",
     "coverage",
     "ipykernel",
     "jupyterlab",
@@ -189,6 +190,10 @@ where = ["src"]
 # priors) living under CosmoFit/data/ -- not .py files, so setuptools
 # won't pick them up automatically.
 CosmoFit = [
+    # PEP 561: the marker that tells a downstream type checker this
+    # package's annotations are meant to be trusted. Empty by
+    # definition -- its presence is the whole content.
+    "py.typed",
     "data/**/*.txt",
     "data/**/*.dat",
     "data/**/*.cov",

@@ -39,7 +39,19 @@ See :mod:`stats.chains`.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from collections.abc import Callable, Sequence
+
 import numpy as np
+
+from CosmoFit.typing import PathLike, Redshift
+
+if TYPE_CHECKING:
+    # `dynesty` is an optional extra and `stats.nested` imports it,
+    # so this cannot be a runtime import -- but a type checker needs
+    # the name for `run_nested`'s return.
+    from CosmoFit.stats.nested import NestedResult
 
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
@@ -78,6 +90,7 @@ from .results import FitResult, BestFitResult, MCMCResult
 from .chains import (
     ChainFile,
     DEFAULT_CHAIN_NAME,
+    StoredSampler,
     build_metadata,
     compare_signatures,
     signature_id,
@@ -1009,7 +1022,7 @@ class Fitter:
     # chi2 / likelihood at a point (no MCMC needed)
     # ============================================================
 
-    def chi2(self, theta=None) -> float:
+    def chi2(self, theta: Redshift | None = None) -> float:
         """
         Total chi2 at ``theta`` (defaults to the initial point).
         """
@@ -1019,7 +1032,7 @@ class Fitter:
 
         return self.logpost.chi2(theta)
 
-    def chi2_breakdown(self, theta=None) -> dict:
+    def chi2_breakdown(self, theta: Redshift | None = None) -> dict:
         """
         Per-dataset chi2 at ``theta`` (defaults to the initial
         point).
@@ -1039,15 +1052,15 @@ class Fitter:
         nwalkers: int = 48,
         nsteps: int = 6000,
         burnin: int = 1000,
-        initial_scatter=None,
+        initial_scatter: dict[str, float] | None = None,
         seed: int = 42,
         progress: bool = True,
-        moves=None,
-        callback=None,
+        moves: object | None = None,
+        callback: Callable[[int, int, float], None] | None = None,
         n_processes: int | str = "auto",
-        save=None,
-        resume="auto",
-    ):
+        save: PathLike | ChainFile | None = None,
+        resume: bool | str = "auto",
+    ) -> MCMCResult:
         """
         Run an ``emcee`` ensemble MCMC, via
         :class:`~stats.sampler.EnsembleSampler`.
@@ -1433,7 +1446,7 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def flat_samples(self, burnin=None) -> np.ndarray:
+    def flat_samples(self, burnin: int | None = None) -> np.ndarray:
 
         if self.sampler is None:
             raise RuntimeError("Call run_mcmc() first.")
@@ -1445,7 +1458,7 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def convergence(self, burnin=None, tol: int = 50) -> dict:
+    def convergence(self, burnin: int | None = None, tol: int = 50) -> dict:
         """
         MCMC convergence diagnostics, based on the integrated
         autocorrelation time tau of each free parameter's chain
@@ -1532,7 +1545,7 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def samples_dict(self, burnin=None) -> dict:
+    def samples_dict(self, burnin: int | None = None) -> dict:
         """
         Flat posterior samples as a dict of 1D arrays, keyed by
         parameter name.
@@ -1547,7 +1560,7 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def summary(self, burnin=None) -> dict:
+    def summary(self, burnin: int | None = None) -> dict:
         """
         Posterior median +/- 68% interval for every free
         parameter.
@@ -1798,7 +1811,12 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def load_chain(self, path, name: str = DEFAULT_CHAIN_NAME, burnin=None):
+    def load_chain(
+        self,
+        path: PathLike | ChainFile,
+        name: str = DEFAULT_CHAIN_NAME,
+        burnin: int | None = None,
+    ) -> StoredSampler:
         """
         Attach a chain saved by an earlier
         ``run_mcmc(save=...)`` to this fitter, without sampling
@@ -2003,8 +2021,9 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def run_nested(self, n_live=500, dlogz=0.05, seed=42,
-                   progress=True, **kwargs):
+    def run_nested(self, n_live: int = 500, dlogz: float = 0.05,
+                   seed: int | None = 42,
+                   progress: bool = True, **kwargs) -> NestedResult:
         """
         Integrate the posterior by nested sampling, giving the
         Bayesian evidence ``ln Z`` as well as samples.
@@ -2052,8 +2071,9 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def profile(self, name, values, restarts=0, seed=0, progress=False,
-                warm_start=True):
+    def profile(self, name: str, values: Redshift, restarts: int = 0,
+                seed: int = 0, progress: bool = False,
+                warm_start: bool = True) -> dict:
         """
         Profile likelihood: ``chi2`` minimized over every *other*
         free parameter, at each fixed value of ``name``.
@@ -2159,7 +2179,11 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def fisher(self, steps=None, theta=None):
+    def fisher(
+        self,
+        steps: Redshift | None = None,
+        theta: Redshift | None = None,
+    ) -> dict:
         """
         Fisher matrix: the curvature of ``chi2`` at the best fit,
         ``F_ij = (1/2) d2 chi2 / d theta_i d theta_j``.
@@ -2269,8 +2293,11 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def best_fit(self, x0=None, bounds=None, eps=None,
-                 method="L-BFGS-B", restarts=0, seed=None):
+    def best_fit(self, x0: Redshift | None = None,
+                 bounds: Sequence[tuple[float, float]] | None = None,
+                 eps: float | None = None,
+                 method: str = "L-BFGS-B", restarts: int = 0,
+                 seed: int | None = None) -> BestFitResult:
         """
         Maximum-likelihood point via ``scipy.optimize.minimize``
         (L-BFGS-B), starting either from ``x0``, from the

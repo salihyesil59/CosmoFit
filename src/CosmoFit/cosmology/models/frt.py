@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core import Cosmology
@@ -105,7 +107,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter.
         """
@@ -120,7 +122,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z).
         """
@@ -136,7 +138,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         Effective dark-energy density (the Lambda-like component,
         rescaled by the matter-geometry coupling -- constant in z,
@@ -149,7 +151,7 @@ class FRTLinear(Cosmology):
 
     # ---------------------------------------------------------
 
-    def mu(self, a, k=None):
+    def mu(self, a: Redshift, k: float | None = None) -> Array:
         """
         Effective gravitational coupling, mu(a) = 1 + 3*beta -- see
         the class docstring for the (stated-simplification) caveat.

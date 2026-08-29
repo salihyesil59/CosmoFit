@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array
+
 from .base import BaseLikelihood
 
 from CosmoFit.data.loader import load_s8
@@ -50,7 +52,7 @@ class S8Likelihood(BaseLikelihood):
 
     # --------------------------------------------------------
 
-    def model(self) -> float:
+    def model(self) -> Array:
         """
         S8 = sigma8 * sqrt(Omega_m / 0.3).
         """
