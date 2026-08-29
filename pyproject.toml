@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools>=68",
+    "setuptools>=77",
     "wheel",
 ]
 build-backend = "setuptools.build_meta"
@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "0.22.0"
+version = "1.0.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -19,7 +19,9 @@ readme = "README.md"
 
 requires-python = ">=3.11"
 
-license = { text = "MIT" }
+license = "MIT"
+
+license-files = ["LICENSE"]
 
 authors = [
     { name = "Salih Yeşil" }
@@ -34,25 +36,49 @@ keywords = [
     "cc",
     "cmb",
     "planck",
+    "camb",
+    "boltzmann",
+    "power-spectrum",
+    "cmb-lensing",
+    "reionization",
+    "act",
     "wcdm",
     "cpl",
     "lcdm",
     "jbp",
     "chaplygin-gas",
     "des-sn5yr",
+    "union3",
     "sdss",
     "eboss",
     "boss",
+    "6dfgs",
+    "bbn",
+    "sh0es",
+    "pede",
+    "dgp",
+    "cardassian",
+    "running-vacuum",
+    "interacting-dark-energy",
+    "sound-horizon",
+    "drag-epoch",
+    "neutrinos",
     "likelihood",
     "mcmc",
     "hdf5",
 ]
 
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
 ]
 
 dependencies = [
@@ -68,15 +94,43 @@ dependencies = [
 ]
 
 # ==========================================================
+# Links
+# ==========================================================
+#
+# These are what PyPI renders in the sidebar. Without them the
+# project page is a rendered README and nothing else -- no way to
+# reach the source, the issue tracker or the history.
+
+[project.urls]
+
+Homepage = "https://github.com/salihyesil59/CosmoFit"
+Repository = "https://github.com/salihyesil59/CosmoFit"
+Issues = "https://github.com/salihyesil59/CosmoFit/issues"
+
+# Live only once the `pages` workflow has been run at least once.
+# Run it before publishing, or this is a 404 in PyPI's sidebar.
+Documentation = "https://salihyesil59.github.io/CosmoFit/"
+Changelog = "https://github.com/salihyesil59/CosmoFit/blob/main/CHANGELOG.md"
+Examples = "https://github.com/salihyesil59/CosmoFit/tree/main/examples"
+
+# ==========================================================
 # Optional dependencies
 # ==========================================================
 
 [project.optional-dependencies]
 
+# No formatter here on purpose. This codebase is hand-wrapped --
+# aligned tables of numbers, comments set against the expressions
+# they explain, deliberate blank lines inside long formulae -- and
+# `black` (or `ruff format`) would rewrite 101 of the 117 files
+# under src/ and tests/,
+# destroying that and every line of `git blame` with it. `ruff` is
+# configured below as a *linter* only; see CONTRIBUTING.md.
 dev = [
     "pytest",
-    "black",
     "ruff",
+    "mypy",
+    "coverage",
     "ipykernel",
     "jupyterlab",
 ]
@@ -85,13 +139,35 @@ speed = [
     "numba>=0.60",
 ]
 
+evidence = [
+    "dynesty>=2.1",
+]
+
+# Symbolic derivation of a Friedmann equation from an action
+# (CosmoFit.theory). Nothing else in the library needs it.
+theory = [
+    "sympy>=1.12",
+]
+
+# Boltzmann-code backend, needed only by the "planck_lite" dataset
+# (the from-scratch CMB power spectrum). Everything else in the
+# library -- including the compressed Planck distance priors --
+# works without it.
+cmb = [
+    "camb>=1.5",
+]
+
 gui = [
     "streamlit>=1.38",
 ]
 
+# The API reference under docs/. `myst-parser` is what lets the site
+# include README.md and CHANGELOG.md verbatim rather than keeping a
+# second, drifting copy of them in reStructuredText.
 docs = [
-    "sphinx",
+    "sphinx>=8",
     "furo",
+    "myst-parser>=4",
 ]
 
 # ==========================================================
@@ -108,13 +184,64 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 
-# Bundled observational datasets (CC, DESI BAO, Pantheon+,
-# DES-SN5YR, Planck) living under CosmoFit/data/ -- not .py files,
-# so setuptools won't pick them up automatically.
+# Bundled observational datasets (CC, DESI DR1/DR2 BAO, SDSS BAO,
+# 6dFGS/MGS, Pantheon+, DES-SN5YR, Union3, Planck distance priors,
+# Planck plik_lite bandpowers, growth/S8, and the external H0/BBN/tau
+# priors) living under CosmoFit/data/ -- not .py files, so setuptools
+# won't pick them up automatically.
 CosmoFit = [
+    # PEP 561: the marker that tells a downstream type checker this
+    # package's annotations are meant to be trusted. Empty by
+    # definition -- its presence is the whole content.
+    "py.typed",
     "data/**/*.txt",
     "data/**/*.dat",
     "data/**/*.cov",
     "data/**/*.csv",
     "data/**/*.npz",
+]
+
+
+# ==========================================================
+# Tooling
+# ==========================================================
+
+[tool.pytest.ini_options]
+
+testpaths = ["tests"]
+
+# Every skip in this suite is a guarded optional dependency, and the
+# `minimal` CI job asserts that they really do skip. Reporting them
+# by default is what makes a local run say the same thing.
+addopts = "-ra"
+
+[tool.ruff]
+
+# The linter only. There is no `[tool.ruff.format]` section and that
+# is deliberate -- see the note on the `dev` extra above.
+line-length = 100
+
+[tool.ruff.lint]
+
+select = [
+    "F",    # pyflakes: undefined names, unused imports and locals
+    "E4",   # import placement
+    "E7",   # statement-level mistakes
+    "E9",   # syntax and IO errors
+    "W",    # trailing whitespace, missing final newline
+    "B",    # bugbear: likely bugs rather than style
+]
+
+ignore = [
+    # `zip(a, b, strict=)`. Forty-three call sites, every one of them
+    # zipping arrays whose lengths a likelihood has already checked.
+    # Worth revisiting; not worth forty-three unreviewed edits.
+    "B905",
+    # Imports below the top of a module. Every one here is a guarded
+    # optional dependency or a deliberately deferred cost, which is
+    # exactly what this rule cannot tell apart from carelessness.
+    "E402",
+    # A single assigned lambda, in a place where naming it a function
+    # would read worse.
+    "E731",
 ]

@@ -1,0 +1,100 @@
+name: publish
+
+# ------------------------------------------------------------------
+# Publish a release to PyPI.
+#
+# `workflow_dispatch` only, deliberately. Publishing is irreversible
+# -- a version number, once used, can never be reused, and a wheel
+# once downloaded is out there -- so this does not fire on a tag
+# push, a release, or anything else that could happen by accident.
+# Somebody has to come here and run it, and say which ref.
+#
+# It needs one thing set up first, on PyPI rather than here: a
+# Trusted Publisher for this repository and this workflow filename.
+# That is what makes the `id-token: write` permission below stand in
+# for an API token, so no long-lived secret lives in this repository
+# at all. https://docs.pypi.org/trusted-publishers/
+# ------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Where to publish"
+        required: true
+        default: "testpypi"
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+
+  build:
+    name: build and check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          python -m build
+
+      - name: Check what PyPI would be sent
+        run: twine check --strict dist/*
+
+      # The tests are not re-run here -- the `tests` workflow does
+      # that on every push, and this is meant to publish a commit
+      # that has already gone green rather than to be the thing that
+      # decides whether it is.
+      - name: Show the metadata being published
+        run: |
+          python -m pip install dist/*.whl
+          python -c "
+          from importlib.metadata import metadata
+          m = metadata('cosmofit')
+          for key in ('Name', 'Version', 'License-Expression', 'Requires-Python'):
+              print(f'{key}: {m[key]}')
+          "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+  publish:
+    name: publish to ${{ inputs.repository }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # Trusted Publishing: GitHub mints a short-lived OIDC token and
+    # PyPI accepts it in place of an API token.
+    permissions:
+      id-token: write
+
+    environment:
+      name: ${{ inputs.repository }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: >-
+            ${{ inputs.repository == 'pypi'
+                && 'https://upload.pypi.org/legacy/'
+                || 'https://test.pypi.org/legacy/' }}

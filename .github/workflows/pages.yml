@@ -1,0 +1,77 @@
+name: pages
+
+# ------------------------------------------------------------------
+# Publish the API reference to GitHub Pages.
+#
+# Named `pages` rather than `docs` because the `tests` workflow
+# already has a job called `docs` -- two green ticks with the same
+# name and different meanings is a poor thing to read.
+#
+# `workflow_dispatch` only, for the same reason as `publish.yml`:
+# this puts a website on the public internet under this repository's
+# name, and that should be somebody's decision rather than a side
+# effect of a push.
+#
+# The `tests` workflow already *builds* the site on every push, with
+# warnings as errors, so a broken build is caught there. This one
+# only deploys what that build proves is fine.
+#
+# Needs Pages enabled for the repository first, with "GitHub Actions"
+# as the source (Settings -> Pages).
+# ------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+
+  build:
+    name: build the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs,theory,evidence]"
+
+      - name: Build, with warnings as errors
+        run: python -m sphinx -b html -W --keep-going docs docs/_build/html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

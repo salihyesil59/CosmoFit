@@ -1,5 +1,9 @@
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -17,13 +21,13 @@ class LCDM(Cosmology):
     MODEL_NAME = "LCDM"
     MODEL_LABEL = r"$\Lambda$CDM"
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
         return np.sqrt(
 
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
 
             +
 
@@ -37,7 +41,7 @@ class LCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -59,7 +63,7 @@ class LCDM(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
 
         return np.full_like(
             np.asarray(z),

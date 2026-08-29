@@ -83,7 +83,7 @@ class DistanceCalculator:
         Transverse comoving distance [Mpc].
 
         Generalizes to non-flat geometries via the curvature
-        parameter Omega_k:
+        parameter Omega_k::
 
             Omega_k == 0 (flat):    D_M = D_C
             Omega_k  > 0 (open):    D_M = (c/H0) / sqrt(Omega_k)

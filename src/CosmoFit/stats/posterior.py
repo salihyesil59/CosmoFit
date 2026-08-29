@@ -73,9 +73,11 @@ class LogPosterior:
 
     def log_likelihood(self, theta) -> float:
 
-        self._apply(theta)
+        if not np.all(np.isfinite(theta)):
+            return -np.inf
 
         try:
+            self._apply(theta)
             chi2 = self.joint.chi2()
         except (ValueError, FloatingPointError, RuntimeError):
             return -np.inf
@@ -99,11 +101,29 @@ class LogPosterior:
         here as +inf chi2 (worst possible fit) rather than letting
         ``scipy.optimize.minimize`` crash on a NaN/exception when
         its search steps into that region.
+
+        Two guards, and the first one exists because the second was
+        not enough. A ``theta`` that is itself **not finite** is
+        rejected before it reaches the cosmology at all: L-BFGS-B
+        started at a point where chi2 is already inf computes a
+        finite-difference gradient of ``inf - inf = nan``, takes a
+        nan search direction, and evaluates the objective at
+        ``[nan, nan, nan]``. Writing that into the parameters builds
+        an interpolation table full of nan, and the interpolator
+        raises rather than returning anything -- from inside
+        ``refresh()``, which used to sit *outside* the try below.
+
+        So the try now covers ``_apply`` as well. A cosmology that
+        cannot even be constructed is as excluded as one that fits
+        badly, and neither should be able to crash a sampler that
+        merely proposed it.
         """
 
-        self._apply(theta)
+        if not np.all(np.isfinite(theta)):
+            return np.inf
 
         try:
+            self._apply(theta)
             chi2 = self.joint.chi2()
         except (ValueError, FloatingPointError, RuntimeError):
             return np.inf

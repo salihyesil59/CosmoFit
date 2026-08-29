@@ -1,0 +1,10 @@
+# SDSS DR7 Main Galaxy Sample BAO, Ross et al. (2015), MNRAS 449, 835,
+# arXiv:1409.3242: a 4% distance measure at z = 0.15.
+#
+# Gaussian summary of the released likelihood, D_V/r_s = 4.4657 +- 0.1681,
+# as tabulated by CobayaSampler/cobaya (bao.sdss_dr7_mgs). The full release
+# is a tabulated (non-Gaussian) chi2 curve; this is the standard Gaussian
+# compression of it used throughout the dark-energy literature.
+#
+# [z] [value at z] [quantity]
+0.15 4.465666824 DV_over_rs

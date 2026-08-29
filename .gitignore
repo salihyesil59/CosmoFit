@@ -11,6 +11,10 @@ dist/
 venv/
 env/
 
+# Sphinx
+docs/_build/
+docs/api/generated/
+
 # Jupyter
 .ipynb_checkpoints/
 
@@ -19,6 +23,9 @@ env/
 
 # Claude Code
 .claude/
+
+# Kilo Code
+.kilo/
 
 # macOS
 .DS_Store

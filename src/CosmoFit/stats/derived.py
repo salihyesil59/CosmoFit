@@ -8,12 +8,22 @@ model's actual ``E(z)``/``dE/dz``, so they are computed by pushing
 posterior samples back through the cosmology -- which means they work
 for *every* model in the library, not just CPL.
 
+::
+
     z_t   the acceleration transition redshift, where the
           deceleration parameter q(z) changes sign
     q0    the present-day deceleration parameter, q(z=0)
+    r_d   the BAO sound horizon at the drag epoch, when it is
+          computed from the physical densities rather than fitted
 
-Both are standard reported numbers in dark-energy papers, and both are
-what the ``fitter.plots.deceleration()`` figure shows graphically.
+The first two are standard reported numbers in dark-energy papers, and
+both are what the ``fitter.plots.deceleration()`` figure shows
+graphically. The third exists because ``compute_rd=True``
+(:mod:`cosmology.calculators.sound_horizon`) turns ``r_d`` from a
+sampled parameter into a *derived* one -- so it disappears from
+``fitter.summary()``, and the only honest way to quote it with an
+error bar is to push every posterior sample back through the
+sound-horizon integral, exactly as z_t and q0 are handled.
 
 Why not just evaluate at the best fit
 -------------------------------------
@@ -42,6 +52,7 @@ __all__ = [
     "q_of_z",
     "transition_redshift",
     "deceleration_today",
+    "sound_horizon",
     "summarize",
 ]
 
@@ -226,6 +237,72 @@ def deceleration_today(fit, burnin=None, max_samples=_MAX_SAMPLES):
     """
 
     return q_of_z(fit, 0.0, burnin=burnin, max_samples=max_samples)[:, 0]
+
+
+def sound_horizon(fit, burnin=None, max_samples=_MAX_SAMPLES):
+    """
+    Posterior of the BAO sound horizon at the drag epoch, ``r_d``
+    [Mpc], computed from each sample's physical densities.
+
+    Useful in two different situations, and it is worth being clear
+    about which one you are in:
+
+    - **With** ``compute_rd=True``, ``r_d`` is what the fit actually
+      used, and it is derived rather than sampled -- so this is the
+      only place it appears with an error bar.
+    - **Without** it, ``r_d`` was a free parameter and this returns
+      what the early-universe physics *would* have predicted for the
+      same densities. Comparing the two is a real consistency test:
+      a fitted ``r_d`` that disagrees with the computed one is the
+      standard signature of new physics before recombination, and it
+      is one of the main ways the Hubble tension is diagnosed.
+
+    Parameters
+    ----------
+    fit : stats.fitter.Fitter
+        A fitter with a completed :meth:`~stats.fitter.Fitter.run_mcmc`.
+
+    burnin : int, optional
+        Steps to discard. Defaults to the fitter's own ``burnin``.
+
+    max_samples : int or None, optional
+        Cap on the number of posterior samples used.
+
+    Returns
+    -------
+    ndarray, one value per posterior sample.
+
+    Notes
+    -----
+    ``r_d`` depends only on ``Omega_m``, ``Omega_b``, ``H0``,
+    ``N_eff`` and ``m_nu``, so if none of those is free this returns a
+    constant array -- correctly, since nothing in the posterior can
+    move it.
+    """
+
+    flat, names = _sample_block(fit, burnin, max_samples)
+
+    cosmology = fit.cosmology
+
+    # Same in-place-mutation discipline as `q_of_z`: the parameter
+    # object is shared with the likelihoods, so it is restored
+    # afterwards. `refresh()` is not needed on the way *in* -- the
+    # sound-horizon integral never touches the chi(z) table -- but it
+    # is on the way out, to undo the parameter excursion for whatever
+    # the caller does next.
+    saved = cosmology.params.as_dict()
+
+    out = np.empty(len(flat), dtype=float)
+
+    try:
+        for i, theta in enumerate(flat):
+            cosmology.params.update(**dict(zip(names, theta)))
+            out[i] = cosmology.sound_horizon.rd_computed()
+    finally:
+        cosmology.params.update(**saved)
+        cosmology.refresh()
+
+    return out
 
 
 def summarize(values, percentiles=(2.5, 16, 50, 84, 97.5)) -> dict:

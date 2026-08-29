@@ -1,0 +1,2 @@
+# 1-sigma uncertainty on D_V/r_s(z=0.15), Ross et al. (2015).
+0.1681350461

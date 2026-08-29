@@ -6,6 +6,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
+from CosmoFit.cosmology.numerics.powers import cube
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -34,7 +38,7 @@ class BA(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
         """
         Dark-energy equation of state.
         """
@@ -45,7 +49,7 @@ class BA(Cosmology):
 
     # ---------------------------------------------------------
 
-    def fde(self, z):
+    def fde(self, z: Redshift) -> Array:
         """
         Dark-energy density evolution factor.
 
@@ -69,7 +73,7 @@ class BA(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         """
         Dimensionless Hubble parameter.
         """
@@ -77,14 +81,14 @@ class BA(Cosmology):
         z = np.asarray(z, dtype=float)
 
         return np.sqrt(
-            self.Omega_m * (1.0 + z) ** 3
+            self.Omega_m * cube(1.0 + z)
             + self.Omega_k * (1.0 + z) ** 2
             + self.Omega_de0 * self.fde(z)
         )
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Derivative of E(z).
         """
@@ -110,7 +114,7 @@ class BA(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         Dark-energy density parameter.
         """

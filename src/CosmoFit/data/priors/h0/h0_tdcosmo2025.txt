@@ -1,0 +1,15 @@
+# Time-delay cosmography H0 from 8 strongly lensed quasars -- an
+# anchor independent of both the SN distance ladder and the CMB,
+# with the deflectors' mass-sheet degeneracy treated conservatively.
+# TDCOSMO Collaboration, Birrer et al. (2025), A&A 704, A63,
+# arXiv:2506.03023 (flat-LCDM result, with Omega_m from Pantheon+).
+#
+# The published constraint is asymmetric, H0 = 71.6 (+3.9, -3.3).
+# A Gaussian likelihood cannot represent that, so this file carries
+# the mean of the two sides (3.6) -- deliberately not the tighter
+# one. The asymmetry is small next to the ~5% total error, but the
+# approximation is real: treat this as a broad, independent H0
+# anchor rather than a precision measurement.
+#
+# [value] [sigma]   H0 in km/s/Mpc
+71.6 3.6

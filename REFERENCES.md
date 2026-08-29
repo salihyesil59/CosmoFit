@@ -36,6 +36,45 @@ repository.
 - Used by: [`data/bao/desi2024/`](src/CosmoFit/data/bao/desi2024/),
   [`likelihoods/desi.py`](src/CosmoFit/likelihoods/desi.py)
 
+### DESI DR2 BAO (2025)
+
+- **DESI Collaboration et al. (2025)**, *DESI DR2 Results II:
+  Measurements of Baryon Acoustic Oscillations and Cosmological
+  Constraints*.
+  [arXiv:2503.14738](https://arxiv.org/abs/2503.14738)
+- Three years of observations and >14 million galaxies and quasars --
+  twice the DR1 sample, and the measurement the strengthened
+  evolving-dark-energy claim rests on. Same file format and same
+  source as DR1, so it loads through the identical code path.
+- **Do not combine with DESI DR1** (`"desi2024"`): DR2 contains every
+  DR1 galaxy.
+- Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
+  (`desi_bao_dr2/`)
+- Used by: [`data/bao/desi_dr2/`](src/CosmoFit/data/bao/desi_dr2/),
+  [`likelihoods/desi.py`](src/CosmoFit/likelihoods/desi.py)
+
+### Low-redshift BAO (6dFGS + SDSS DR7 MGS)
+
+- **Beutler et al. (2011)**, *The 6dF Galaxy Survey: Baryon Acoustic
+  Oscillations and the Local Hubble Constant*, MNRAS 416, 3017
+  (z=0.106).
+  [arXiv:1106.3366](https://arxiv.org/abs/1106.3366)
+- **Ross et al. (2015)**, *The Clustering of the SDSS DR7 Main Galaxy
+  Sample I: A 4 per cent Distance Measure at z = 0.15*, MNRAS 449,
+  835.
+  [arXiv:1409.3242](https://arxiv.org/abs/1409.3242)
+- The only BAO measurements below z = 0.2 in the library (DESI starts
+  at z = 0.295, BOSS at z = 0.38), and independent of both, so they
+  can be combined with either.
+- Measurement values and 6dFGS's Eisenstein-Hu sound-horizon rescale
+  (153.9/149.8) as tabulated by
+  [CobayaSampler/cobaya](https://github.com/CobayaSampler/cobaya)
+  (`bao.sixdf_2011_bao`, `bao.sdss_dr7_mgs`). The MGS release is a
+  tabulated non-Gaussian likelihood; the Gaussian compression used
+  here is the standard one.
+- Used by: [`data/bao/lowz/`](src/CosmoFit/data/bao/lowz/),
+  [`likelihoods/bao_lowz.py`](src/CosmoFit/likelihoods/bao_lowz.py)
+
 ### SDSS BAO (BOSS DR12 + eBOSS DR16 LRG/QSO)
 
 - **Alam et al. (2017)**, *The clustering of galaxies in the completed
@@ -57,6 +96,113 @@ repository.
 - **Note:** BOSS DR12's usual third bin (z=0.61) is deliberately
   omitted from this combination -- see the module docstring in
   `data/loader.py` for why.
+
+### SDSS BAO + full-shape consensus
+
+- **eBOSS Collaboration / Alam et al. (2021)**, Phys. Rev. D 103,
+  083533, Table 3: the consensus BAO **and** full-shape
+  measurements -- D_M/r_d, D_H/r_d and f*sigma8 at z = 0.38, 0.51,
+  0.698 and 1.48, with the covariance between them.
+  [arXiv:2007.08991](https://arxiv.org/abs/2007.08991)
+- Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
+- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
+  [`likelihoods/sdss_bao.py`](src/CosmoFit/likelihoods/sdss_bao.py)
+- **Note:** this supersedes `sdss_bao` + `fsigma8` for these
+  surveys. Those two are built from the same galaxies and are
+  correlated (0.19 to 0.64 between D_M/r_d and f*sigma8 within a
+  redshift bin), which the pair treats as zero; this product
+  measures both jointly. The combination now warns.
+
+### eBOSS DR16 tabulated BAO (ELG, Lyman-alpha)
+
+The two DR16 tracers released as likelihood *surfaces* rather than a
+mean and a covariance, because a Gaussian would misrepresent them.
+
+- **de Mattia et al. (2020)**, *The Completed SDSS-IV extended Baryon
+  Oscillation Spectroscopic Survey: measurement of the BAO and growth
+  rate of structure of the emission line galaxy sample from the
+  anisotropic power spectrum between redshift 0.6 and 1.1*, MNRAS 501,
+  5616. D_V/r_d = 18.33 (+0.57/-0.62) at z_eff = 0.845, from a
+  1.4-sigma BAO detection.
+  [arXiv:2007.09008](https://arxiv.org/abs/2007.09008)
+- **du Mas des Bourboux et al. (2020)**, *The Completed SDSS-IV
+  Extended Baryon Oscillation Spectroscopic Survey: Baryon Acoustic
+  Oscillations with Lyman-alpha Forests*, ApJ 901, 153.
+  D_M/r_d = 37.5 +- 1.1 and D_H/r_d = 8.99 +- 0.19 at z_eff = 2.334,
+  combining the forest auto-correlation with its cross-correlation
+  with quasars.
+  [arXiv:2007.08995](https://arxiv.org/abs/2007.08995)
+- Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
+- **de Mattia et al. (2020)** again, for the ELG **full-shape**
+  (RSD + BAO) grid: D_M/r_d = 19.5 +- 1.0, D_H/r_d = 19.6
+  (-2.1/+2.2), f*sigma8 = 0.315 +- 0.095 at z_eff = 0.85, from the
+  consensus of the Fourier- and configuration-space analyses.
+  [arXiv:2007.09008](https://arxiv.org/abs/2007.09008)
+- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
+  [`likelihoods/eboss_dr16.py`](src/CosmoFit/likelihoods/eboss_dr16.py)
+- **Note on the full-shape grid:** it is the one dataset in this
+  package that is *not* shipped as released. The original is 60 MB
+  of ASCII with 10.3% of its probabilities underflowed to exact
+  zero, which have no logarithm.
+  [`tools/convert_eboss_elg_fs_grid.py`](tools/convert_eboss_elg_fs_grid.py)
+  converts it to a 1.95 MB compressed archive, is committed so the
+  shipped file can be regenerated, and documents both lossy steps
+  along with the check that the marginals survive them unchanged.
+- **Note:** eBOSS quote the Lyman-alpha constraint above from a joint
+  fit but ship only the auto and cross surfaces separately, so this
+  library multiplies them. That treats them as independent;
+  `tests/test_eboss_tables.py` checks the assumption rather than
+  making it, by recovering the published errors from the product.
+
+### Holographic family (ADE, RDE)
+
+Two relatives of HDE, differing only in the infrared cutoff put into
+`rho_DE = 3 c^2 M_p^2 / L^2`.
+
+- **Wei & Cai (2008)**, *A New Model of Agegraphic Dark Energy*,
+  Phys. Lett. B 660, 113 -- the conformal age as cutoff.
+  [arXiv:0708.0884](https://arxiv.org/abs/0708.0884)
+- **Gao, Chen, Shen & Saridakis (2009)**, *Holographic Dark Energy
+  Model from Ricci Scalar Curvature*, Phys. Rev. D 79, 043511.
+  [arXiv:0712.1394](https://arxiv.org/abs/0712.1394)
+- Used by: [`cosmology/models/ade.py`](src/CosmoFit/cosmology/models/ade.py),
+  [`cosmology/models/rde.py`](src/CosmoFit/cosmology/models/rde.py)
+- **Validated against a published constraint.** On cosmic
+  chronometers + DESI DR2 BAO + Pantheon+, RDE reproduces
+  `gamma = 0.538` and `Omega_m0 = 0.217` against the
+  `0.53-0.55` and `0.215-0.219` of
+  [arXiv:2607.09732](https://arxiv.org/abs/2607.09732). ADE's
+  n-to-Omega_m mapping reproduces that paper's pair exactly
+  (n = 2.80 predicts Omega_m = 0.280, their quoted n is 2.78-2.81),
+  while the fit here lands at n = 2.85 -- about 2% above their
+  range, plausibly from dataset details rather than the model.
+
+### Holographic dark energy (HDE)
+
+- **Li (2004)**, *A Model of Holographic Dark Energy*, Phys. Lett. B
+  603, 1. The paper that identifies the future event horizon as the
+  only infrared cutoff giving an accelerating universe.
+  [arXiv:hep-th/0403127](https://arxiv.org/abs/hep-th/0403127)
+- **Wang, Mortsell, et al. (2017)**, *Holographic Dark Energy*,
+  Phys. Rept. 696, 1 (review).
+  [arXiv:1612.00345](https://arxiv.org/abs/1612.00345)
+- Used by: [`cosmology/models/hde.py`](src/CosmoFit/cosmology/models/hde.py)
+- **Validated against a published constraint** as well as against
+  its own definition: on cosmic chronometers + DESI DR2 BAO +
+  Pantheon+ (late-time only, no CMB) this reproduces
+  c = 1.00, Omega_m0 = 0.272, H0 = 67.9 against the
+  c ~ 1, Omega_m0 ~ 0.270-0.272, H0 ~ 67.3-68.0 of
+  [arXiv:2607.09732](https://arxiv.org/abs/2607.09732), and
+  reproduces that paper's split -- supernovae pull c above unity
+  (1.14), BAO pushes it below (0.92) -- with none of those numbers
+  used as an input.
+- **Note:** the only background model here without a closed-form
+  `E(z)`; `Omega_DE` is obtained by solving
+  `dOmega/dln a = Omega(1-Omega)(1 + 2 sqrt(Omega)/c)` on each
+  parameter change. Validated against the model's *definition*
+  rather than the ODE -- `tests/test_hde.py` computes the future
+  event horizon by quadrature from the solved `E(z)` and checks
+  `H L = c / sqrt(Omega_DE)`.
 
 ### Pantheon+SH0ES (Type Ia Supernovae)
 
@@ -84,6 +230,25 @@ repository.
 - **Note:** don't combine with Pantheon+ in the same fit -- see the
   module docstring for the sample overlap this would double-count.
 
+### Union3 (Type Ia Supernovae, binned)
+
+- **Rubin et al. (2023)**, *Union Through UNITY: Cosmology with 2,000
+  SNe Using a Unified Bayesian Framework* (ApJ, accepted).
+  [arXiv:2311.12098](https://arxiv.org/abs/2311.12098)
+- 2087 supernovae from 24 datasets, fit with the UNITY1.5 Bayesian
+  hierarchical model (light-curve standardization, host-mass
+  dependence, selection effects and outliers marginalized internally)
+  and released as 22 binned distance moduli with a 22x22 covariance.
+- The third of the three SN compilations the DESI dark-energy results
+  are argued with, and the one that sits between Pantheon+ and
+  DES-SN5YR in how far it pulls from a cosmological constant.
+- **Do not combine with Pantheon+ or DES-SN5YR** -- substantial
+  supernova overlap with both.
+- Data source: [CobayaSampler/sn_data](https://github.com/CobayaSampler/sn_data)
+  (`Union3/`)
+- Used by: [`data/sn/union3/`](src/CosmoFit/data/sn/union3/),
+  [`likelihoods/union3.py`](src/CosmoFit/likelihoods/union3.py)
+
 ### Planck 2018 CMB distance priors
 
 - **Chen, Huang & Wang (2019)**, *Distance Priors from Planck Final
@@ -91,6 +256,157 @@ repository.
   [arXiv:1808.05724](https://arxiv.org/abs/1808.05724)
 - Used by: [`data/cmb/planck2018/`](src/CosmoFit/data/cmb/planck2018/),
   [`likelihoods/planck.py`](src/CosmoFit/likelihoods/planck.py)
+
+### Planck 2018 plik_lite TT/TE/EE bandpowers
+
+- **Planck Collaboration (2020)**, *Planck 2018 results. V. CMB power
+  spectra and likelihoods*, A&A 641, A5.
+  [arXiv:1907.12875](https://arxiv.org/abs/1907.12875)
+- **Planck Collaboration (2020)**, *Planck 2018 results. VI.
+  Cosmological parameters*, A&A 641, A6.
+  [arXiv:1807.06209](https://arxiv.org/abs/1807.06209)
+- The measured CMB power spectra themselves -- 613 binned TT/TE/EE
+  bandpowers over l = 30-2508 with their full covariance -- rather
+  than the three-number compression above. `plik_lite` is the
+  foreground-marginalized variant, so only the calibration parameter
+  `A_planck` is left for a downstream fit.
+- Requires a Boltzmann code to predict C_l; CosmoFit calls **CAMB**
+  (Lewis, Challinor & Lasenby 2000, ApJ 538, 473,
+  [astro-ph/9911177](https://arxiv.org/abs/astro-ph/9911177)) as an
+  optional dependency.
+- **Do not combine with the distance priors** -- they are a
+  compression of exactly these bandpowers.
+- The two **Commander low-multipole temperature bins** (l = 2-29)
+  can be prepended with
+  `dataset_kwargs={"planck_lite": {"use_low_ell": True}}`, taking
+  the data vector to 615 bandpowers. They come from a different
+  Planck likelihood with its own windows and an uncorrelated
+  covariance, so the TT block gains a diagonal 2x2 corner and its
+  own binning while TE and EE are untouched.
+- Data source: [heatherprince/planck-lite-py](https://github.com/heatherprince/planck-lite-py),
+  redistributing the [Planck Legacy Archive](https://pla.esac.esa.int/)
+  PR3 release. This library's implementation reproduces
+  `planck-lite-py`'s published log-likelihood values exactly for all
+  four selections -- TT and TTTEEE, each with and without the low-l
+  bins ([`tests/test_planck_lite.py`](tests/test_planck_lite.py)).
+- Used by: [`data/cmb/plik_lite/`](src/CosmoFit/data/cmb/plik_lite/),
+  [`likelihoods/planck_lite.py`](src/CosmoFit/likelihoods/planck_lite.py),
+  [`cosmology/boltzmann.py`](src/CosmoFit/cosmology/boltzmann.py)
+
+### Planck 2018 low-multipole EE (SimAll)
+
+- **Planck Collaboration (2020)**, *Planck 2018 results. V. CMB power
+  spectra and likelihoods*, A&A 641, A5.
+  [arXiv:1907.12875](https://arxiv.org/abs/1907.12875)
+- A *tabulated, non-Gaussian* likelihood: for each multipole
+  `l = 2..29` and each value of `D_l^EE` on a `1e-4 muK^2` grid, the
+  log-probability. Below `l = 30` there are only `2l+1` modes on the
+  sky, so the C_l distribution is strongly skewed — and that regime
+  carries essentially all of the CMB's information about the
+  reionization optical depth `tau`. A mean and an error bar cannot
+  represent it.
+- CosmoFit's Gaussian `"tau"` dataset (`0.0544 +- 0.0073`) is a
+  compression of this; the two must not be combined.
+- **Validated by reconstruction:** profiling `tau` against this table
+  plus the high-l bandpowers, with the primordial amplitude
+  re-optimized, returns `tau = 0.0541 +- 0.0072` against Planck's
+  published `0.0544 +- 0.0073` — with that number used nowhere as an
+  input. See
+  [`tests/test_planck_lowe.py`](tests/test_planck_lowe.py).
+- Data source: [CobayaSampler/planck_native_data](https://github.com/CobayaSampler/planck_native_data)
+  (release v1, `planck_2018_lowE.zip`), a Python translation of the
+  public Planck `clik` likelihood
+  `simall_100x143_offlike5_EE_Aplanck_B.clik`.
+- Used by: [`data/cmb/lowE2018/`](src/CosmoFit/data/cmb/lowE2018/),
+  [`likelihoods/planck_lowe.py`](src/CosmoFit/likelihoods/planck_lowe.py)
+
+### Planck 2018 CMB lensing
+
+- **Planck Collaboration (2020)**, *Planck 2018 results. VIII.
+  Gravitational lensing*, A&A 641, A8.
+  [arXiv:1807.06210](https://arxiv.org/abs/1807.06210)
+- Nine bandpowers of `[L(L+1)]^2 C_L^phiphi / 2pi` over the
+  conservative range `8 <= L <= 400`, from the SMICA
+  minimum-variance TEB reconstruction. The CMB's *own* growth
+  measurement: every other CMB dataset here constrains
+  recombination and reaches the present only through a distance,
+  while this constrains `sigma8 * Omega_m^0.25` directly.
+- The likelihood includes the linear correction for the
+  reconstruction's dependence on the fiducial CMB spectra used to
+  normalize it. That correction vanishes at the fiducial cosmology
+  by construction, which is why the tests deliberately check it away
+  from there.
+- Requires CAMB (`pip install "cosmofit[cmb]"`). Reproduces
+  `chi2 = 8.8` for 9 bandpowers at Planck's own best-fit LCDM,
+  against the ~9 Planck reports.
+- Data source: [CobayaSampler/planck_supp_data_and_covmats](https://github.com/CobayaSampler/planck_supp_data_and_covmats)
+  (`lensing/2018/`), redistributing the Planck Legacy Archive PR3
+  release.
+- Used by: [`data/cmb/lensing2018/`](src/CosmoFit/data/cmb/lensing2018/),
+  [`likelihoods/planck_lensing.py`](src/CosmoFit/likelihoods/planck_lensing.py)
+
+### ACT DR6 CMB lensing
+
+- **Madhavacheril et al. (ACT Collaboration, 2024)**, *The Atacama
+  Cosmology Telescope: DR6 Gravitational Lensing Map and Cosmological
+  Parameters*, ApJ 962, 113.
+  [arXiv:2304.05203](https://arxiv.org/abs/2304.05203)
+- **Qu et al. (ACT Collaboration, 2024)**, *The Atacama Cosmology
+  Telescope: A Measurement of the DR6 CMB Lensing Power Spectrum and
+  its Implications for Structure Growth*, ApJ 962, 112.
+  [arXiv:2304.05202](https://arxiv.org/abs/2304.05202)
+- A second, **independent** lensing reconstruction — different
+  telescope, different sky, different pipeline — and tighter than
+  Planck's: 2.3% on the lensing amplitude, over `40 <= L <= 763`
+  (baseline, 10 bandpowers) or `L < 1250` (extended, 13).
+- Built on the lensing **convergence** `C_L^kappakappa`, where
+  Planck's products use the **potential**
+  `[L(L+1)]^2 C_L^phiphi / 2pi`. The two differ by `2pi/4`; the
+  dataset carries which one its windows act on rather than leaving
+  it to be remembered.
+- Uses ACT's **CMB-marginalized** covariance, which already accounts
+  for the reconstruction's dependence on the primary CMB. Combining
+  with primary CMB data anyway is conservative, not wrong — see the
+  module docstring. A Hartlap correction for the 796 simulations
+  behind the covariance is applied.
+- **Validated against the published amplitude:** fitting a single
+  scaling of the theory returns `A_lens = 1.017 +- 0.026` against
+  ACT's `1.013 +- 0.023`, with that number used nowhere as an input.
+  A wrong convergence/potential conversion would put it at 0.65 or
+  1.6. See [`tests/test_act_lensing.py`](tests/test_act_lensing.py).
+- Data source: [NASA LAMBDA](https://lambda.gsfc.nasa.gov/product/act/actadv_prod_table.html),
+  `ACT_dr6_likelihood_v1.2.tgz`. The reference implementation is
+  [ACTCollaboration/act_dr6_lenslike](https://github.com/ACTCollaboration/act_dr6_lenslike).
+- Used by: [`data/cmb/act_dr6_lensing/`](src/CosmoFit/data/cmb/act_dr6_lensing/),
+  [`likelihoods/act_lensing.py`](src/CosmoFit/likelihoods/act_lensing.py)
+
+### External single-number priors (H0, BBN, tau)
+
+- **Riess et al. (2022)**, *A Comprehensive Measurement of the Local
+  Value of the Hubble Constant with 1 km/s/Mpc Uncertainty from the
+  Hubble Space Telescope and the SH0ES Team*, ApJ 934, L7
+  (H0 = 73.04 +- 1.04).
+  [arXiv:2112.04510](https://arxiv.org/abs/2112.04510)
+- **Breuval et al. (2024)**, *Small Magellanic Cloud Cepheids Observed
+  with the Hubble Space Telescope Provide a New Anchor for the SH0ES
+  Distance Ladder*, ApJ 973, 30 (H0 = 73.17 +- 0.86).
+  [arXiv:2404.08038](https://arxiv.org/abs/2404.08038)
+- **TDCOSMO Collaboration / Birrer et al. (2025)**, *TDCOSMO 2025:
+  Cosmological constraints from strong lensing time delays*, A&A 704,
+  A63 (H0 = 71.6 +3.9/-3.3; symmetrized to +-3.6 here).
+  [arXiv:2506.03023](https://arxiv.org/abs/2506.03023)
+- **Schoeneberg (2024)**, *The 2024 BBN baryon abundance update*
+  (omega_b h^2 = 0.02218 +- 0.00055, the prior DESI DR1/DR2 adopt).
+  [arXiv:2401.15054](https://arxiv.org/abs/2401.15054)
+- **Cooke, Pettini & Steidel (2018)**, *One Percent Determination of
+  the Primordial Deuterium Abundance*, ApJ 855, 102
+  (omega_b h^2 = 0.02166 +- 0.00019).
+  [arXiv:1710.11129](https://arxiv.org/abs/1710.11129)
+- **Planck Collaboration (2020)**, A&A 641, A6, Table 1
+  (tau = 0.0544 +- 0.0073, the lowE constraint).
+  [arXiv:1807.06209](https://arxiv.org/abs/1807.06209)
+- Used by: [`data/priors/`](src/CosmoFit/data/priors/),
+  [`likelihoods/priors.py`](src/CosmoFit/likelihoods/priors.py)
 
 ### fsigma8 growth-rate compilation ("Gold-2018")
 
@@ -176,6 +492,54 @@ w(z) = w0 + wa z(1+z)/(1+z^2)
   [arXiv:0805.1713](https://arxiv.org/abs/0805.1713)
 - Implemented in: [`cosmology/models/ba.py`](src/CosmoFit/cosmology/models/ba.py)
 
+### LogarithmicDE (logarithmic w(z))
+
+- **Efstathiou (1999)**, *Constraining the equation of state of the
+  Universe from Distant Type Ia Supernovae and Cosmic Microwave
+  Background Anisotropies*, MNRAS 310, 842.
+  [arXiv:astro-ph/9904356](https://arxiv.org/abs/astro-ph/9904356)
+- w(z) = w0 + wa ln(1+z). The one w0-wa form in the library that does
+  *not* saturate at high z, which makes it the control case for
+  asking whether a measured `wa` reflects the data or the assumed
+  shape.
+- Used by: [`cosmology/models/logarithmic.py`](src/CosmoFit/cosmology/models/logarithmic.py)
+
+### PEDE (Phenomenologically Emergent Dark Energy)
+
+- **Li & Shafieloo (2019)**, *A Simple Phenomenological Emergent Dark
+  Energy Model can Resolve the Hubble Tension*, ApJ 883, L3.
+  [arXiv:1906.08275](https://arxiv.org/abs/1906.08275)
+- Omega_de(z) = Omega_de0 [1 - tanh(log10(1+z))], with **no free
+  dark-energy parameter** -- the same parameter count as LCDM.
+- Used by: [`cosmology/models/pede.py`](src/CosmoFit/cosmology/models/pede.py)
+
+### GEDE (Generalized Emergent Dark Energy)
+
+- **Li & Shafieloo (2020)**, *Evidence for Emergent Dark Energy*,
+  ApJ 902, 58.
+  [arXiv:2001.05103](https://arxiv.org/abs/2001.05103)
+- Contains both LCDM (`Delta -> 0`) and PEDE (`Delta = 1, z_t = 0`)
+  as limits, so `Delta` is a continuous measure of the distance from
+  a cosmological constant.
+- Used by: [`cosmology/models/gede.py`](src/CosmoFit/cosmology/models/gede.py)
+
+### LsCDM (sign-switching cosmological constant)
+
+- **Akarsu, Kumar, Ozulker & Vazquez (2021)**, *Relaxing cosmological
+  tensions with a sign switching cosmological constant*, Phys. Rev. D
+  104, 123512.
+  [arXiv:2108.09239](https://arxiv.org/abs/2108.09239)
+- **Akarsu, Kumar, Ozulker, Vazquez & Yadav (2023)**, *Relaxing
+  cosmological tensions with a sign switching cosmological constant:
+  Improved results with Planck, BAO and Pantheon data*, Phys. Rev. D
+  108, 023513.
+  [arXiv:2211.05742](https://arxiv.org/abs/2211.05742)
+- Lambda flips sign at `z_dagger ~ 2` (AdS below, dS above), which
+  shrinks the sound horizon `r_d` and so raises the BAO-inferred H0 --
+  a route to the H0 tension that late-time-only dark-energy models
+  cannot take.
+- Used by: [`cosmology/models/lscdm.py`](src/CosmoFit/cosmology/models/lscdm.py)
+
 ### GCG (Generalized Chaplygin Gas)
 
 p = -A/rho^alpha, a unified dark matter/dark energy fluid.
@@ -188,6 +552,69 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
   Rev. D 66, 043507.
   [arXiv:gr-qc/0202064](https://arxiv.org/abs/gr-qc/0202064)
 - Implemented in: [`cosmology/models/gcg.py`](src/CosmoFit/cosmology/models/gcg.py)
+
+### IDE (Interacting Dark Energy)
+
+- **Amendola (2000)**, *Coupled Quintessence*, Phys. Rev. D 62,
+  043511.
+  [arXiv:astro-ph/9908023](https://arxiv.org/abs/astro-ph/9908023)
+- **Wang, Abdalla, Atrio-Barandela & Pavon (2016)**, *Dark Matter and
+  Dark Energy Interactions: Theoretical Challenges, Cosmological
+  Implications and Observational Signatures*, Rept. Prog. Phys. 79,
+  096901.
+  [arXiv:1603.08299](https://arxiv.org/abs/1603.08299)
+- Q = 3 xi H rho_de, solved in closed form. Changes how *matter*
+  dilutes, which no w(z) parametrization does -- so it has its own
+  growth-of-structure signature.
+- Used by: [`cosmology/models/ide.py`](src/CosmoFit/cosmology/models/ide.py)
+
+### RunningVacuum (Lambda(H) = c0 + 3 nu H^2)
+
+- **Sola (2013)**, *Cosmological constant and vacuum energy: old and
+  new ideas*, J. Phys. Conf. Ser. 453, 012015.
+  [arXiv:1306.1527](https://arxiv.org/abs/1306.1527)
+- **Sola, Gomez-Valent & de Cruz Perez (2017)**, *First evidence of
+  running cosmic vacuum: challenging the concordance model*, ApJ 836,
+  43.
+  [arXiv:1602.02103](https://arxiv.org/abs/1602.02103)
+- One of the few dark-energy extensions whose extra parameter has a
+  *predicted* magnitude (`|nu| ~ 10^-3`, from a one-loop
+  renormalization-group estimate) rather than an arbitrary one.
+- Used by: [`cosmology/models/rvm.py`](src/CosmoFit/cosmology/models/rvm.py)
+
+### Cardassian (modified polytropic)
+
+- **Freese & Lewis (2002)**, *Cardassian Expansion: a Model in which
+  the Universe is Flat, Matter Dominated, and Accelerating*, Phys.
+  Lett. B 540, 1.
+  [arXiv:astro-ph/0201229](https://arxiv.org/abs/astro-ph/0201229)
+- **Wang, Freese, Gondolo & Lewis (2003)**, *Future Type Ia Supernova
+  Data as Tests of Dark Energy from Modified Friedmann Equations*,
+  ApJ 594, 25 (the modified polytropic form implemented here).
+  [arXiv:astro-ph/0302064](https://arxiv.org/abs/astro-ph/0302064)
+- Acceleration from matter alone, via an extra term in the Friedmann
+  equation. The modified polytropic form is used rather than the
+  original, which is degenerate with wCDM at w = n - 1.
+- Used by: [`cosmology/models/cardassian.py`](src/CosmoFit/cosmology/models/cardassian.py)
+
+### DGP (braneworld gravity, self-accelerating branch)
+
+- **Dvali, Gabadadze & Porrati (2000)**, *4D Gravity on a Brane in 5D
+  Minkowski Space*, Phys. Lett. B 485, 208.
+  [arXiv:hep-th/0005016](https://arxiv.org/abs/hep-th/0005016)
+- **Deffayet (2001)**, *Cosmology on a Brane in Minkowski Bulk*, Phys.
+  Lett. B 502, 199 (the cosmological solution).
+  [arXiv:hep-th/0010186](https://arxiv.org/abs/hep-th/0010186)
+- **Koyama & Maartens (2006)**, *Structure formation in the DGP
+  cosmological model*, JCAP 01 (2006) 016 (the `mu(a)` used for
+  growth).
+  [arXiv:astro-ph/0511634](https://arxiv.org/abs/astro-ph/0511634)
+- Acceleration with no dark energy at all, and LCDM's parameter count.
+  Its growth is *suppressed* (`mu ~ 0.72` today), which is the real
+  observational handle on it. Implemented as the historically
+  important benchmark it is -- the self-accelerating branch is known
+  to carry a ghost instability.
+- Used by: [`cosmology/models/dgp.py`](src/CosmoFit/cosmology/models/dgp.py)
 
 ### FQExponential (f(Q) gravity, exponential model)
 
@@ -267,6 +694,54 @@ not silently overstated either.
 
 ---
 
+### Deriving a model from its action
+
+`CosmoFit.theory` takes a gravitational action on an FLRW metric and
+derives `E(z)` from it, rather than being handed one. The reduction
+itself is the standard minisuperspace construction -- write the
+metric with an explicit lapse, substitute it into the action, and
+vary -- and needs no citation. What follows is what it is *checked*
+against, and the one place it imports a result rather than deriving
+one.
+
+- **Copeland, Liddle & Wands (1998)**, *Exponential potentials and
+  cosmological scaling solutions*, Phys. Rev. D 57, 4686.
+  [arXiv:gr-qc/9711068](https://arxiv.org/abs/gr-qc/9711068)
+- **Validation, not implementation.** Their late-time attractors for
+  an exponential potential depend on the slope `lambda` alone, so
+  there is nothing to tune and nothing of theirs used as an input.
+  On a matter background both are reproduced from the action to five
+  decimals: the field-dominated branch (`lambda^2 < 3`, `w =
+  -1 + lambda^2/3`, `Omega_phi = 1`) and the scaling branch
+  (`lambda^2 > 3`, `w = 0`, `Omega_phi = 3/lambda^2` -- 0.75006
+  against 0.75 at `lambda = 2`).
+- Checked by: [`tests/test_theory_fields.py`](tests/test_theory_fields.py)
+
+- **Boisseau, Esposito-Farese, Polarski & Starobinsky (2000)**,
+  *Reconstruction of a scalar-tensor theory of gravity in an
+  accelerating universe*, Phys. Rev. Lett. 85, 2236.
+  [arXiv:gr-qc/0001066](https://arxiv.org/abs/gr-qc/0001066)
+- Their sub-horizon quasi-static coupling,
+  `G_eff = (1/8 pi F)(2F + 4 F_phi^2)/(2F + 3 F_phi^2)`, is what
+  `Action(growth="quasi_static")` reports as `mu` for a
+  non-minimally coupled action. This is an *additional* statement
+  about perturbations that a background action does not by itself
+  determine, which is why it is opt-in -- and why `Fitter` warns
+  when growth data meet such a model with `mu` still 1.
+- Used by: [`theory/action.py`](src/CosmoFit/theory/action.py)
+
+- **Bengochea & Ferraro (2009)**, *Dark torsion as the cosmic
+  speed-up*, Phys. Rev. D 79, 124019.
+  [arXiv:0812.1205](https://arxiv.org/abs/0812.1205)
+- The power-law `f(T) = T + alpha (-T)^b` used as the worked example
+  of a model this library does *not* otherwise carry: written as an
+  action, fitted to CC + DESI, and consistent with `b = 0` --
+  i.e. with Lambda-CDM -- as published constraints on it are.
+- Used by:
+  [`examples/03-building-models/models_from_an_action.ipynb`](examples/03-building-models/models_from_an_action.ipynb)
+
+---
+
 ## Methodology
 
 ### Photon-decoupling redshift z\* fitting formula
@@ -311,6 +786,46 @@ citation.
 
 - Implemented in: [`cosmology/calculators/growth.py`](src/CosmoFit/cosmology/calculators/growth.py)
   (`GrowthCalculator`)
+
+### Sound horizon at the drag epoch (`r_d`)
+
+- **Eisenstein & Hu (1998)**, *Baryonic Features in the Matter
+  Transfer Function*, ApJ 496, 605 (the `z_drag` fitting formula, kept
+  for comparison only -- it runs ~4% low relative to CAMB for
+  Planck-like parameters).
+  [arXiv:astro-ph/9709112](https://arxiv.org/abs/astro-ph/9709112)
+- **Lewis, Challinor & Lasenby (2000)**, ApJ 538, 473 (CAMB -- the
+  reference `z_drag` is calibrated against, and the reference the
+  whole calculation is validated against).
+  [arXiv:astro-ph/9911177](https://arxiv.org/abs/astro-ph/9911177)
+- **Aubourg et al. (2015)**, *Cosmological implications of baryon
+  acoustic oscillation measurements*, Phys. Rev. D 92, 123516 (the
+  "BAO + BBN" programme that computing `r_d` makes possible).
+  [arXiv:1411.1074](https://arxiv.org/abs/1411.1074)
+- CosmoFit integrates `r_d = int c_s/H dz` directly, with photons
+  from `T_CMB`, massless neutrinos, and massive neutrinos carrying
+  their *exact* Fermi-Dirac energy density (tabulated once at import
+  rather than approximated). The mass-to-density relation
+  `Sum m_nu / omega_nu h^2 = 93.04 eV` is derived from that integral
+  rather than assumed. Only `z_drag` is a fit, for the same reason
+  `z_star` is: it needs a full recombination history. Validated
+  end-to-end against CAMB's `rdrag` to 5e-5 over a 5850-point grid --
+  see [`tests/test_sound_horizon.py`](tests/test_sound_horizon.py).
+- Used by: [`cosmology/calculators/sound_horizon.py`](src/CosmoFit/cosmology/calculators/sound_horizon.py)
+
+### CMB power spectra from a Boltzmann code
+
+- **Lewis, Challinor & Lasenby (2000)**, *Efficient Computation of CMB
+  anisotropies in closed FRW models*, ApJ 538, 473 (CAMB).
+  [arXiv:astro-ph/9911177](https://arxiv.org/abs/astro-ph/9911177)
+- CosmoFit does not implement a Boltzmann hierarchy; it translates a
+  `Cosmology` into CAMB's parameter conventions and calls it. Models
+  with a `w(z)` are passed through CAMB's PPF dark-energy module as a
+  tabulated `w(a)`, which handles the `w = -1` crossing that CPL and
+  JBP posteriors routinely visit and where a quintessence-fluid
+  treatment develops a gradient instability. Modified-gravity models
+  are refused rather than silently given GR perturbations.
+- Used by: [`cosmology/boltzmann.py`](src/CosmoFit/cosmology/boltzmann.py)
 
 ### MCMC
 

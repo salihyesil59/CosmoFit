@@ -1,0 +1,28 @@
+# What goes into the source distribution beyond what setuptools
+# works out for itself.
+#
+# The wheel gets the bundled datasets through
+# `[tool.setuptools.package-data]` in pyproject.toml, and the sdist
+# picks those up too because they live inside the package. These
+# four do not -- they sit at the repository root, and without this
+# they are simply absent from the sdist.
+#
+# CITATION.cff matters most of the three: this library bundles other
+# people's data and implements other people's methods, and the file
+# saying how to cite it should travel with the source rather than
+# only existing on a web page somebody may not find.
+
+include CITATION.cff
+include CHANGELOG.md
+include CONTRIBUTING.md
+include REFERENCES.md
+
+# Excluded on purpose: `docs/` builds an API reference from the
+# installed package's own docstrings, so shipping the .rst wrappers
+# in the sdist would add files that cannot be built from it without
+# the whole dev environment anyway.
+prune docs
+prune examples
+prune app
+prune tools
+prune .github

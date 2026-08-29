@@ -24,15 +24,38 @@ package to be installed.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+from CosmoFit.typing import PathLike
+
+if TYPE_CHECKING:
+    # Only for the return annotations below. `matplotlib.figure`
+    # costs 0.65 s to import -- more than the whole rest of the
+    # library -- and the point of importing matplotlib inside the
+    # methods rather than here is that somebody who never draws a
+    # figure never pays it. A type checker reads this block; the
+    # interpreter does not.
+    from matplotlib.figure import Figure
+
+    # A circular import at runtime -- `stats.fitter` imports this
+    # module to attach `fitter.plots`. Under TYPE_CHECKING it is
+    # just a name, and a checker resolves it fine.
+    from CosmoFit.stats.fitter import Fitter
 
 from CosmoFit.likelihoods import (
     CCLikelihood,
     DESILikelihood,
     SDSSBAOLikelihood,
+    BAOLowZLikelihood,
     PantheonLikelihood,
     DESSN5YRLikelihood,
+    Union3Likelihood,
     PlanckLikelihood,
+    PlanckLiteLikelihood,
+    PlanckLensingLikelihood,
+    ACTDR6LensingLikelihood,
     FSigma8Likelihood,
 )
 
@@ -805,7 +828,7 @@ class FitPlotter:
     # MCMC diagnostics
     # ============================================================
 
-    def chain(self, save_path=None):
+    def chain(self, save_path: PathLike | None = None) -> Figure:
         """
         Trace plot of every free parameter's walkers vs. MCMC step.
         """
@@ -842,7 +865,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def corner(self, burnin=None, save_path=None, **corner_kwargs):
+    def corner(
+        self,
+        burnin: int | None = None,
+        save_path: PathLike | None = None,
+        **corner_kwargs,
+    ) -> Figure:
         """
         Corner (triangle) plot of the free-parameter posterior.
         """
@@ -999,7 +1027,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def hubble_diagram(self, save_path=None, n_draws=300, seed=0):
+    def hubble_diagram(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Pantheon+ Hubble diagram: corrected apparent magnitude vs.
         redshift, with a residuals sub-panel.
@@ -1029,7 +1062,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def des_hubble_diagram(self, save_path=None, n_draws=300, seed=0):
+    def des_hubble_diagram(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DES-SN5YR Hubble diagram: distance modulus vs. redshift,
         with a residuals sub-panel.
@@ -1067,7 +1105,56 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def hz(self, save_path=None, n_draws=300, seed=0):
+    def union3_hubble_diagram(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
+        """
+        Union3 Hubble diagram: binned distance modulus vs.
+        redshift, with a residuals sub-panel.
+
+        Twenty-two points rather than the ~1800 of the other two SN
+        figures, because Union3 is released binned -- so this panel
+        looks sparse next to the Pantheon+ or DES-SN5YR ones and
+        carries comparable constraining power anyway. The error
+        bars are correspondingly small and, unlike DES-SN5YR's, all
+        of comparable size, so nothing is de-weighted out of view
+        here.
+
+        As with DES-SN5YR the data vector is already a distance
+        modulus, so the y axis really is ``mu``; the model curve
+        carries the analytically marginalized zero point (or
+        ``cosmology.MB`` if it was fit explicitly), and the legend
+        says which.
+        """
+
+        lk = self._require_likelihood(Union3Likelihood, "union3")
+
+        return self._sn_hubble_diagram(
+            lk,
+            y_data=lk.data.mu,
+            offset_fn=lambda: (
+                lk.best_fit_offset() if lk.marginalize_offset else 0.0
+            ),
+            dataset_label="Union3",
+            y_label=r"$\mu$ [mag]",
+            residual_label=r"$\Delta\mu$",
+            model_label=_sn_model_label(
+                "zero-point", lk.marginalize_offset,
+            ),
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def hz(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Cosmic Chronometer H(z) diagram: expansion-rate
         measurements vs. redshift against the model H(z) curve.
@@ -1107,7 +1194,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def growth(self, save_path=None, n_draws=300, seed=0):
+    def growth(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         fsigma8(z) growth-rate diagram: RSD measurements (e.g. the
         "Gold-2018" compilation) against the model's fsigma8(z)
@@ -1221,7 +1313,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def bao_distances(self, save_path=None, n_draws=300, seed=0):
+    def bao_distances(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DESI BAO distance plot: one panel per observable type
         (D_M/r_d, D_H/r_d, D_V/r_d), each showing the tracers'
@@ -1243,7 +1340,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def sdss_bao_distances(self, save_path=None, n_draws=300, seed=0):
+    def sdss_bao_distances(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         SDSS BAO distance plot (BOSS DR12 + eBOSS DR16 LRG/QSO):
         one panel per observable type (D_M/r_d, D_H/r_d), each
@@ -1259,7 +1361,420 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def planck_residuals(self, save_path=None):
+    def lowz_bao_distances(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
+        """
+        Low-redshift BAO plot (6dFGS z=0.106, SDSS DR7 MGS z=0.15):
+        one panel per observable type against the model curve.
+
+        Two panels with one point each -- 6dFGS reports
+        ``r_d/D_V`` and the MGS reports ``D_V/r_d``, so they cannot
+        share an axis without inverting one of them, which is
+        exactly what the likelihood declines to do (see
+        :class:`~likelihoods.bao_lowz.BAOLowZLikelihood`). The
+        figure shows them as they were measured.
+
+        The 6dFGS panel's model curve includes that survey's
+        ``rs_rescale``, so what is drawn is what the chi2 actually
+        compares -- a curve computed with the un-rescaled ``r_d``
+        would sit visibly off its own data point for no reason a
+        reader could see.
+        """
+
+        lk = self._require_likelihood(BAOLowZLikelihood, "bao_lowz")
+
+        return self._bao_distances(
+            lk, dataset_label="6dFGS + SDSS MGS",
+            n_draws=n_draws, seed=seed, save_path=save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def cmb_spectra(self, save_path: PathLike | None = None) -> Figure:
+        r"""
+        The CMB angular power spectra: measured bandpowers against
+        the model, with a residual panel under each.
+
+        One column per spectrum in the fit (TT, TE, EE), plotted as
+        :math:`D_\ell = \ell(\ell+1)C_\ell/2\pi` in muK^2 --
+        the convention every CMB paper uses, and the one that makes
+        the acoustic peaks visible rather than burying them under
+        the :math:`\ell^{-2}` fall-off of :math:`C_\ell` itself.
+        The likelihood works in :math:`C_\ell`; the conversion here
+        is for the eye only, applied to data and model alike using
+        each bandpower's own effective multipole.
+
+        With 615 bandpowers the error bars are mostly smaller than
+        the markers, which is the honest picture -- the residual
+        panels are where anything interesting is visible, so they
+        are plotted in units of sigma rather than muK^2.
+        """
+
+        import matplotlib.pyplot as plt
+
+        lk = self._require_likelihood(PlanckLiteLikelihood, "planck_lite")
+
+        data = lk.data
+
+        model = lk.model()
+        sigma = lk.covariance.sigma
+
+        names = [
+            name for name in ("TT", "TE", "EE")
+            if name in lk.used
+        ]
+
+        fig, axes = plt.subplots(
+            2, len(names),
+            figsize=(5.2 * len(names), 6.5),
+            sharex="col",
+            squeeze=False,
+            gridspec_kw={"height_ratios": [3, 1]},
+        )
+
+        # `slices` indexes the *full* 613/615-vector; a TT-only or
+        # EE-only selection has already been cut down, so offsets
+        # are recomputed against what this likelihood actually holds.
+        start = 0
+
+        for column, name in enumerate(names):
+
+            count = data.n_bin[("TT", "TE", "EE").index(name)]
+
+            block = slice(start, start + count)
+            start += count
+
+            ell = data.ell[block]
+
+            # D_l = l(l+1) C_l / 2pi, applied to data and model with
+            # the same factor so the residual panel below is
+            # unaffected by the conversion.
+            factor = ell * (ell + 1.0) / (2.0 * np.pi)
+
+            ax_top, ax_bot = axes[0][column], axes[1][column]
+
+            ax_top.errorbar(
+                ell, factor * data.value[block],
+                yerr=factor * sigma[block],
+                fmt="o", ms=2.5, elinewidth=0.7, alpha=0.7,
+                color=COLOR_DATA, label=f"Planck ({count})",
+            )
+            ax_top.plot(
+                ell, factor * model[block],
+                color=COLOR_MODEL, lw=1.6, label="Model",
+            )
+
+            ax_top.set_title(rf"$D_\ell^{{{name}}}$")
+            ax_top.legend(frameon=False)
+            _style_axes(ax_top)
+
+            pulls = (data.value[block] - model[block]) / sigma[block]
+
+            ax_bot.axhline(0.0, color=COLOR_REFERENCE, lw=1.0, ls="--")
+            ax_bot.errorbar(
+                ell, pulls, yerr=1.0,
+                fmt="o", ms=2.5, elinewidth=0.7, alpha=0.6,
+                color=COLOR_DATA,
+            )
+            ax_bot.set_xlabel(r"Multipole $\ell$")
+            ax_bot.set_ylim(-4.5, 4.5)
+            _style_axes(ax_bot)
+
+            if column == 0:
+                ax_top.set_ylabel(r"$D_\ell$ [$\mu$K$^2$]")
+                ax_bot.set_ylabel(r"residual [$\sigma$]")
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def cmb_lensing(self, save_path: PathLike | None = None) -> Figure:
+        r"""
+        CMB lensing bandpowers against the model.
+
+        Works for either reconstruction in the library -- Planck's
+        (9 bandpowers of
+        :math:`[L(L+1)]^2 C_L^{\phi\phi} / 2\pi` over
+        :math:`8 \le L \le 400`) or ACT DR6's (10 bandpowers of
+        :math:`C_L^{\kappa\kappa}` over :math:`40 \le L \le 763`).
+        The two are built on different, equivalent spectra, so the
+        y axis follows whichever is being plotted rather than
+        asserting one of them.
+
+        This is the CMB's own measurement of how much structure
+        grew between recombination and now.
+
+        The model curve is the *binned* prediction, drawn at the
+        same effective multipoles as the data rather than as a
+        smooth line through them. That is deliberate: the
+        bandpowers are broad (the first spans L = 8-40), and a
+        smooth theory curve would invite reading a precision into
+        the comparison that the binning does not support.
+        """
+
+        import matplotlib.pyplot as plt
+
+        # Either reconstruction, whichever the fit holds --
+        # `_find_likelihood` takes a tuple, and both plot the same
+        # way once the axis label follows the dataset's own
+        # spectrum.
+        lk = self._require_likelihood(
+
+            (PlanckLensingLikelihood, ACTDR6LensingLikelihood),
+
+            "planck_lensing' or 'act_lensing",
+
+        )
+
+        data = lk.data
+
+        model = lk.model()
+
+        fig, (ax, ax_bot) = plt.subplots(
+            2, 1, figsize=(8, 6.5), sharex=True,
+            gridspec_kw={"height_ratios": [3, 1]},
+        )
+
+        low, high = data.ell_range
+
+        ax.errorbar(
+            data.ell, data.value, yerr=lk.covariance.sigma,
+            fmt="o", ms=6, elinewidth=1.0, capsize=3,
+            color=COLOR_DATA,
+            label=f"Planck 2018 lensing ({lk.n_data})",
+        )
+        ax.plot(
+            data.ell, model, "s--", ms=6, lw=1.4,
+            color=COLOR_MODEL, markerfacecolor="none",
+            label="Model (binned)",
+        )
+
+        # The two releases are built on different -- equivalent --
+        # spectra, and labelling both as the potential would be a
+        # quiet factor-of-2pi/4 lie on the axis.
+        if data.spectrum == "KK":
+            ax.set_ylabel(r"$C_L^{\kappa\kappa}$")
+            what = "convergence"
+        else:
+            ax.set_ylabel(r"$[L(L+1)]^2 C_L^{\phi\phi} / 2\pi$")
+            what = "potential"
+
+        ax.set_title(
+            rf"CMB lensing {what}, ${low} \leq L \leq {high}$",
+        )
+        ax.legend(frameon=False)
+        _style_axes(ax)
+
+        pulls = lk.residuals() / lk.covariance.sigma
+
+        ax_bot.axhline(0.0, color=COLOR_REFERENCE, lw=1.0, ls="--")
+        ax_bot.errorbar(
+            data.ell, pulls, yerr=1.0,
+            fmt="o", ms=5, elinewidth=0.9, color=COLOR_DATA,
+        )
+        ax_bot.set_xlabel(r"Multipole $L$")
+        ax_bot.set_ylabel(r"residual [$\sigma$]")
+        ax_bot.set_ylim(-3.5, 3.5)
+        _style_axes(ax_bot)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def eboss_surface(
+        self,
+        dataset: str = "eboss_lya",
+        save_path: PathLike | None = None,
+    ) -> Figure:
+        r"""
+        An eBOSS DR16 tabulated BAO likelihood, drawn as the surface
+        it actually is, with the current model's prediction on it.
+
+        This is the figure that justifies carrying the tables. For
+        ``"eboss_elg"`` the released curve is overlaid with the
+        Gaussian its published summary
+        (:math:`18.33 \pm 0.6`) would imply, and the two part company
+        in the low tail -- which is the half of the curve that
+        decides whether a low expansion rate at :math:`z \sim 0.85`
+        is excluded. For ``"eboss_lya"`` the 2-D surface is drawn as
+        :math:`\Delta\chi^2` contours at 1, 2 and 3 sigma, whose
+        shape is visibly not an ellipse.
+
+        Parameters
+        ----------
+        dataset : str, optional
+            ``"eboss_lya"`` (the default) or ``"eboss_elg"``.
+        save_path : str or Path, optional
+            Where to write the figure.
+        """
+
+        import matplotlib.pyplot as plt
+
+        from CosmoFit.likelihoods.eboss_dr16 import (
+            EBOSSELGLikelihood,
+            EBOSSLyaLikelihood,
+        )
+
+        cls = {
+            "eboss_elg": EBOSSELGLikelihood,
+            "eboss_lya": EBOSSLyaLikelihood,
+        }.get(dataset)
+
+        if cls is None:
+            raise ValueError(
+                f"Unknown tabulated BAO dataset {dataset!r}; expected "
+                f"'eboss_elg' or 'eboss_lya'."
+            )
+
+        lk = self._require_likelihood(cls, dataset)
+
+        data = lk.data
+        prediction = lk.model()
+
+        if data.size == 1:
+            return self._eboss_curve(
+                plt, lk, data, prediction, save_path,
+            )
+
+        return self._eboss_contours(
+            plt, lk, data, prediction, save_path,
+        )
+
+    # ------------------------------------------------------------
+
+    def _eboss_curve(self, plt, lk, data, prediction, save_path):
+        """One-dimensional table: ELG."""
+
+        low, high = data.bounds[0]
+
+        x = np.linspace(low, high, 2000)
+
+        chi2 = -2.0 * (
+            lk.log_likelihood_at(x[:, None]) - data.log_prob.max()
+        )
+
+        fig, ax = plt.subplots(figsize=(7.2, 4.2))
+
+        ax.plot(
+            x, chi2, color=COLOR_DATA, lw=1.8,
+            label="eBOSS DR16 ELG (released table)",
+        )
+
+        # What a Gaussian summary would have claimed instead.
+        ax.plot(
+            x, ((x - 18.33) / 0.6) ** 2,
+            color=COLOR_REFERENCE, lw=1.4, ls="--",
+            label=r"Gaussian $18.33 \pm 0.6$",
+        )
+
+        ax.axvline(
+            prediction[0], color=COLOR_MODEL, lw=1.6,
+            label=rf"this model: ${prediction[0]:.2f}$",
+        )
+
+        for level, style in ((1.0, ":"), (4.0, ":")):
+            ax.axhline(level, color=COLOR_REFERENCE, lw=0.8, ls=style)
+
+        ax.set_xlabel(r"$D_V(z=0.845) / r_d$")
+        ax.set_ylabel(r"$\Delta\chi^2$")
+        ax.set_ylim(0.0, 12.0)
+        ax.set_title(
+            r"A 1.4$\sigma$ BAO detection is not a Gaussian",
+            fontsize=11,
+        )
+        ax.legend(frameon=False, fontsize=9)
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def _eboss_contours(self, plt, lk, data, prediction, save_path):
+        """Two-dimensional table: Lyman-alpha."""
+
+        (xlo, xhi), (ylo, yhi) = data.bounds
+
+        x = np.linspace(xlo, xhi, 400)
+        y = np.linspace(ylo, yhi, 400)
+
+        points = np.stack(np.meshgrid(x, y, indexing="ij"), axis=-1)
+
+        chi2 = -2.0 * (
+            lk.log_likelihood_at(points) - data.log_prob.max()
+        )
+
+        # Quoted on the same zero point as the contours: `chi2()`
+        # is raw -2 log L, which for the combined version carries a
+        # small constant offset (the two halves peak in different
+        # places, so their product cannot reach 1 anywhere).
+        delta_chi2 = lk.chi2() + 2.0 * data.log_prob.max()
+
+        fig, ax = plt.subplots(figsize=(6.4, 5.4))
+
+        # 1, 2, 3 sigma for two parameters.
+        levels = [2.30, 6.18, 11.83]
+
+        ax.contourf(
+            x, y, chi2.T, levels=[0.0] + levels,
+            colors=["#2b2b2b", "#5a5a5a", "#8f8f8f"], alpha=0.35,
+        )
+        ax.contour(
+            x, y, chi2.T, levels=levels,
+            colors=COLOR_DATA, linewidths=1.2,
+        )
+
+        ax.plot(
+            *data.peak, marker="*", ms=14, ls="none",
+            color=COLOR_DATA, label="table maximum",
+        )
+
+        ax.plot(
+            prediction[0], prediction[1], marker="o", ms=9, ls="none",
+            color=COLOR_MODEL,
+            label=(
+                rf"this model  $\Delta\chi^2 = {delta_chi2:.2f}$"
+                if np.isfinite(delta_chi2) else "this model (off table)"
+            ),
+        )
+
+        ax.set_xlabel(r"$D_M(z=2.334) / r_d$")
+        ax.set_ylabel(r"$D_H(z=2.334) / r_d$")
+        ax.set_title(
+            r"eBOSS DR16 Ly$\alpha$ BAO, 1/2/3$\sigma$",
+            fontsize=11,
+        )
+        ax.legend(frameon=False, fontsize=9, loc="upper right")
+        _style_axes(ax)
+
+        fig.tight_layout()
+
+        if save_path:
+            fig.savefig(save_path, bbox_inches="tight")
+
+        return fig
+
+    # ------------------------------------------------------------
+
+    def planck_residuals(self, save_path: PathLike | None = None) -> Figure:
         """
         Standardized-residual ("pull") plot for the Planck
         distance-prior vector (R, l_A, omega_b_h2):
@@ -1308,7 +1823,13 @@ class FitPlotter:
     # Dark-energy / background diagnostics
     # ============================================================
 
-    def w_of_z(self, z_max=2.5, save_path=None, n_draws=300, seed=0):
+    def w_of_z(
+        self,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Dark-energy equation-of-state evolution w(z), with a
         posterior band and the LCDM reference line w = -1 -- the
@@ -1369,18 +1890,18 @@ class FitPlotter:
 
     def w0_wa_plane(
         self,
-        burnin=None,
-        levels=(0.68, 0.95),
-        bins=80,
-        smooth=1.5,
-        w0_range=None,
-        wa_range=None,
-        annotate_regions=True,
-        show_fractions=False,
-        label=None,
-        color=COLOR_POSTERIOR,
-        save_path=None,
-    ):
+        burnin: int | None = None,
+        levels: tuple[float, ...] = (0.68, 0.95),
+        bins: int = 80,
+        smooth: float = 1.5,
+        w0_range: tuple[float, float] | None = None,
+        wa_range: tuple[float, float] | None = None,
+        annotate_regions: bool = True,
+        show_fractions: bool = False,
+        label: str | None = None,
+        color: str = COLOR_POSTERIOR,
+        save_path: PathLike | None = None,
+    ) -> Figure:
         """
         The (w0, wa) plane: this fit's 2D posterior contours on
         top of the four dark-energy regions -- phantom,
@@ -1539,7 +2060,13 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def deceleration(self, z_max=2.5, save_path=None, n_draws=300, seed=0):
+    def deceleration(
+        self,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Deceleration parameter q(z) = -1 + (1+z) E'(z)/E(z), with
         a posterior band, marking the deceleration/acceleration
@@ -1806,9 +2333,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_hz(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         H(z) diagram (see :meth:`hz`) with this fit's curve overlaid
         with one or more other models' curves over the same Cosmic
@@ -1832,9 +2363,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_growth(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         fsigma8(z) growth-rate diagram (see :meth:`growth`) with
         this fit's curve overlaid with one or more other models'
@@ -1863,9 +2398,14 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_deceleration(
-        self, other_fits=None, labels=None, z_max=2.5, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Deceleration parameter q(z) (see :meth:`deceleration`) for
         this fit and one or more other models on the same axes,
@@ -1888,9 +2428,14 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_w_of_z(
-        self, other_fits=None, labels=None, z_max=2.5, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Dark-energy equation of state w(z) (see :meth:`w_of_z`) for
         this fit and one or more other models on the same axes.
@@ -1918,17 +2463,17 @@ class FitPlotter:
 
     def compare_w0_wa_plane(
         self,
-        other_fits=None,
-        labels=None,
-        burnin=None,
-        levels=(0.68, 0.95),
-        bins=80,
-        smooth=1.5,
-        w0_range=None,
-        wa_range=None,
-        annotate_regions=True,
-        save_path=None,
-    ):
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        burnin: int | None = None,
+        levels: tuple[float, ...] = (0.68, 0.95),
+        bins: int = 80,
+        smooth: float = 1.5,
+        w0_range: tuple[float, float] | None = None,
+        wa_range: tuple[float, float] | None = None,
+        annotate_regions: bool = True,
+        save_path: PathLike | None = None,
+    ) -> Figure:
         """
         The (w0, wa) plane (see :meth:`w0_wa_plane`) with several
         posteriors overlaid -- the "what does adding this dataset
@@ -1950,6 +2495,8 @@ class FitPlotter:
                 labels=["DESI", "DESI+SN", "DESI+SN+CMB"],
             )
 
+        The remaining parameters are as in :meth:`w0_wa_plane`.
+
         Parameters
         ----------
         other_fits : Fitter or list[Fitter]
@@ -1959,8 +2506,6 @@ class FitPlotter:
             One per fit (this one first). Defaults to each fit's
             dataset combination rather than its model name, since
             these are usually the same model on different data.
-
-        The remaining parameters are as in :meth:`w0_wa_plane`.
         """
 
         import matplotlib.pyplot as plt
@@ -2062,9 +2607,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_hubble_diagram(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Pantheon+ Hubble diagram (see :meth:`hubble_diagram`) with
         this fit's curve and one or more other models' curves over
@@ -2082,9 +2631,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_des_hubble_diagram(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DES-SN5YR Hubble diagram (see :meth:`des_hubble_diagram`)
         with this fit's curve and one or more other models' curves
@@ -2177,9 +2730,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_bao_distances(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DESI BAO distance plot (see :meth:`bao_distances`) with this
         fit's curves and one or more other models' curves over the
@@ -2194,9 +2751,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_sdss_bao_distances(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         SDSS BAO distance plot (see :meth:`sdss_bao_distances`) with
         this fit's curves and one or more other models' curves over
