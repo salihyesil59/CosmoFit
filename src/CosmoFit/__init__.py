@@ -29,6 +29,14 @@ The underlying subpackages (``CosmoFit.cosmology``, ``CosmoFit.data``,
 still available for anything not re-exported here -- e.g.
 ``CosmoFit.stats.model_comparison``, ``CosmoFit.stats.cpl_diagnostics``,
 or ``CosmoFit.data.loader.load_pantheon`` for direct dataset access.
+
+``CosmoFit.theory`` is deliberately *not* imported here. It derives a
+Friedmann equation from an action symbolically and so needs sympy,
+which is an optional dependency -- importing it from this module would
+make ``import CosmoFit`` fail for everyone who did not install it.
+Import it directly instead::
+
+    from CosmoFit.theory import Action    # pip install "cosmofit[theory]"
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ from importlib.metadata import PackageNotFoundError, version
 from CosmoFit.cosmology import (
     Cosmology,
     CosmologyParameters,
+    ModelConfigurationError,
     constants,
     LCDM,
     WCDM,
@@ -133,6 +142,7 @@ __all__ = [
     # Cosmology
     "Cosmology",
     "CosmologyParameters",
+    "ModelConfigurationError",
     "constants",
     "LCDM",
     "WCDM",
