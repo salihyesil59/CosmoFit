@@ -22,7 +22,7 @@ jobs:
   # Split across Python versions because the library has been bitten
   # by one before: 3.14 changed multiprocessing's default start
   # method on Linux from fork to forkserver, which broke
-  # `run_mcmc(n_processes=...)` outright (see v0.15.0 in the README).
+  # `run_mcmc(n_processes=...)` outright (see v0.15.0 in CHANGELOG.md).
   # ----------------------------------------------------------------
   full:
     name: python ${{ matrix.python }} (all extras)
