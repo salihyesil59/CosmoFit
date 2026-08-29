@@ -739,3 +739,79 @@ def test_best_fit_restarts_are_offered_and_used():
     assert not app.exception, [str(e.value) for e in app.exception]
 
     assert app.session_state["fits"][0].result.best_fit is not None
+
+
+# ============================================================
+# The library's own guards, made visible
+# ============================================================
+
+
+def test_a_derived_parameter_is_not_ticked_by_default():
+    """
+    ADE fixes `Omega_m` from its early-time condition rather than
+    accepting it, so sampling it returns the prior -- and would look
+    exactly like a measurement.
+
+    `Fitter` warns about that, but a default that starts in the
+    state the library warns about is a poor default. The table has
+    to arrive with the box already clear.
+    """
+
+    app = _select_model(_fresh(), "ADE")
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    table = _parameter_table(app)
+
+    row = table[table["Parameter"] == "Omega_m"]
+
+    assert not row.empty, "Omega_m missing from the parameter table"
+
+    assert not bool(row.iloc[0]["Free"]), (
+        "ADE derives Omega_m -- it must not be ticked by default"
+    )
+
+    # H0 is not derived, so it is still ticked.
+    assert bool(table[table["Parameter"] == "H0"].iloc[0]["Free"])
+
+    assert "Derived, not fitted" in _messages(app)
+
+
+def test_a_library_warning_reaches_the_page():
+    """
+    `Fitter` warns through `warnings`, which in a Streamlit app goes
+    to stderr -- which is to say nowhere. The run loop catches them
+    and renders them, so every guard the library has, and every one
+    it grows later, is visible without the GUI restating any of it.
+
+    Driven with a conflicting dataset pair because that is the one
+    `Fitter` warning reachable from the widgets alone. The page also
+    flags conflicts *before* a run, from its own table, so what is
+    asserted here is the caught-and-rendered form specifically --
+    prefixed with the model it came from, which only the run loop
+    produces.
+    """
+
+    app = _fresh(timeout=900.0)
+
+    for key in ("ds_sdss_bao", "ds_fsigma8"):
+        for checkbox in app.checkbox:
+            if checkbox.key == key:
+                app = checkbox.set_value(True).run()
+                break
+
+    for key in ("ds_desi", "ds_pantheon", "ds_planck"):
+        for checkbox in app.checkbox:
+            if checkbox.key == key and checkbox.value:
+                app = checkbox.set_value(False).run()
+                break
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    shown = "\n".join(w.value for w in app.warning)
+
+    assert "**Model 1:**" in shown, shown
+
+    assert "sdss_bao" in shown and "fsigma8" in shown

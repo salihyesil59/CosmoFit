@@ -3225,6 +3225,23 @@ for i in range(n_models):
             derive_sigma8,
         )
 
+        # A model that *derives* a parameter rather than accepting
+        # it -- ADE fixes Omega_m from its early-time condition --
+        # must not have it ticked by default. `Fitter` warns about
+        # it, but a default that starts in the state the library
+        # warns about is a poor default: the posterior you would get
+        # back is the prior, and it would look like a measurement.
+        derived_params = set(getattr(model_cls, "DERIVED_PARAMS", ()) or ())
+
+        if derived_params:
+            st.caption(
+                "🔒 **Derived, not fitted:** "
+                + ", ".join(f"`{name}`" for name in sorted(derived_params))
+                + " — this model computes it from its own parameters, "
+                "so sampling it would return the prior. Left un-ticked "
+                "below."
+            )
+
         param_rows = []
         for p in parameter_set:
             lo, hi = p.bounds if p.bounds else (None, None)
@@ -3243,7 +3260,10 @@ for i in range(n_models):
             param_rows.append({
                 "Parameter": p.name,
                 "Label": p.label,
-                "Free": p.name in ("H0", "Omega_m"),
+                "Free": (
+                    p.name in ("H0", "Omega_m")
+                    and p.name not in derived_params
+                ),
                 "Initial": initial_value,
                 "Lower": lo,
                 "Upper": hi,
@@ -3373,20 +3393,41 @@ if run_clicked:
                         icon="ℹ️",
                     )
 
-                fit = Fitter(
-                    model=model_classes[i],
-                    datasets=selected_datasets,
-                    free_params=free_params,
-                    initial=model_initial[i],
-                    bounds=model_bounds[i],
-                    dataset_kwargs={
-                        key: {"version": version}
-                        for key, version in dataset_versions.items()
-                        if key in selected_datasets
-                    } or None,
-                    compute_rd=compute_rd,
-                    derive_sigma8=derive_sigma8,
-                )
+                # `Fitter` warns about combinations that will run,
+                # finish, and mean nothing -- a free `m_nu` with no
+                # CMB that can see it, a non-minimally coupled model
+                # meeting growth data with mu still 1, a parameter
+                # the model derives rather than accepts. Those go to
+                # `warnings`, which in a Streamlit app means stderr,
+                # which means nowhere. Catching them here surfaces
+                # every guard the library has and every one it grows
+                # later, without the GUI having to restate any of
+                # them.
+                import warnings as _warnings
+
+                with _warnings.catch_warnings(record=True) as caught:
+
+                    _warnings.simplefilter("always", UserWarning)
+
+                    fit = Fitter(
+                        model=model_classes[i],
+                        datasets=selected_datasets,
+                        free_params=free_params,
+                        initial=model_initial[i],
+                        bounds=model_bounds[i],
+                        dataset_kwargs={
+                            key: {"version": version}
+                            for key, version in dataset_versions.items()
+                            if key in selected_datasets
+                        } or None,
+                        compute_rd=compute_rd,
+                        derive_sigma8=derive_sigma8,
+                    )
+
+                for entry in caught:
+                    st.warning(
+                        f"**Model {i + 1}:** {entry.message}", icon="⚠️",
+                    )
 
                 model_label = f"Model {i + 1}"
                 last_shown = {"pct": -1}
