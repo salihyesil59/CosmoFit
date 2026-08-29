@@ -1,9 +1,9 @@
 # Changelog
 
-Newest first. Every version below was published as a GitHub release;
-from `v0.25.0` onwards those are `-dev` pre-releases cut from the
-`dev` branch, while `main` deliberately stays at `v0.22.0` until the
-first stable release. Version numbers bumped in flight but never
+Newest first. Every numbered version below was published as a GitHub
+release; from `v0.25.0` onwards those are `-dev` pre-releases cut
+from the `dev` branch, while `main` deliberately stays at `v0.22.0`
+until the first stable release. Version numbers bumped in flight but never
 released are folded into the release that carried them.
 
 The record starts at `v0.3.0` -- `v0.1` and `v0.2.0` predate it. The
@@ -13,6 +13,168 @@ section and were moved here unchanged.
 Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
+
+## Unreleased
+
+Everything the Roadmap listed for **v1.0.0**, worked through against
+what the repository actually measured rather than against
+recollection. No new physics: this is the release where the library
+stops being a research codebase that happens to be public.
+
+### The release history had stopped at v0.25.0
+
+Fourteen releases -- the whole of `CosmoFit.theory`, Bayesian
+evidence, profile likelihoods, Fisher matrices, tension statistics,
+the three holographic models, the performance pass, the examples
+reorganization -- existed only as GitHub release notes. The
+repository did not record its own last month of work.
+
+That history is now this file, and the README lost half its bytes
+(98 KB to 49 KB) getting it out of the way: the old "Project Status"
+section had grown to nearly a thousand lines, so a reader looking for
+"what is this library" scrolled through a year of release notes to
+reach the Roadmap.
+
+### A public API that is pinned
+
+Nothing was holding it. Every other test imports what it happens to
+need, so a name could be renamed, moved between subpackages or
+dropped from `__all__` and the suite would go on passing as long as
+*some* path to the object still existed.
+`tests/test_public_api.py` types the surface out by hand -- 64 names
+-- and asserts the set in both directions. An extra name is a promise
+nobody meant to make; taking it back out is then itself a break.
+
+Writing it down found two names that had already drifted out of
+`CosmoFit.cosmology` while every one of their siblings was
+re-exported: **`ModelConfigurationError`**, which is the one
+exception a user is asked to tell apart from an ordinary failure and
+was reachable only as
+`from CosmoFit.cosmology.core.errors import ...`, and
+`GrowthCalculator`. Both are importable from the top level now, and
+a further test asserts that each layer of `cosmology` is re-exported
+*whole*, so the class of drift is closed rather than the two
+instances of it.
+
+Two more things the file checks. **Importing the library must not
+import an optional backend** -- which caught numba: `kernels.py`
+imported it at module scope, so `import CosmoFit` paid 115 ms, 17% of
+the whole import, for a kernel only a growth fit ever calls. It is a
+spec lookup now and the compilation happens on first call; 0.66 s to
+0.56 s, with the two stepping paths still agreeing to 1e-13. And
+**every annotation on the public surface resolves** -- these modules
+use `from __future__ import annotations`, so a wrong annotation is
+invisible until something calls `get_type_hints`, which nothing did.
+
+### Test coverage, where the measurement said to look
+
+93% overall, from 79%, across **681 tests**. The Roadmap's
+phrasing -- "across the whole library, not only the newest parts" --
+turned out to be exactly right: `theory`, the newest subpackage, was
+at 86-94% while the oldest code was not.
+
+| | was | now |
+|---|---|---|
+| `plots/plotter.py` | 16% | 94% |
+| `stats/cpl_diagnostics.py` | 37% | 100% |
+| `stats/results.py` | 58% | 97% |
+| `stats/chains.py` | 64% | 92% |
+| `cosmology/core/parameters.py` | 67% | 96% |
+| `likelihoods/joint.py` | 70% | 100% |
+| `stats/priors.py` | 73% | 100% |
+| `data/covariance.py` | 78% | 93% |
+| `stats/posterior.py` | 85% | 100% |
+
+**The plotter is the largest module in the library and 16% of it had
+ever run.** Nothing anywhere called a single plotting method. It is
+also the worst place for a gap, because a plot fails *quietly* -- an
+empty axis, a curve at the wrong scale, a band that collapsed to a
+line. Nothing raises; the figure is saved and somebody looks at it.
+So the assertions are about content: axis labels set, artists
+carrying points, one trace panel per free parameter with one line per
+walker, six axes for the three CMB spectra and their residual panels.
+Three of them are not about drawing at all -- that a missing dataset
+names itself instead of raising `AttributeError` on a `None`, that
+the band appears only once there is a chain, and that drawing a band
+**leaves the cosmology where it found it** (a band evaluates hundreds
+of posterior draws; without the restore, every number read off the
+fitter after a plot would come from whichever draw happened to be
+last).
+
+Elsewhere the untested half was consistently the *rejection* paths
+and the code that leaves the process: the chain-signature machinery
+that decides whether a saved chain may be resumed (the quietest
+scientific error the library can make -- one array of samples drawn
+from two different posteriors, with nothing to say so); the JSON
+encoder standing between numpy and a `json` module that rejects
+everything numpy produces; both guards on `LogPosterior.chi2`, which
+exist because L-BFGS-B once evaluated the objective at
+`[nan, nan, nan]`; and both paths through `DenseCovariance.solve`,
+including the fallback that discards a precomputed inverse which
+fails its own accuracy check.
+
+The sharpest test of the batch is in `cpl_diagnostics`: **the
+Mahalanobis distance is not the significance.** `D^2` follows
+chi-square with two degrees of freedom, so D = 2.20 is 1.70 sigma,
+not 2.2 -- and reporting `distance` as sigma overstates the tension
+with LCDM, which is the direction a dark-energy paper would like it
+to be wrong in.
+
+### An API reference, and ten docstrings that rendered wrong
+
+`pyproject.toml` had declared a `docs` extra -- sphinx and furo --
+for a repository with no `docs/` directory. There is one now:
+autosummary over the public API, napoleon for the numpydoc
+docstrings, intersphinx, and myst-parser so README.md and
+CHANGELOG.md are *included verbatim* rather than copied into a
+second, drifting version.
+
+Building it produced **237 warnings**, and they were not cosmetic:
+
+* indented equations are reStructuredText *block quotes*, and a
+  continuation line beginning with `*`, `+` or `-` becomes a bullet
+  list inside one -- so GEDE's `Omega_de(z)`, IDE's continuity
+  equations, GCG's density evolution and the curvature branches of
+  `DistanceCalculator.DM` were all being parsed as prose with lists
+  in the middle;
+* `GCG`, `FRTLinear` and `FRHuSawicki` each had a numpydoc
+  `Parameters` section whose body is a *paragraph*, which napoleon
+  renders as a field list that the prose then breaks;
+* `|beta|`, `|p/rho|` and `|a - b|` -- absolute-value bars in prose
+  -- are reStructuredText *substitution references*, and each was an
+  error for an undefined name.
+
+The build is clean under `-W` now, and CI keeps it there.
+
+### Packaging, and three CI jobs
+
+`[project.urls]` did not exist, so a PyPI page would have been a
+rendered README and a dead end. Four classifiers that matter for a
+scientific package were missing, including both
+`Scientific/Engineering` topics -- which is how somebody browsing for
+a cosmology library would ever find this one -- and 3.12/3.13, which
+CI had been testing for months. The license moved to an SPDX
+expression.
+
+`black` came *out* of the `dev` extra. It was listed and nothing used
+it, which is worse than it sounds: a contributor taking the extra at
+its word would reformat 101 of the 117 files under `src/` and
+`tests/`, and this code is hand-wrapped. `ruff` is configured as a
+linter only, with three rules ignored and a reason for each.
+
+New CI jobs: **lint** (which found seven dead or shadowed names the
+test suite could not see, and later refused a blind
+`pytest.raises(Exception)` of mine), **`python -m build` +
+`twine check`** -- the half of a release that cannot be found by
+running the code -- and **docs**, building with warnings as errors.
+
+### Also
+
+`CONTRIBUTING.md` and `CITATION.cff`. The first explains why there is
+no formatter and what a finished change looks like here; the second
+is what GitHub's "Cite this repository" button reads, and it says
+plainly that the papers behind whatever you used matter more than the
+software entry.
 
 ## v0.39.2
 
