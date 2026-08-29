@@ -695,6 +695,12 @@ class Action:
         to :class:`~stats.fitter.Fitter` and every dataset,
         likelihood, sampler and plot works on it unchanged.
 
+        An action carrying dynamical scalar fields is integrated
+        rather than solved pointwise -- see
+        :mod:`~theory.fields` -- and gains two parameters per
+        field, ``<name>0`` and ``d<name>0``, its value and
+        ``dphi/dN`` at ``a = 1``.
+
         Parameters
         ----------
         name : str
@@ -704,12 +710,6 @@ class Action:
         label : str, optional
             LaTeX name for figures, as in
             :func:`cosmology.custom.define_model`.
-
-        An action carrying dynamical scalar fields is integrated
-        rather than solved pointwise -- see
-        :mod:`~theory.fields` -- and gains two parameters per
-        field, ``<name>0`` and ``d<name>0``, its value and
-        ``dphi/dN`` at ``a = 1``.
         """
 
         if self.fields:

@@ -8,6 +8,8 @@ model's actual ``E(z)``/``dE/dz``, so they are computed by pushing
 posterior samples back through the cosmology -- which means they work
 for *every* model in the library, not just CPL.
 
+::
+
     z_t   the acceleration transition redshift, where the
           deceleration parameter q(z) changes sign
     q0    the present-day deceleration parameter, q(z=0)

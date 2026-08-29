@@ -2398,6 +2398,8 @@ class FitPlotter:
                 labels=["DESI", "DESI+SN", "DESI+SN+CMB"],
             )
 
+        The remaining parameters are as in :meth:`w0_wa_plane`.
+
         Parameters
         ----------
         other_fits : Fitter or list[Fitter]
@@ -2407,8 +2409,6 @@ class FitPlotter:
             One per fit (this one first). Defaults to each fit's
             dataset combination rather than its model name, since
             these are usually the same model on different data.
-
-        The remaining parameters are as in :meth:`w0_wa_plane`.
         """
 
         import matplotlib.pyplot as plt

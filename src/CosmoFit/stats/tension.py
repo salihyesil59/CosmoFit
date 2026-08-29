@@ -5,7 +5,7 @@ This library quotes tensions constantly -- ``4.1 sigma`` in the
 Hubble constant, ``2.9 sigma`` in ``S8`` -- and until now computed
 every one of them by hand as
 
-    sigma = |a - b| / sqrt(sigma_a^2 + sigma_b^2)
+    sigma = ``|a - b|`` / sqrt(sigma_a^2 + sigma_b^2)
 
 That formula is right, and it assumes three things that are worth
 being asked about each time rather than once: that both posteriors

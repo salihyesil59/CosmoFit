@@ -159,9 +159,13 @@ gui = [
     "streamlit>=1.38",
 ]
 
+# The API reference under docs/. `myst-parser` is what lets the site
+# include README.md and CHANGELOG.md verbatim rather than keeping a
+# second, drifting copy of them in reStructuredText.
 docs = [
-    "sphinx",
+    "sphinx>=8",
     "furo",
+    "myst-parser>=4",
 ]
 
 # ==========================================================

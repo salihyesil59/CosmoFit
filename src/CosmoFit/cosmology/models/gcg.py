@@ -23,7 +23,7 @@ class GCG(Cosmology):
         p = -A / rho^alpha
 
     that unifies dark matter and dark energy: it behaves like
-    pressureless dust at early times (large rho, small |p/rho|)
+    pressureless dust at early times (large rho, small ``|p/rho|``)
     and like a cosmological constant at late times (rho -> const),
     interpolating between the two as the universe expands. The
     ``Omega_m`` parameter here is therefore ordinary *baryonic +
@@ -31,12 +31,12 @@ class GCG(Cosmology):
     GCG fluid's own dust-like contribution.
 
     Density evolution (closed-form solution of the GCG continuity
-    equation):
+    equation)::
 
         rho_GCG(z) / rho_GCG(0)
             = [ A_s + (1 - A_s) (1+z)^(3(1+alpha)) ]^(1/(1+alpha))
 
-    Effective equation of state:
+    Effective equation of state::
 
         w(z) = -A_s / [ A_s + (1-A_s)(1+z)^(3(1+alpha)) ]
                * (1+z)^(3(1+alpha)) ... equivalently
@@ -48,8 +48,8 @@ class GCG(Cosmology):
     for any alpha); alpha = 1 is the original ("pure") Chaplygin
     gas of Kamenshchik, Moschella & Pasquier (2001).
 
-    Parameters
-    ----------
+    Notes
+    -----
     Uses the shared ``A_s`` and ``alpha`` fields of
     :class:`~cosmology.core.parameters.CosmologyParameters`
     (ignored by every other model, the same way LCDM ignores
