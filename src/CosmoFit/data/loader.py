@@ -1371,7 +1371,7 @@ def dataset_reference(
 
 # ------------------------------------------------------------
 
-def available_datasets():
+def available_datasets() -> dict[str, list[str]]:
 
     return {
 

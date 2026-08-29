@@ -59,11 +59,22 @@ Two HDF5 groups:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+
+from CosmoFit.typing import PathLike
+
+if TYPE_CHECKING:
+    # For the annotations only -- both are imported inside the
+    # methods that build them, since `emcee` is what owns the chain
+    # itself and this module only wraps it.
+    from emcee.backends import HDFBackend
+    from emcee.state import State
 
 
 # ============================================================
@@ -323,7 +334,7 @@ class ChainFile:
     (True, 6000)
     """
 
-    def __init__(self, path, name: str = DEFAULT_CHAIN_NAME):
+    def __init__(self, path: PathLike, name: str = DEFAULT_CHAIN_NAME):
 
         self.path = Path(path)
         self.name = str(name)
@@ -384,7 +395,7 @@ class ChainFile:
     # emcee backend
     # ------------------------------------------------------------
 
-    def backend(self, read_only: bool = False):
+    def backend(self, read_only: bool = False) -> HDFBackend:
         """
         An ``emcee.backends.HDFBackend`` for this chain -- what
         gets handed to ``emcee.EnsembleSampler(backend=...)``,
@@ -601,16 +612,16 @@ class StoredSampler:
 
     # --- chain ---------------------------------------------------
 
-    def get_chain(self, **kwargs):
+    def get_chain(self, **kwargs) -> np.ndarray:
         return self.backend.get_chain(**kwargs)
 
-    def get_log_prob(self, **kwargs):
+    def get_log_prob(self, **kwargs) -> np.ndarray:
         return self.backend.get_log_prob(**kwargs)
 
-    def get_last_sample(self):
+    def get_last_sample(self) -> State:  # -> emcee's State
         return self.backend.get_last_sample()
 
-    def get_autocorr_time(self, **kwargs):
+    def get_autocorr_time(self, **kwargs) -> np.ndarray:
         return self.backend.get_autocorr_time(**kwargs)
 
     @property
@@ -647,7 +658,7 @@ class StoredSampler:
 
         return int(self.metadata.get("burnin", 0) or 0)
 
-    def flat_samples(self, burnin=None) -> np.ndarray:
+    def flat_samples(self, burnin: int | None = None) -> np.ndarray:
         """
         Post-burn-in samples, walkers flattened together --
         the same array ``Fitter.flat_samples()`` returns.
@@ -658,7 +669,7 @@ class StoredSampler:
 
         return self.get_chain(discard=int(burnin), flat=True)
 
-    def samples_dict(self, burnin=None) -> dict:
+    def samples_dict(self, burnin: int | None = None) -> dict:
         """
         Flat samples as a dict of 1D arrays keyed by parameter
         name.
@@ -671,7 +682,7 @@ class StoredSampler:
             for i, name in enumerate(self.free_params)
         }
 
-    def summary(self, burnin=None) -> dict:
+    def summary(self, burnin: int | None = None) -> dict:
         """
         Posterior median +/- 68% interval per parameter, in the
         same shape as ``Fitter.summary()`` -- available here
@@ -749,7 +760,7 @@ def signature_id(signature: dict, extra: dict | None = None, length: int = 8) ->
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:length]
 
 
-def open_chain(path, name: str = DEFAULT_CHAIN_NAME) -> StoredSampler:
+def open_chain(path: PathLike, name: str = DEFAULT_CHAIN_NAME) -> StoredSampler:
     """
     Read a saved chain back for analysis, without a ``Fitter``
     and without touching any dataset.
@@ -767,7 +778,7 @@ def open_chain(path, name: str = DEFAULT_CHAIN_NAME) -> StoredSampler:
     return ChainFile(path, name=name).open()
 
 
-def chain_info(path, name: str = DEFAULT_CHAIN_NAME) -> dict:
+def chain_info(path: PathLike, name: str = DEFAULT_CHAIN_NAME) -> dict:
     """
     What's in a chain file -- model, datasets, parameters, how
     many steps -- without reading the chain itself.
@@ -779,7 +790,7 @@ def chain_info(path, name: str = DEFAULT_CHAIN_NAME) -> dict:
     return ChainFile(path, name=name).info()
 
 
-def list_chains(path) -> list[str]:
+def list_chains(path: PathLike) -> list[str]:
     """
     Names of every chain stored in ``path`` (one file can hold
     several -- see :class:`ChainFile`'s ``name``).

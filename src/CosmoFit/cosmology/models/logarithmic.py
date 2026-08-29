@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core import Cosmology
@@ -64,7 +66,7 @@ class LogarithmicDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w(self, z):
+    def w(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -97,13 +99,13 @@ class LogarithmicDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
 
         return self.Omega_de0 * self._density_factor(z)
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -123,7 +125,7 @@ class LogarithmicDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 

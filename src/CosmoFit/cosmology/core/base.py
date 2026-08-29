@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core.parameters import (
@@ -354,7 +356,7 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
-    def Omega_matter(self, z):
+    def Omega_matter(self, z: Redshift) -> Array:
         r"""
         Matter density at redshift ``z``, in units of today's
         critical density -- i.e. the ``Omega_m (1+z)^3`` term as it
@@ -389,7 +391,7 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
         raise NotImplementedError(
             f"{type(self).__name__} does not define E(z), the "
             f"dimensionless Hubble rate. Every model needs it: it "
@@ -400,7 +402,7 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         raise NotImplementedError(
             f"{type(self).__name__} does not define dEdz(z).\n\n"
             f"A model written by subclassing `Cosmology` directly "
@@ -420,7 +422,7 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         raise NotImplementedError(
             f"{type(self).__name__} does not define Omega_de(z), "
             f"the dark-energy density in units of today's critical "
@@ -430,12 +432,12 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
-    def H(self, z):
+    def H(self, z: Redshift) -> Array:
         return self.H0 * self.E(z)
 
     # ---------------------------------------------------------
 
-    def mu(self, a, k=None):
+    def mu(self, a: Redshift, k: float | None = None) -> Array:
         """
         Effective-to-Newtonian gravitational coupling ratio,
         G_eff(a,k)/G_N, entering the linear growth equation solved

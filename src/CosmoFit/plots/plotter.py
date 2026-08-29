@@ -24,7 +24,25 @@ package to be installed.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+from CosmoFit.typing import PathLike
+
+if TYPE_CHECKING:
+    # Only for the return annotations below. `matplotlib.figure`
+    # costs 0.65 s to import -- more than the whole rest of the
+    # library -- and the point of importing matplotlib inside the
+    # methods rather than here is that somebody who never draws a
+    # figure never pays it. A type checker reads this block; the
+    # interpreter does not.
+    from matplotlib.figure import Figure
+
+    # A circular import at runtime -- `stats.fitter` imports this
+    # module to attach `fitter.plots`. Under TYPE_CHECKING it is
+    # just a name, and a checker resolves it fine.
+    from CosmoFit.stats.fitter import Fitter
 
 from CosmoFit.likelihoods import (
     CCLikelihood,
@@ -810,7 +828,7 @@ class FitPlotter:
     # MCMC diagnostics
     # ============================================================
 
-    def chain(self, save_path=None):
+    def chain(self, save_path: PathLike | None = None) -> Figure:
         """
         Trace plot of every free parameter's walkers vs. MCMC step.
         """
@@ -847,7 +865,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def corner(self, burnin=None, save_path=None, **corner_kwargs):
+    def corner(
+        self,
+        burnin: int | None = None,
+        save_path: PathLike | None = None,
+        **corner_kwargs,
+    ) -> Figure:
         """
         Corner (triangle) plot of the free-parameter posterior.
         """
@@ -1004,7 +1027,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def hubble_diagram(self, save_path=None, n_draws=300, seed=0):
+    def hubble_diagram(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Pantheon+ Hubble diagram: corrected apparent magnitude vs.
         redshift, with a residuals sub-panel.
@@ -1034,7 +1062,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def des_hubble_diagram(self, save_path=None, n_draws=300, seed=0):
+    def des_hubble_diagram(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DES-SN5YR Hubble diagram: distance modulus vs. redshift,
         with a residuals sub-panel.
@@ -1072,7 +1105,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def union3_hubble_diagram(self, save_path=None, n_draws=300, seed=0):
+    def union3_hubble_diagram(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Union3 Hubble diagram: binned distance modulus vs.
         redshift, with a residuals sub-panel.
@@ -1111,7 +1149,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def hz(self, save_path=None, n_draws=300, seed=0):
+    def hz(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Cosmic Chronometer H(z) diagram: expansion-rate
         measurements vs. redshift against the model H(z) curve.
@@ -1151,7 +1194,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def growth(self, save_path=None, n_draws=300, seed=0):
+    def growth(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         fsigma8(z) growth-rate diagram: RSD measurements (e.g. the
         "Gold-2018" compilation) against the model's fsigma8(z)
@@ -1265,7 +1313,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def bao_distances(self, save_path=None, n_draws=300, seed=0):
+    def bao_distances(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DESI BAO distance plot: one panel per observable type
         (D_M/r_d, D_H/r_d, D_V/r_d), each showing the tracers'
@@ -1287,7 +1340,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def sdss_bao_distances(self, save_path=None, n_draws=300, seed=0):
+    def sdss_bao_distances(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         SDSS BAO distance plot (BOSS DR12 + eBOSS DR16 LRG/QSO):
         one panel per observable type (D_M/r_d, D_H/r_d), each
@@ -1303,7 +1361,12 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def lowz_bao_distances(self, save_path=None, n_draws=300, seed=0):
+    def lowz_bao_distances(
+        self,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Low-redshift BAO plot (6dFGS z=0.106, SDSS DR7 MGS z=0.15):
         one panel per observable type against the model curve.
@@ -1331,7 +1394,7 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def cmb_spectra(self, save_path=None):
+    def cmb_spectra(self, save_path: PathLike | None = None) -> Figure:
         r"""
         The CMB angular power spectra: measured bandpowers against
         the model, with a residual panel under each.
@@ -1434,7 +1497,7 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def cmb_lensing(self, save_path=None):
+    def cmb_lensing(self, save_path: PathLike | None = None) -> Figure:
         r"""
         CMB lensing bandpowers against the model.
 
@@ -1532,7 +1595,11 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def eboss_surface(self, dataset="eboss_lya", save_path=None):
+    def eboss_surface(
+        self,
+        dataset: str = "eboss_lya",
+        save_path: PathLike | None = None,
+    ) -> Figure:
         r"""
         An eBOSS DR16 tabulated BAO likelihood, drawn as the surface
         it actually is, with the current model's prediction on it.
@@ -1707,7 +1774,7 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def planck_residuals(self, save_path=None):
+    def planck_residuals(self, save_path: PathLike | None = None) -> Figure:
         """
         Standardized-residual ("pull") plot for the Planck
         distance-prior vector (R, l_A, omega_b_h2):
@@ -1756,7 +1823,13 @@ class FitPlotter:
     # Dark-energy / background diagnostics
     # ============================================================
 
-    def w_of_z(self, z_max=2.5, save_path=None, n_draws=300, seed=0):
+    def w_of_z(
+        self,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Dark-energy equation-of-state evolution w(z), with a
         posterior band and the LCDM reference line w = -1 -- the
@@ -1817,18 +1890,18 @@ class FitPlotter:
 
     def w0_wa_plane(
         self,
-        burnin=None,
-        levels=(0.68, 0.95),
-        bins=80,
-        smooth=1.5,
-        w0_range=None,
-        wa_range=None,
-        annotate_regions=True,
-        show_fractions=False,
-        label=None,
-        color=COLOR_POSTERIOR,
-        save_path=None,
-    ):
+        burnin: int | None = None,
+        levels: tuple[float, ...] = (0.68, 0.95),
+        bins: int = 80,
+        smooth: float = 1.5,
+        w0_range: tuple[float, float] | None = None,
+        wa_range: tuple[float, float] | None = None,
+        annotate_regions: bool = True,
+        show_fractions: bool = False,
+        label: str | None = None,
+        color: str = COLOR_POSTERIOR,
+        save_path: PathLike | None = None,
+    ) -> Figure:
         """
         The (w0, wa) plane: this fit's 2D posterior contours on
         top of the four dark-energy regions -- phantom,
@@ -1987,7 +2060,13 @@ class FitPlotter:
 
     # ------------------------------------------------------------
 
-    def deceleration(self, z_max=2.5, save_path=None, n_draws=300, seed=0):
+    def deceleration(
+        self,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Deceleration parameter q(z) = -1 + (1+z) E'(z)/E(z), with
         a posterior band, marking the deceleration/acceleration
@@ -2254,9 +2333,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_hz(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         H(z) diagram (see :meth:`hz`) with this fit's curve overlaid
         with one or more other models' curves over the same Cosmic
@@ -2280,9 +2363,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_growth(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         fsigma8(z) growth-rate diagram (see :meth:`growth`) with
         this fit's curve overlaid with one or more other models'
@@ -2311,9 +2398,14 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_deceleration(
-        self, other_fits=None, labels=None, z_max=2.5, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Deceleration parameter q(z) (see :meth:`deceleration`) for
         this fit and one or more other models on the same axes,
@@ -2336,9 +2428,14 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_w_of_z(
-        self, other_fits=None, labels=None, z_max=2.5, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        z_max: float = 2.5,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Dark-energy equation of state w(z) (see :meth:`w_of_z`) for
         this fit and one or more other models on the same axes.
@@ -2366,17 +2463,17 @@ class FitPlotter:
 
     def compare_w0_wa_plane(
         self,
-        other_fits=None,
-        labels=None,
-        burnin=None,
-        levels=(0.68, 0.95),
-        bins=80,
-        smooth=1.5,
-        w0_range=None,
-        wa_range=None,
-        annotate_regions=True,
-        save_path=None,
-    ):
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        burnin: int | None = None,
+        levels: tuple[float, ...] = (0.68, 0.95),
+        bins: int = 80,
+        smooth: float = 1.5,
+        w0_range: tuple[float, float] | None = None,
+        wa_range: tuple[float, float] | None = None,
+        annotate_regions: bool = True,
+        save_path: PathLike | None = None,
+    ) -> Figure:
         """
         The (w0, wa) plane (see :meth:`w0_wa_plane`) with several
         posteriors overlaid -- the "what does adding this dataset
@@ -2510,9 +2607,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_hubble_diagram(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         Pantheon+ Hubble diagram (see :meth:`hubble_diagram`) with
         this fit's curve and one or more other models' curves over
@@ -2530,9 +2631,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_des_hubble_diagram(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DES-SN5YR Hubble diagram (see :meth:`des_hubble_diagram`)
         with this fit's curve and one or more other models' curves
@@ -2625,9 +2730,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_bao_distances(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         DESI BAO distance plot (see :meth:`bao_distances`) with this
         fit's curves and one or more other models' curves over the
@@ -2642,9 +2751,13 @@ class FitPlotter:
     # ------------------------------------------------------------
 
     def compare_sdss_bao_distances(
-        self, other_fits=None, labels=None, save_path=None,
-        n_draws=300, seed=0,
-    ):
+        self,
+        other_fits: Fitter | list[Fitter] | None = None,
+        labels: list[str] | None = None,
+        save_path: PathLike | None = None,
+        n_draws: int = 300,
+        seed: int = 0,
+    ) -> Figure:
         """
         SDSS BAO distance plot (see :meth:`sdss_bao_distances`) with
         this fit's curves and one or more other models' curves over

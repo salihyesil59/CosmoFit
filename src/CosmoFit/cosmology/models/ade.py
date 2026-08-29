@@ -8,6 +8,8 @@ import numpy as np
 
 from scipy.integrate import solve_ivp
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.hermite import hermite_spline
 from CosmoFit.cosmology.numerics.powers import cube
 
@@ -209,7 +211,7 @@ class ADE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def omega_de_fraction(self, z):
+    def omega_de_fraction(self, z: Redshift) -> Array:
         """
         The **density parameter** ``rho_DE(z) / rho_crit(z)``, which
         is what the ODE solves for -- not :meth:`Omega_de`, which is
@@ -291,7 +293,7 @@ class ADE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         """
         Dark-energy density in units of today's critical density --
         the term inside ``E(z)^2``, as every other model here
@@ -302,7 +304,7 @@ class ADE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def w_de(self, z):
+    def w_de(self, z: Redshift) -> Array:
         r"""
         ``w = -1 + (2 / 3n) sqrt(Omega_DE) / a``.
 
@@ -327,7 +329,7 @@ class ADE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -341,7 +343,7 @@ class ADE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
         """
         Analytic, from the ODE rather than by differencing ``E``.
         """

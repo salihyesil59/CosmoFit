@@ -51,7 +51,11 @@ fallback (they keep the base class's strict
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
+
+from CosmoFit.typing import Array
 
 from CosmoFit.cosmology.core.base import Cosmology
 
@@ -114,14 +118,14 @@ def _numerical_dEdz(self, z, h: float = 1e-4):
 
 def define_model(
     name: str,
-    E,
+    E: Callable[..., Array] | str,
     *,
     extra_params: dict | None = None,
     label: str | None = None,
-    w=None,
-    dEdz=None,
-    Omega_de=None,
-    mu=None,
+    w: Callable[..., Array] | str | None = None,
+    dEdz: Callable[..., Array] | str | None = None,
+    Omega_de: Callable[..., Array] | str | None = None,
+    mu: Callable[..., Array] | str | None = None,
 ) -> type:
     """
     Build a new :class:`~cosmology.core.base.Cosmology` subclass

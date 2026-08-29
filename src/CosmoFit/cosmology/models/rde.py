@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.numerics.powers import cube
 
 from CosmoFit.cosmology.core import Cosmology
@@ -130,7 +132,7 @@ class RDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         r"""
         Dark-energy density in units of today's critical density --
         ``E(z)^2 - Omega_m (1+z)^3``, as every other model here
@@ -156,7 +158,7 @@ class RDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         self._check_flat()
 
@@ -174,7 +176,7 @@ class RDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 

@@ -592,7 +592,7 @@ class CAMBBackend:
 
     # ---------------------------------------------------------
 
-    def sigma8(self) -> float:
+    def sigma8(self) -> float:  # type: ignore[return-value]
         r"""
         ``sigma_8`` as the Boltzmann code derives it, from the
         primordial amplitude and the transfer function.

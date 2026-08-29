@@ -49,6 +49,37 @@ So match the surrounding code by eye. Concretely:
 ruff check src tests app tools
 ```
 
+## Annotations
+
+The package ships `py.typed`, which tells every downstream type
+checker to trust its annotations. That makes an annotation a promise
+rather than a comment, and two tests hold the bar: every public
+callable is fully annotated, and every annotation resolves. **Adding
+a public method without annotating it fails the suite**, which is
+deliberate.
+
+Use the aliases in `CosmoFit.typing` for anything taking a redshift
+and returning a number per redshift -- `z: Redshift` in and
+`-> Array` out. `Array` is `np.float64 | NDArray[np.float64]` because
+that is the truth: a scalar in gives a scalar out.
+
+Where an annotation would need an import that is expensive or
+circular, put the import under `if TYPE_CHECKING`. A checker reads
+that block and the interpreter does not, which is the point --
+`matplotlib.figure` costs 0.65 s to import, more than the rest of the
+library put together, and somebody who never draws a figure should
+not pay it.
+
+`mypy` is in the `dev` extra:
+
+```bash
+mypy src/CosmoFit --ignore-missing-imports
+```
+
+It currently reports around eighty errors, all inside function bodies
+rather than in the signatures `py.typed` is a promise about. CI does
+not gate on it. Do not add to that number; reducing it is welcome.
+
 ## What a finished change looks like
 
 **A test that fails before the fix.** For a bug, write the test

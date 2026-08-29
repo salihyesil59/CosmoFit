@@ -12,10 +12,29 @@ following :class:`BaseSampler` can be dropped in without touching
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+from collections.abc import Callable
+
 import time
 from abc import ABC, abstractmethod
 
 import numpy as np
+
+from CosmoFit.typing import Redshift
+
+if TYPE_CHECKING:
+    # For the annotations only. `emcee` is a hard dependency and is
+    # imported inside `run()`; the two `stats` types would be a
+    # circular import at runtime, since `posterior` and `priors` are
+    # what a sampler is handed rather than what it builds.
+    import emcee
+    from multiprocessing.pool import Pool
+
+    from emcee.backends import HDFBackend
+
+    from CosmoFit.stats.posterior import LogPosterior
+    from CosmoFit.stats.priors import UniformPrior
 
 
 # ============================================================
@@ -29,7 +48,18 @@ class BaseSampler(ABC):
     """
 
     @abstractmethod
-    def run(self, logpost, prior, theta0, **kwargs):
+    def run(
+        self,
+        logpost: LogPosterior,
+        prior: UniformPrior,
+        theta0: Redshift,
+        **kwargs,
+    ) -> emcee.EnsembleSampler:
+        # Subclasses spell `**kwargs` out as named parameters, which
+        # is what the interface is for and what a type checker calls
+        # a Liskov violation. The `# type: ignore[override]` on the
+        # one implementation says so rather than widening this into
+        # something that documents nothing.
         """
         Run the sampler and return the backend-native result
         object (e.g. an ``emcee.EnsembleSampler`` for
@@ -65,20 +95,20 @@ class EnsembleSampler(BaseSampler):
 
     # ------------------------------------------------------------
 
-    def run(
+    def run(  # type: ignore[override]
         self,
-        logpost,
-        prior,
-        theta0,
+        logpost: LogPosterior,
+        prior: UniformPrior,
+        theta0: Redshift,
         nwalkers: int = 48,
         nsteps: int = 6000,
-        initial_scatter=None,
+        initial_scatter: dict[str, float] | None = None,
         seed: int = 42,
         progress: bool = True,
-        callback=None,
-        pool=None,
-        backend=None,
-    ):
+        callback: Callable[[int, int, float], None] | None = None,
+        pool: Pool | None = None,
+        backend: HDFBackend | None = None,
+    ) -> emcee.EnsembleSampler:
         """
         Initialize walkers around ``theta0`` and run the sampler.
 

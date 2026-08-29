@@ -16,11 +16,13 @@ breaking change, and having to say so in this file is the reminder.
 
 from __future__ import annotations
 
+import ast
 import importlib
 import inspect
 import subprocess
 import sys
 import typing
+from pathlib import Path
 
 import pytest
 
@@ -248,6 +250,72 @@ def test_importing_the_library_does_not_import_the_optional_backends():
 # ============================================================
 
 
+def _type_checking_namespace(module) -> dict:
+    """
+    The names a module imports under ``if TYPE_CHECKING``, imported
+    for real.
+
+    A type checker reads that block; the interpreter does not, which
+    is the whole point of it -- ``matplotlib.figure`` costs 0.65 s to
+    import, more than the rest of this library put together, and
+    nobody who never draws a figure should pay it. So the annotation
+    is correct for a checker and unresolvable at runtime, and a test
+    that wants to verify it has to do what the checker does.
+    """
+
+    try:
+        source = inspect.getsource(module)
+    except (OSError, TypeError):  # pragma: no cover - a builtin module
+        return {}
+
+    namespace = {}
+
+    for node in ast.walk(ast.parse(source)):
+
+        if not isinstance(node, ast.If):
+            continue
+
+        test = getattr(node.test, "id", None) or getattr(node.test, "attr", None)
+
+        if test != "TYPE_CHECKING":
+            continue
+
+        for statement in node.body:
+
+            if isinstance(statement, ast.ImportFrom):
+                imported = importlib.import_module(statement.module)
+                for alias in statement.names:
+                    namespace[alias.asname or alias.name] = getattr(
+                        imported, alias.name
+                    )
+
+            elif isinstance(statement, ast.Import):
+                for alias in statement.names:
+                    imported = importlib.import_module(alias.name)
+                    namespace[alias.asname or alias.name.split(".")[0]] = (
+                        imported if alias.asname
+                        else importlib.import_module(alias.name.split(".")[0])
+                    )
+
+    return namespace
+
+
+def _public_callables():
+    """Every function and method reachable from ``CosmoFit.__all__``."""
+
+    for name in CosmoFit.__all__:
+
+        obj = getattr(CosmoFit, name)
+
+        if inspect.isclass(obj):
+            for member_name, member in vars(obj).items():
+                if inspect.isfunction(member) and not member_name.startswith("_"):
+                    yield f"{name}.{member_name}", member
+
+        elif inspect.isfunction(obj):
+            yield name, obj
+
+
 def test_public_annotations_resolve():
     """
     Every module here uses ``from __future__ import annotations``, so
@@ -255,40 +323,84 @@ def test_public_annotations_resolve():
     somebody calls ``get_type_hints`` -- which no test and no user
     ever did.
 
-    This is what the package would have to survive before it could
-    claim to be typed (a ``py.typed`` marker); it does not claim that
-    yet, and this is the half of the claim that already holds.
+    Resolved against the ``TYPE_CHECKING`` names too, because that is
+    what a type checker sees, and what the ``py.typed`` marker this
+    package now ships is a promise about.
     """
 
     unresolvable = []
 
-    for name in CosmoFit.__all__:
+    for label, fn in _public_callables():
 
-        obj = getattr(CosmoFit, name)
+        module = inspect.getmodule(fn)
 
-        targets = []
+        namespace = {**vars(module), **_type_checking_namespace(module)}
 
-        if inspect.isclass(obj):
-            targets.append(obj)
-            targets.extend(
-                member
-                for member in vars(obj).values()
-                if inspect.isfunction(member)
-            )
-
-        elif inspect.isfunction(obj):
-            targets.append(obj)
-
-        for target in targets:
-            try:
-                typing.get_type_hints(target)
-            except Exception as exc:  # noqa: BLE001
-                unresolvable.append(
-                    f"{name}: {getattr(target, '__qualname__', target)} "
-                    f"({type(exc).__name__}: {exc})"
-                )
+        try:
+            typing.get_type_hints(fn, globalns=namespace)
+        except Exception as exc:  # noqa: BLE001
+            unresolvable.append(f"{label} ({type(exc).__name__}: {exc})")
 
     assert not unresolvable, "\n".join(unresolvable)
+
+
+def test_the_public_surface_is_completely_annotated():
+    """
+    What ``py.typed`` claims, asserted rather than assumed.
+
+    Shipping the marker tells every downstream type checker to trust
+    this package's annotations. A surface that is *partly* annotated
+    is worse than one that is not: the gaps come back as ``Any``,
+    which silences errors instead of finding them. So the bar is all
+    of it, and this is what holds it there -- adding a public method
+    without annotating it fails here.
+
+    ``*args`` and ``**kwargs`` are exempt, as they conventionally
+    are: every one on this surface is a pass-through to emcee,
+    corner or dynesty, and naming a type for it would be inventing
+    one.
+    """
+
+    variadic = (
+        inspect.Parameter.VAR_POSITIONAL,
+        inspect.Parameter.VAR_KEYWORD,
+    )
+
+    unannotated = []
+
+    for label, fn in _public_callables():
+
+        signature = inspect.signature(fn)
+
+        if signature.return_annotation is inspect.Signature.empty:
+            unannotated.append(f"{label}: no return annotation")
+
+        for name, parameter in signature.parameters.items():
+
+            if name == "self" or parameter.kind in variadic:
+                continue
+
+            if parameter.annotation is inspect.Parameter.empty:
+                unannotated.append(f"{label}: parameter '{name}'")
+
+    assert not unannotated, "\n".join(unannotated)
+
+
+def test_the_py_typed_marker_is_shipped():
+    """
+    The marker is what makes any of the above visible downstream. It
+    has to be in the installed package, not merely in the
+    repository -- so this checks the imported package's own
+    directory, and `pyproject.toml`'s `package-data` is what puts it
+    there.
+    """
+
+    marker = Path(CosmoFit.__file__).parent / "py.typed"
+
+    assert marker.exists(), (
+        "py.typed is missing from the installed package -- "
+        "check [tool.setuptools.package-data] in pyproject.toml"
+    )
 
 
 # ============================================================

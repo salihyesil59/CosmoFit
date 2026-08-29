@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.typing import Array, Redshift
+
 from CosmoFit.cosmology.core import Cosmology
 
 
@@ -106,7 +108,7 @@ class RunningVacuum(Cosmology):
 
     # ---------------------------------------------------------
 
-    def E(self, z):
+    def E(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -122,7 +124,7 @@ class RunningVacuum(Cosmology):
 
     # ---------------------------------------------------------
 
-    def dEdz(self, z):
+    def dEdz(self, z: Redshift) -> Array:
 
         z = np.asarray(z, dtype=float)
 
@@ -163,7 +165,7 @@ class RunningVacuum(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_de(self, z):
+    def Omega_de(self, z: Redshift) -> Array:
         r"""
         The running vacuum density,
 
@@ -196,7 +198,7 @@ class RunningVacuum(Cosmology):
 
     # ---------------------------------------------------------
 
-    def Omega_matter(self, z):
+    def Omega_matter(self, z: Redshift) -> Array:
         r"""
         ``Omega_m (1+z)^{3(1-nu)}`` -- matter dilutes more slowly
         than in LCDM because the running vacuum is feeding it.
