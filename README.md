@@ -218,14 +218,19 @@ The project is designed to make cosmological analyses simple, reproducible, and 
 
 ## Installation
 
-Clone the repository and install CosmoFit in editable mode.
+```bash
+pip install cosmofit
+```
+
+Everything in the core works with no extras at all -- twenty-one
+bundled datasets, twenty models, the samplers and every figure. The
+four optional extras are each there for one thing:
 
 ```bash
-git clone https://github.com/salihyesil59/CosmoFit.git
-
-cd CosmoFit
-
-pip install -e .
+pip install "cosmofit[cmb]"       # CAMB: the CMB computed rather than compressed
+pip install "cosmofit[theory]"    # sympy: derive a model from its action
+pip install "cosmofit[evidence]"  # dynesty: nested sampling, Bayes factors
+pip install "cosmofit[speed]"     # numba: ~1.7x on growth-heavy fits, nothing else
 ```
 
 Everything is importable from the top-level package:
@@ -233,6 +238,16 @@ Everything is importable from the top-level package:
 ```python
 from CosmoFit import CPL, Fitter
 ```
+
+To work on the library itself, clone it instead:
+
+```bash
+git clone https://github.com/salihyesil59/CosmoFit.git
+cd CosmoFit
+pip install -e ".[dev,cmb,theory,evidence,speed,docs]"
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -1056,30 +1071,26 @@ tools repeat with confidence.
 
 ### Publishing
 
-The library is not on PyPI yet, and the API reference is not
-deployed yet. Both have workflows, both are `workflow_dispatch`
-only, and that is the design rather than a placeholder: a version
-number, once used, can never be reused, and a site once deployed is
-public under this repository's name. Neither belongs on a tag-push
-trigger where it would happen as a side effect of something else.
+The library is on **[PyPI](https://pypi.org/project/cosmofit/)** and
+the API reference is at
+**[salihyesil59.github.io/CosmoFit](https://salihyesil59.github.io/CosmoFit/)**.
 
-`publish` builds, runs `twine check --strict`, and uploads through
-PyPI's Trusted Publishing -- GitHub mints a short-lived OIDC token
-and PyPI accepts it in place of an API token, so no long-lived
-secret lives in this repository. It offers TestPyPI first and
-defaults to it. `pages` deploys the site; run it before `publish`,
-so the `Documentation` link in PyPI's sidebar is live rather than a
-404.
+Both go out through workflows that are `workflow_dispatch` only, and
+that is the design rather than a placeholder: a version number, once
+used, can never be reused, and a site once deployed is public under
+this repository's name. Neither belongs on a tag-push trigger, where
+it would happen as a side effect of something else. `publish` uploads
+through PyPI's Trusted Publishing -- GitHub mints a short-lived OIDC
+token and PyPI accepts it in place of an API token -- so no
+long-lived secret lives in this repository.
 
-The release was rehearsed before either existed: `cosmofit` is free
-on both indexes, both artifacts pass `twine check --strict`, the
-wheel is 22 MB against PyPI's 100 MB limit, and it was installed
-into a clean virtual environment outside this source tree and fitted
-LCDM to CC+DESI+Pantheon++Planck -- 1671 points, H0 = 67.5,
-Omega_m = 0.313 -- with `py.typed` present and the `theory` extra
-correctly absent. That rehearsal is what found two of the six false
-annotations, and what found that the sdist was missing
-`CITATION.cff`.
+The release was rehearsed twice before it was made. First locally:
+the wheel installed into a clean virtual environment outside this
+source tree, fitting LCDM to CC+DESI+Pantheon++Planck -- 1671 points,
+H0 = 67.5, Omega_m = 0.313. Then on TestPyPI, installed back down
+from the index and giving the same fit to the digit. That first
+rehearsal is what found two of the six false annotations, and what
+found that the sdist was missing `CITATION.cff`.
 
 ## Contributing
 

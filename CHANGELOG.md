@@ -168,6 +168,17 @@ The `Changelog` and `Examples` entries in `[project.urls]` move from
 API reference. `Development Status` goes from `4 - Beta` to
 `5 - Production/Stable`.
 
+And with `main` moved, both workflows could finally run:
+
+* the API reference is live at
+  <https://salihyesil59.github.io/CosmoFit/>;
+* `pip install cosmofit` works --
+  <https://pypi.org/project/cosmofit/>.
+
+Published to TestPyPI first, installed back down from that index into
+a clean environment, and checked to give the same fit to the digit
+before the real one was touched.
+
 ## v0.40.0
 
 Everything the Roadmap listed for **v1.0.0**, worked through against

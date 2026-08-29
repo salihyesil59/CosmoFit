@@ -42,15 +42,19 @@ narrative:
 ## Installing
 
 ```bash
-pip install -e ".[cmb,theory,evidence,speed]"
+pip install cosmofit
 ```
 
-Everything in the core works with no extras at all. The four above
-are: `cmb` (CAMB, for the from-scratch CMB spectra -- the compressed
-Planck distance priors need nothing), `theory` (sympy, for deriving a
-model from an action), `evidence` (dynesty, for nested sampling) and
-`speed` (numba, worth about 1.7x on growth-heavy fits and nothing
-elsewhere).
+Everything in the core works with no extras at all. The four
+optional ones are `cmb` (CAMB, for the from-scratch CMB spectra --
+the compressed Planck distance priors need nothing), `theory`
+(sympy, for deriving a model from an action), `evidence` (dynesty,
+for nested sampling) and `speed` (numba, worth about 1.7x on
+growth-heavy fits and nothing elsewhere):
+
+```bash
+pip install "cosmofit[cmb,theory,evidence,speed]"
+```
 
 ```{toctree}
 :maxdepth: 2
