@@ -122,7 +122,8 @@ Examples = "https://github.com/salihyesil59/CosmoFit/tree/dev/examples"
 # No formatter here on purpose. This codebase is hand-wrapped --
 # aligned tables of numbers, comments set against the expressions
 # they explain, deliberate blank lines inside long formulae -- and
-# `black` (or `ruff format`) would rewrite 102 of its 111 files,
+# `black` (or `ruff format`) would rewrite 101 of the 117 files
+# under src/ and tests/,
 # destroying that and every line of `git blame` with it. `ruff` is
 # configured below as a *linter* only; see CONTRIBUTING.md.
 dev = [
