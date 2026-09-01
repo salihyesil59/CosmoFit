@@ -302,6 +302,44 @@ it is which initialises first and not merely that both are loaded.
 No thread setting is involved either -- with `OMP_NUM_THREADS` unset
 the reproduction is 8/8 on 16 cores.
 
+### Checked against the notebooks that derive the same physics
+
+The `wljs-gr-toolkit` notebooks reduce a gravitational action on FLRW
+in Wolfram Language; :mod:`theory.minisuperspace` does the same
+reduction in sympy. The two share a convention list and nothing else
+-- different languages, different symbolic engines, different root
+finders, written years apart -- and they had never been compared.
+
+They agree to **3 parts in 1e16**, machine precision, for LCDM and for
+the f(T) power law at `n = -0.5, 0.2, 0.7`, through both routes this
+library offers: the hand-written classes in `cosmology.models` and the
+action compiler in `theory.Action`. `tests/test_notebook_agreement.py`
+pins the references, which the toolkit's `cosmofit-reference.wls`
+regenerates by loading its GR-02 notebook and driving that notebook's
+own functions rather than re-deriving anything.
+
+The algebra matching is the stronger half. GR-02's f(T) constraint is
+
+    E^2 - 6^(n-1) alpha (2n-1) H0^(2n-2) E^(2n) = Omega_m (1+z)^3
+
+and imposing `E(0) = 1` sends the coefficient to `1 - Omega_m`, which
+is exactly the relation `FTPowerLaw` was written to solve. Two
+implementations arriving at the same *equation* before they arrive at
+the same numbers is what makes the numerical agreement mean something
+rather than being two solvers agreeing about one shared mistake.
+
+`tests/test_ft.py` already pinned Wolfram values for one model from the
+GR-06 notebook, so this extends an existing practice rather than
+inventing one; what is new is covering GR-02's engine and the action
+compiler.
+
+One incidental result worth recording: GR-02 gives the f(T) and f(Q)
+power laws the **identical** background constraint, because both
+scalars are `-6H^2` on flat FLRW. That is correct rather than a bug,
+and it means background data alone cannot separate those two families
+-- which is an argument for the growth observables, not against the
+models.
+
 ### Carried forward, not hidden
 
 The same toolkit's GR-08 notebook finds that f(T)'s extra Lorentz
