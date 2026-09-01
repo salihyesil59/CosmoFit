@@ -292,7 +292,15 @@ the reproduction turns out to need no cosmology code at all.
 of the lensing step is bit-correct in a failing run, the guard
 refuses to hand a NaN spectrum to a likelihood, and the posterior
 counts these separately from ordinary rejections. The remaining work
-is a report to the upstream projects, not a change here.
+was a report to the upstream projects, not a change here; that is
+filed as [cmbant/CAMB#210](https://github.com/cmbant/CAMB/issues/210).
+
+One more measurement went into that report and is worth keeping here:
+the failure is **order-dependent**. Importing `scipy.stats` *after*
+the glyph layout rather than before it is clean, 0/8, so what decides
+it is which initialises first and not merely that both are loaded.
+No thread setting is involved either -- with `OMP_NUM_THREADS` unset
+the reproduction is 8/8 on 16 cores.
 
 ### Carried forward, not hidden
 
