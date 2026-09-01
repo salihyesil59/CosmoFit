@@ -232,6 +232,68 @@ diagnosable bug and noise. Both the NaN and the module-scoped
 fixtures predate the f(T) work; the cascade reproduces on the commit
 before it.
 
+**Since traced, and it is not ours** -- see the next entry.
+
+### The NaN spectrum, traced out of this library entirely
+
+The intermittent all-NaN spectrum above is reproducible in about six
+seconds by a script that imports nothing from CosmoFit. Three
+ingredients, all of them required, any two harmless:
+
+    import scipy.stats
+    font.set_text("Redshift z")      # one FreeType layout
+    camb.get_results(pars)           # lensing potential is NaN
+
+`tools/camb_nan_repro.py` is that script; it reports 7 runs in 10 on
+this machine. Each run needs a fresh process, because the outcome is
+decided once per process -- repeating the call inside one process
+gives the same answer every time, which is why the guard's message
+says so.
+
+**What breaks is narrow.** In the same call, the background, the
+transfer functions, `P(k)`, `sigma8` and the *unlensed* CMB spectra
+are all correct. Only `lens_potential` is NaN, and `lensed_scalar`
+and `total` inherit it. `NonLinear = none` makes the same call
+finite, so it is confined to the non-linear lensing branch.
+
+**How it was narrowed**, by rates over >= 8 fresh processes each,
+never single runs -- the failure is a coin flip and bisecting it one
+run at a time produces noise:
+
+| in the process | NaN |
+| --- | --- |
+| a fitter, and a 1200-evaluation chain | 0/8 |
+| a figure built, with labels, legend and styling | 0/10 |
+| `tight_layout()` on that figure | 9/10 |
+| the same, with no CosmoFit imported | 0/8 |
+| the same bbox measurement, no text on the figure | 0/8 |
+| `scipy.stats` + one `FT2Font.set_text` | 4/8 |
+| `linalg`, `special`, `integrate`, `interpolate`, `optimize`, `sparse` | 0/8 each |
+
+Four explanations were tested and are wrong. It is **not the
+floating-point mode**: MXCSR and the CRT control word are identical
+(`0x1fa0`) in 8 of 8 failing runs. It is **not memory pressure**:
+substituting small numpy churn, large numpy churn or Python object
+churn for the text layout is 0/8 in all three. It is **not scipy's
+bundled OpenBLAS**: `scipy.linalg` is what loads that, and alone it
+is clean. And it is **not HMcode's physics**: its feedback output is
+byte-identical between failing and clean runs, and the non-linear
+`P(k)` it produces is finite.
+
+Two earlier conclusions in this file are superseded by that. The
+trigger was recorded as CosmoFit's plotting path; the plotting path
+was simply the first thing in the suite that laid out text. And the
+failure was recorded as not reportable upstream, on the grounds that
+replaying the captured `CAMBparams` outside the test process came
+back clean -- true of the inputs, but too wide a conclusion, since
+the reproduction turns out to need no cosmology code at all.
+
+**Nothing here is a correctness risk for a fit.** Everything upstream
+of the lensing step is bit-correct in a failing run, the guard
+refuses to hand a NaN spectrum to a likelihood, and the posterior
+counts these separately from ordinary rejections. The remaining work
+is a report to the upstream projects, not a change here.
+
 ### Carried forward, not hidden
 
 The same toolkit's GR-08 notebook finds that f(T)'s extra Lorentz
