@@ -408,3 +408,69 @@ def integrate(system, values, R_today, N_lo, N_hi) -> History:
         ],
         float(np.max(residual / scale)),
     )
+
+
+# ============================================================
+# Growth: the scale-dependent coupling
+# ============================================================
+
+def quasi_static_mu(f_R, f_RR, a, k):
+    r"""
+    ``G_eff(a,k)/G_N`` for ``f(R)`` gravity, quasi-static and
+    sub-horizon:
+
+        mu = (1/f_R) (1 + 4m)/(1 + 3m),    m = (k/a)^2 f_RR/f_R
+
+    Perturbing the field equations, dropping time derivatives of the
+    potentials against spatial ones, and keeping only the terms
+    carrying ``k^2`` leaves this. It is the standard result -- the
+    scalaron's Compton wavelength is what ``m`` measures, and the
+    two limits are the familiar ones: ``m -> 0`` (scales far outside
+    it) gives ``mu = 1/f_R``, and ``m -> infinity`` (far inside)
+    gives ``mu = 4/(3 f_R)``, the extra third being the scalar
+    fifth force.
+
+    Parameters
+    ----------
+    f_R, f_RR : float or ndarray
+        First and second derivatives of ``f`` with respect to
+        ``R``, evaluated on the background at ``a``. ``f_R`` is
+        dimensionless; ``f_RR`` is in units of ``1/H0^2``, matching
+        the ``R`` this module integrates -- see the ``R_0``
+        parameter, which is ``R_0/H0^2``.
+    a : float or ndarray
+        Scale factor.
+    k : float or ndarray
+        Comoving wavenumber [h/Mpc].
+
+    Notes
+    -----
+    Units are the trap here, so they are spelled out. ``m`` is
+    dimensionless: ``f_RR`` carries a length squared and ``(k/a)^2``
+    an inverse length squared. Working in ``H0/c`` units, the
+    physical wavenumber is ``Y = k (c/100) / a`` -- the ``h`` in
+    ``k``'s units cancelling against ``H0 = 100h`` -- and with
+    ``f_RR`` already in ``1/H0^2`` the product is simply
+    ``m = Y^2 f_RR/f_R``. This is the same conversion
+    :class:`~cosmology.models.fr.FRHuSawicki` makes, and
+    ``tests/test_theory_growth.py`` holds the two against each
+    other rather than trusting that they agree.
+
+    This is the *linear* result. Chameleon screening is a
+    non-linear effect and is not in it, so on scales and in
+    environments where screening matters this overestimates the
+    departure from GR.
+    """
+
+    from CosmoFit.cosmology.core import constants
+
+    a = np.asarray(a, dtype=float)
+
+    f_R = np.asarray(f_R, dtype=float)
+    f_RR = np.asarray(f_RR, dtype=float)
+
+    Y2 = (np.asarray(k, dtype=float) * (constants.c / 100.0) / a) ** 2
+
+    m = Y2 * f_RR / f_R
+
+    return (1.0 + 4.0 * m) / (f_R * (1.0 + 3.0 * m))

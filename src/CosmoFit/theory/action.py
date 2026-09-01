@@ -52,6 +52,7 @@ from CosmoFit.theory.curvature import (
     build_system as build_curvature_system,
     integrate as integrate_curvature,
     is_higher_order,
+    quasi_static_mu,
 )
 
 from CosmoFit.theory.fields import expansion_today, integrate
@@ -242,7 +243,14 @@ class Action:
           Starobinsky (2000),
           ``mu = (2F + 4 F_phi^2) / (F (2F + 3 F_phi^2))`` with
           ``F = df/dR``, evaluated on the field's own solution so
-          that it moves as the field rolls.
+          that it moves as the field rolls;
+        * a general ``f(R)`` -- anything non-linear in ``R`` --
+          gives the *scale-dependent*
+          ``mu = (1/f_R)(1 + 4m)/(1 + 3m)`` with
+          ``m = (k/a)^2 f_RR/f_R``, since the scalaron has a
+          Compton wavelength and there is no scale-free answer to
+          give. See :func:`~theory.curvature.quasi_static_mu`; the
+          resulting ``mu(a, k)`` takes ``k`` in h/Mpc.
 
         Either way it is an *additional* physical assumption on top
         of the action -- a statement about perturbations, which a
@@ -804,16 +812,6 @@ class Action:
         has to be integrated -- see :mod:`~theory.curvature`.
         """
 
-        if self.growth != "gr":
-            raise NotImplementedError(
-                "growth='quasi_static' is the sub-horizon limit of "
-                "the teleparallel sectors. f(R) gravity's mu is "
-                "scale-dependent -- a Compton wavelength enters -- "
-                "so it is refused here rather than given a "
-                "scale-free answer. FRHuSawicki carries the "
-                "standard f(R) mu(a, k) if that is what you need."
-            )
-
         if self.closure is not None:
             raise ValueError(
                 f"closure={self.closure!r} was given, but a general "
@@ -842,6 +840,17 @@ class Action:
             "Omega_de": _make_Omega_de(),
             "w": _make_w(),
         }
+
+        if self.growth == "quasi_static":
+
+            f_R, f_RR, mu_args = self._compile_fourth_order_mu()
+
+            attrs.update({
+                "_F_R": staticmethod(f_R),
+                "_F_RR": staticmethod(f_RR),
+                "_MU_ARGS": mu_args,
+                "mu": _make_curvature_mu(),
+            })
 
         model = type(name, (_CurvatureModel,), attrs)
 
@@ -1129,6 +1138,36 @@ class Action:
 
     # ---------------------------------------------------------
 
+    def _compile_fourth_order_mu(self):
+        """
+        Compile ``f_R`` and ``f_RR`` for the quasi-static ``mu`` of
+        a general ``f(R)`` -- see
+        :func:`~theory.curvature.quasi_static_mu` for the formula
+        and for what the units have to be.
+
+        Both are functions of ``R`` and of whatever parameters the
+        action carries, and ``R`` comes from the integrated
+        background rather than from a closed form, which is why
+        this is compiled here and evaluated per call.
+        """
+
+        R = self.scalar
+
+        f_R = sp.diff(self.gravity, R)
+        f_RR = sp.diff(f_R, R)
+
+        free = (f_R.free_symbols | f_RR.free_symbols) - {R}
+
+        args = self.solver_arguments(free)
+
+        return (
+            sp.lambdify((R, *args), f_R, "numpy"),
+            sp.lambdify((R, *args), f_RR, "numpy"),
+            tuple(a.name for a in args),
+        )
+
+    # ---------------------------------------------------------
+
     def _compile_mu(self, args):
         """
         Compile ``mu = G_eff/G_N`` for ``growth="quasi_static"``.
@@ -1145,14 +1184,16 @@ class Action:
 
         if self.geometry == "metric":
             raise NotImplementedError(
-                "growth='quasi_static' is implemented for the "
+                "growth='quasi_static' gives mu = 1/f' in the "
                 "teleparallel and symmetric-teleparallel sectors, "
-                "where mu = 1/f' is a settled sub-horizon result. "
-                "In the metric sector it is f(R) gravity, whose mu "
-                "is scale-dependent -- a Compton wavelength enters "
-                "-- so a scale-free answer would be wrong rather "
-                "than approximate. FRHuSawicki carries the "
-                "standard f(R) mu(a, k) if that is what you need."
+                "and this metric action is linear in R -- which is "
+                "general relativity plus whatever else is in it, "
+                "where mu = 1 and growth='gr' is the right answer "
+                "rather than an approximation. A metric action "
+                "that is *non-linear* in R does support "
+                "growth='quasi_static': it is fourth-order, and "
+                "takes the scale-dependent mu(a, k) of "
+                "`theory.curvature.quasi_static_mu`."
             )
 
         E2 = sp.Symbol("E2", positive=True)
@@ -2012,6 +2053,13 @@ class _CurvatureModel(Cosmology):
     _SYSTEM = None
     _FLUIDS = ()
 
+    #: Wavenumber [h/Mpc] used when `mu` is called without one --
+    #: the same value `FRHuSawicki` picks, so the two f(R) routes
+    #: answer the same question when asked the short way. It sits
+    #: in the middle of the linear regime, which is where a
+    #: quasi-static mu is meant to be used.
+    _DEFAULT_K = 0.1
+
     # ---------------------------------------------------------
 
     def _E2(self, z):
@@ -2091,6 +2139,35 @@ def _make_curvature_E():
     )
 
     return E
+
+
+def _make_curvature_mu():
+
+    def mu(self, a, k=None):
+
+        if k is None:
+            k = self._DEFAULT_K
+
+        a = np.asarray(a, dtype=float)
+
+        values = self.params.as_dict()
+
+        args = tuple(float(values[name]) for name in self._MU_ARGS)
+
+        R = self.ricci(1.0 / a - 1.0)
+
+        return quasi_static_mu(
+            self._F_R(R, *args), self._F_RR(R, *args), a, k,
+        )
+
+    mu.__doc__ = (
+        "Effective gravitational coupling G_eff(a,k)/G_N in the "
+        "quasi-static, sub-horizon limit, with R taken from this "
+        "model's own integrated background. Scale-dependent: `k` is "
+        "in h/Mpc. See `theory.curvature.quasi_static_mu`."
+    )
+
+    return mu
 
 
 def _make_curvature_dEdz():
