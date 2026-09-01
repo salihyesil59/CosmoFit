@@ -9,7 +9,11 @@ cosmological parameters together into a single callable
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
+
+from CosmoFit.cosmology.boltzmann import BoltzmannError
 
 
 class LogPosterior:
@@ -39,6 +43,79 @@ class LogPosterior:
         self.joint = joint
         self.cosmology = cosmology
         self.prior = prior
+
+        #: How many evaluations were rejected because the Boltzmann
+        #: solver failed, rather than because the parameters were
+        #: unphysical. See :meth:`solver_failures`.
+        self._solver_failures = 0
+
+        #: The first point it happened at, kept so the count comes
+        #: with somewhere to start looking.
+        self._first_solver_failure = None
+
+    # ---------------------------------------------------------
+
+    @property
+    def solver_failures(self) -> int:
+        """
+        Evaluations rejected because the Boltzmann code failed.
+
+        These are **not** the same as evaluations rejected for being
+        unphysical, and the difference matters. An unphysical point
+        should be rejected: that is the prior and the model doing
+        their job. A point where CAMB failed at parameters that are
+        perfectly reasonable should not be, and every one of them
+        distorts the posterior a little, in a direction nothing in
+        the output records.
+
+        Both used to land in the same ``-inf`` with nothing to tell
+        them apart. This counts the second kind so a run can say how
+        much of it happened. A handful in a long chain is noise; a
+        large fraction means the result should not be trusted until
+        the cause is found.
+        """
+
+        return self._solver_failures
+
+    @property
+    def first_solver_failure(self):
+        """
+        The parameter vector of the first solver failure, or None.
+        """
+
+        return self._first_solver_failure
+
+    # ---------------------------------------------------------
+
+    def _record_solver_failure(self, theta, exc) -> None:
+        """
+        Count a Boltzmann failure, and say so the first time.
+
+        Warning once rather than every time is deliberate: a chain
+        can evaluate this millions of times, and a warning per
+        rejection would bury the run. The count is the number to
+        read afterwards.
+        """
+
+        self._solver_failures += 1
+
+        if self._solver_failures == 1:
+
+            self._first_solver_failure = np.array(theta, dtype=float, copy=True)
+
+            warnings.warn(
+                "The Boltzmann solver failed at a point the sampler "
+                "proposed, and that point has been rejected. This is "
+                "not the same as rejecting an unphysical point: the "
+                "parameters may be perfectly reasonable and the "
+                "failure the solver's. Rejections of this kind bias "
+                "a posterior in a way nothing else in the output "
+                "records, so the running total is kept in "
+                "`solver_failures` -- check it before trusting the "
+                f"result. First failure: {exc}",
+                RuntimeWarning,
+                stacklevel=3,
+            )
 
     # ---------------------------------------------------------
 
@@ -79,6 +156,12 @@ class LogPosterior:
         try:
             self._apply(theta)
             chi2 = self.joint.chi2()
+        except BoltzmannError as exc:
+            # A solver failure, not a statement about the parameters.
+            # Rejected like anything else so a chain keeps running,
+            # but counted, because it is not the same thing.
+            self._record_solver_failure(theta, exc)
+            return -np.inf
         except (ValueError, FloatingPointError, RuntimeError):
             return -np.inf
 
@@ -125,6 +208,9 @@ class LogPosterior:
         try:
             self._apply(theta)
             chi2 = self.joint.chi2()
+        except BoltzmannError as exc:
+            self._record_solver_failure(theta, exc)
+            return np.inf
         except (ValueError, FloatingPointError, RuntimeError):
             return np.inf
 

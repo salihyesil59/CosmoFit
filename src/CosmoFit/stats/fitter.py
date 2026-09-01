@@ -43,6 +43,8 @@ from typing import TYPE_CHECKING
 
 from collections.abc import Callable, Sequence
 
+import warnings
+
 import numpy as np
 
 from CosmoFit.typing import PathLike, Redshift
@@ -1258,7 +1260,43 @@ class Fitter:
                 )
             )
 
+        self._report_solver_failures("the chain")
+
         return sampler
+
+    # ------------------------------------------------------------
+
+    def _report_solver_failures(self, what: str) -> None:
+        """
+        Say, once a run is over, how many points the Boltzmann
+        solver failed at.
+
+        A rejection because the parameters were unphysical is the
+        model doing its job. A rejection because the solver failed
+        at parameters that were fine is a hole in the sampling, and
+        it biases the result in a direction nothing else in the
+        output records. The two are indistinguishable in the chain
+        itself, so the count has to be carried out here.
+        """
+
+        failures = getattr(self.logpost, "solver_failures", 0)
+
+        if not failures:
+            return
+
+        warnings.warn(
+            f"The Boltzmann solver failed at {failures} of the "
+            f"points evaluated for {what}, and each of those was "
+            "rejected. These are not rejections of unphysical "
+            "parameters -- they are places the solver could not "
+            "answer, and they leave gaps in the sampled volume. "
+            "A handful in a long run is noise; a large fraction "
+            "means the result should not be trusted until the "
+            "cause is found. The first one was at "
+            f"{self.logpost.first_solver_failure}.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     # ------------------------------------------------------------
 

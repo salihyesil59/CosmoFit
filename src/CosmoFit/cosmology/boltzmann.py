@@ -720,8 +720,92 @@ class CAMBBackend:
 
     def _run(self) -> dict[str, np.ndarray]:
         """
-        Call CAMB once and keep every view the likelihoods need,
-        indexed from l = 0.
+        Call CAMB and keep every view the likelihoods need, indexed
+        from l = 0.
+
+        The result is **checked before it is handed out**. CAMB can
+        return an all-NaN spectrum without raising -- observed here
+        for Planck's own best-fit LCDM, during full test-suite runs,
+        at parameters that are in no way exotic. Unchecked, that NaN
+        becomes a NaN chi2, and a non-finite chi2 is turned into
+        ``-inf`` by :class:`~stats.posterior.LogPosterior`, which is
+        a rejection. So a sampler quietly drops a point it had no
+        reason to drop.
+
+        Repeating the call does not help: measured on the failures
+        this check first exposed, an identical second call returns
+        NaN again, so the failure is a property of the process
+        rather than a transient glitch. The one thing that can be
+        done here is to refuse to pass it on.
+
+        Raising is not by itself the whole fix -- ``BoltzmannError``
+        is a ``RuntimeError``, which the posterior catches and turns
+        into a rejection like any other. What keeps that from being
+        silent is on the posterior's side: it counts solver failures
+        separately and reports them.
+        """
+
+        spectra = self._run_once()
+
+        bad = self._nonfinite_fields(spectra)
+
+        if not bad:
+
+            return spectra
+
+        raise BoltzmannError(
+
+            f"CAMB returned non-finite values in {', '.join(bad)} "
+
+            f"for H0={self.cosmo.H0:.3f}, "
+
+            f"Omega_m={self.cosmo.Omega_m:.4f}, "
+
+            f"Omega_b={self.cosmo.Omega_b:.4f}, "
+
+            f"ln1e10As={self.cosmo.params.ln1e10As:.4f}, "
+
+            f"n_s={self.cosmo.params.n_s:.4f}, "
+
+            f"tau={self.cosmo.tau_reio:.4f}, "
+
+            f"lmax={self.lmax}, "
+
+            f"lens_potential_accuracy={self.lens_potential_accuracy}. "
+
+            f"An identical repeated call returns the same, so this "
+
+            f"is not a transient glitch.",
+
+        )
+
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def _nonfinite_fields(spectra: dict) -> list[str]:
+        """
+        Which of CAMB's returned quantities are not finite. Empty
+        when everything is usable.
+        """
+
+        bad = []
+
+        for name, value in spectra.items():
+
+            if name == "ell":
+                continue
+
+            if not np.all(np.isfinite(value)):
+
+                bad.append(name)
+
+        return bad
+
+    # ---------------------------------------------------------
+
+    def _run_once(self) -> dict[str, np.ndarray]:
+        """
+        One CAMB call, unchecked. Use :meth:`_run`.
         """
 
         camb = self._camb

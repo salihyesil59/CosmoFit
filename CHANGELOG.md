@@ -134,6 +134,64 @@ that is wrong by one part in 10^4 still moves the spectrum by
 **What this does not fix**, and what turned out to be behind most of
 it, is in the next entry.
 
+### A NaN spectrum could be rejected as if it were bad physics
+
+CAMB can return an all-NaN power spectrum without raising. Nothing
+checked, so the NaN became a NaN chi2, and a non-finite chi2 is
+turned into `-inf` by `LogPosterior`, which is a rejection. A
+sampler therefore dropped points quietly, and the output said
+nothing about it.
+
+That conflates two things that are not the same. Rejecting a point
+because the parameters are unphysical is the model doing its job.
+Rejecting one because the solver failed at parameters that are
+perfectly reasonable is a hole in the sampled volume, and it biases
+the result in a direction nothing else records. The failures seen
+here were at Planck's own best fit -- `H0 = 67.36`,
+`Omega_m = 0.3153`, `ln1e10As = 3.044`, `tau = 0.0544` -- so "bad
+parameters" was never the explanation.
+
+Two changes, on the two sides of the problem.
+
+**`CAMBBackend` no longer hands out a result it cannot vouch for.**
+Every returned quantity is checked, `sigma8` included, and a
+non-finite one raises `BoltzmannError` naming both the fields that
+went bad and the point in parameter space, so the report is
+something you can act on.
+
+**`LogPosterior` separates a solver failure from an unphysical
+point.** The point is still rejected -- a chain cannot stop because
+CAMB had a bad moment -- but it is counted in `solver_failures`,
+the first one is kept in `first_solver_failure`, a warning goes out
+the first time it happens, and `run_mcmc` reports the total when it
+finishes. A handful in a long run is noise; a large fraction means
+the result should not be trusted until the cause is found. Either
+way the number is now readable instead of invisible.
+
+There is no retry. One was written, and then measured: an identical
+repeated call returns NaN again, so the failure is a property of
+the process rather than a transient glitch, and retrying only
+doubled the cost of the most expensive call in the library.
+
+**What is still unknown, and what it means for CI.** Why CAMB
+returns NaN is not established, and the evidence points outside this
+library. Ruled out by direct test: the parameter points (every
+reported one computes cleanly in a fresh process), a single
+triggering module (each CAMB-using module paired with the first
+failing one passes), memory (the failure happened at 907 MB with
+neighbouring tests passing at the same figure), transience (see
+above), and any special role for small `lmax` (a sweep from 2 to
+100 is clean). What is left is CAMB's own state after many calls in
+one process.
+
+The consequence is worth stating plainly: **this makes the test
+suite fail when it happens**, where before it sometimes passed with
+a silent NaN. Runs of 0, 1, 10 and 13 failures have all been seen.
+That is the intended trade -- a suite that goes red on a real
+problem is better than one that stays green by not looking -- but
+it does mean a red run here may be this, and not the change in
+front of you.
+
 ### One failing CMB test was manufacturing a dozen more
 
 The Planck modules had looked unstable for a while: consecutive
