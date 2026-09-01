@@ -644,6 +644,49 @@ limit (lambda=0).
   [arXiv:2004.07867](https://arxiv.org/abs/2004.07867)
 - Implemented in: [`cosmology/models/fq.py`](src/CosmoFit/cosmology/models/fq.py)
 
+### FTPowerLaw (f(T) gravity, power-law model)
+
+f(T) = T + alpha T^n, T = 6H^2 -- the torsion counterpart of
+FQExponential, and like it a genuine modification of the field
+equations rather than a fluid added to GR. alpha is not
+independently free: the E(0) = 1 closure fixes it from Omega_m,
+leaving n as the only quantity beyond flat LCDM's H0 and Omega_m.
+Substituting the closure back leaves
+`E^2 + (Omega_m - 1) E^(2n) = Omega_m (1+z)^3`, which has no free
+amplitude and no pole -- n = 1/2, where the amplitude itself
+diverges, is a singularity of the growth sector only, and the
+model refuses `mu` there while still returning `E`.
+
+Growth of structure: `mu(a) = 1/f_T`, the standard sub-horizon
+quasi-static result, scale-independent, and exactly 1 at both of
+this model's GR limits (n = 0, and Omega_m = 1 at any n).
+
+Derived rather than transcribed: the Friedmann equation, the
+closure and `mu` come from a minisuperspace tetrad variation done
+symbolically in the wljs-gr-toolkit GR-06 notebook, checked against
+the TEGR, LCDM and Einstein-de Sitter limits. The Python
+implementation then agrees to ~1e-16 with two independent routes:
+that Wolfram derivation, and this library's own `theory.Action`
+reduction of `T + A0*(-T)**b` -- which uses the *opposite* sign
+convention for T, so the agreement covers the convention too.
+The same toolkit's GR-08 notebook finds f(T)'s extra Lorentz modes
+strongly coupled around flat FLRW (their kinetic terms vanish
+identically), so `mu` here is a metric-sector statement, not a
+claim that the full theory is healthy; gravitational waves are
+exactly luminal, so GW170817 does not constrain it.
+
+- **Bengochea & Ferraro (2009)**, *Dark torsion as the cosmic
+  speed-up*, Phys. Rev. D 79, 124019.
+  [arXiv:0812.1205](https://arxiv.org/abs/0812.1205)
+- **Linder (2010)**, *Einstein's Other Gravity and the
+  Acceleration of the Universe*, Phys. Rev. D 81, 127301.
+  [arXiv:1005.3039](https://arxiv.org/abs/1005.3039)
+- **Nesseris, Basilakos, Saridakis & Perivolaropoulos (2013)**,
+  *Viable f(T) models are practically indistinguishable from
+  LCDM*, Phys. Rev. D 88, 103010.
+  [arXiv:1308.6142](https://arxiv.org/abs/1308.6142)
+- Implemented in: [`cosmology/models/ft.py`](src/CosmoFit/cosmology/models/ft.py)
+
 ### FRTLinear (f(R,T) gravity, linear model)
 
 f(R,T) = R + 2λT -- gravity coupled directly to the trace of the

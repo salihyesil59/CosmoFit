@@ -39,6 +39,7 @@ without knowing which.
    RDE
    DGP
    FQExponential
+   FTPowerLaw
    FRTLinear
    FRHuSawicki
    define_model

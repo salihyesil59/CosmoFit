@@ -63,6 +63,7 @@ pip install cosmofit
   simplified in each)
 
   * **FQExponential** -- f(Q) gravity (symmetric teleparallel), f(Q) = Q exp(lambda Q0/Q)
+  * **FTPowerLaw** -- f(T) gravity (metric teleparallel), f(T) = T + alpha T^n; n = 0 is LCDM exactly
   * **FRTLinear** -- f(R,T) gravity (linear), f(R,T) = R + 2 lambda T
   * **FRHuSawicki** -- f(R) gravity (Hu-Sawicki); background is identical to LCDM's by
     construction (stated explicitly, see [CHANGELOG.md](CHANGELOG.md) at v0.16.0), but
@@ -838,6 +839,7 @@ hand, it can be checked against it:
 | `R - 2*Lam` | `LCDM`, curvature included | `E(z)`, `dE/dz` to 1e-16 |
 | `Q*exp(lam*Q0/Q)` | `FQExponential` | constraint identical; `lam`, `E(z)`, `mu` to 1e-13 |
 | `T + A0*(-T)**b`, `b = 0` | `LCDM`, via a different sector | `E(z)` to 1e-13 |
+| `T + A0*(-T)**b`, any `b` | `FTPowerLaw` | `E(z)` and `mu` to 1e-15, across two opposite sign conventions for `T` |
 
 The `f(Q)` case is the demanding one. Its constraint is
 transcendental -- the hand-written model inverts a Lambert `W` to

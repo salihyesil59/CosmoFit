@@ -43,7 +43,7 @@ ALL_MODELS = [
     "LCDM", "WCDM", "CPL", "JBP", "BA", "LogarithmicDE",
     "PEDE", "GEDE", "LsCDM", "GCG", "IDE", "RunningVacuum",
     "Cardassian", "DGP", "HDE", "ADE", "RDE",
-    "FQExponential", "FRTLinear",
+    "FQExponential", "FTPowerLaw", "FRTLinear",
     "FRHuSawicki",
 ]
 

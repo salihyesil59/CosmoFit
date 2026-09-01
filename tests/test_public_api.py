@@ -63,6 +63,7 @@ TOP_LEVEL = {
     "RDE",
     "DGP",
     "FQExponential",
+    "FTPowerLaw",
     "FRTLinear",
     "FRHuSawicki",
     "define_model",

@@ -29,6 +29,7 @@ from a changed relation between H and rho:
 
 **Modified gravity** -- the field equations themselves differ:
 :class:`~cosmology.models.fq.FQExponential`,
+:class:`~cosmology.models.ft.FTPowerLaw`,
 :class:`~cosmology.models.frt.FRTLinear`,
 :class:`~cosmology.models.fr.FRHuSawicki`.
 
@@ -60,6 +61,7 @@ from .ade import ADE
 from .rde import RDE
 from .dgp import DGP
 from .fq import FQExponential
+from .ft import FTPowerLaw
 from .frt import FRTLinear
 from .fr import FRHuSawicki
 
@@ -82,6 +84,7 @@ __all__ = [
     "RDE",
     "DGP",
     "FQExponential",
+    "FTPowerLaw",
     "FRTLinear",
     "FRHuSawicki",
 ]
