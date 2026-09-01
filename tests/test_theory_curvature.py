@@ -317,19 +317,35 @@ def test_a_closure_parameter_is_refused():
         ).build("Bad")
 
 
-def test_quasi_static_growth_is_refused():
+def test_quasi_static_growth_is_scale_dependent_here():
     """
     f(R)'s mu is scale-dependent -- a Compton wavelength enters --
-    so the scale-free ``1/f'`` of the teleparallel sectors is wrong
-    here rather than approximate.
+    so the scale-free ``1/f'`` the teleparallel sectors use would be
+    wrong here rather than approximate. This used to be refused for
+    that reason; it is now supplied in the correct scale-dependent
+    form, and what this test guards is that it did not come back as
+    the scale-free one.
+
+    See `tests/test_theory_growth.py` for the physics; the point
+    here is only that a fourth-order action accepts the option and
+    that `k` reaches the answer.
     """
 
-    with pytest.raises(NotImplementedError, match="scale-dependent"):
-        Action(
-            "R + alpha_fr*R**2",
-            params={"alpha_fr": {"default": 1e-3}},
-            growth="quasi_static",
-        ).build("Bad")
+    model = Action(
+        "R - 2*Lam + alpha_fr*R**2",
+        params={"Lam": {"default": 2.1}, "alpha_fr": {"default": 1e-3}},
+        growth="quasi_static",
+    ).build("QuasiStatic")
+
+    Omega_m = 0.3
+
+    built = model(
+        model.PARAMS_CLASS(
+            H0=70.0, Omega_m=Omega_m, R_0=lcdm_ricci(Omega_m),
+        )
+    )
+
+    assert float(built.mu(1.0, 1e-6)) != float(built.mu(1.0, 10.0))
 
 
 def test_the_ricci_scalar_today_is_declared_as_a_parameter():

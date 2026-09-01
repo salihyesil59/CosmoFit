@@ -731,6 +731,37 @@ the difference is measured rather than assumed: a `1e-8` kick to
 `R_0` moves `E(z)` by less than that out to `z = 1100`, where a
 scalar field would have run away.
 
+#### Growth, which is where `f(R)` actually differs
+
+`growth="quasi_static"` works here too, but it cannot be the
+`mu = 1/f'` of the teleparallel sectors: `f(R)`'s scalaron has a
+Compton wavelength, so the coupling is **scale-dependent**,
+
+```
+mu = (1/f_R) (1 + 4m)/(1 + 3m),    m = (k/a)^2 f_RR/f_R
+```
+
+with `R` read off the model's own integrated background. Far
+outside the Compton wavelength this is `1/f_R`; far inside it is
+`4/(3 f_R)`, the extra third being the scalar fifth force. `mu(a, k)`
+takes `k` in h/Mpc.
+
+The algebra is not the risky part — the GR-05 notebook in the
+[companion toolkit](https://github.com/salihyesil59/wljs-gr-toolkit)
+derives `G_eff` from the perturbed field equations and its result is
+*identically* the expression above, checked by subtracting the two
+symbolically and getting zero. The **units** are the risky part:
+`m` is dimensionless only if `(k/a)^2` and `f_RR` are in matching
+ones, and getting that wrong moves the Compton wavelength without
+making anything raise. So it is held against `FRHuSawicki`, which
+performs the same conversion through independently written code, and
+the two agree to 2e-16 across three scale factors and three
+wavenumbers.
+
+This is the **linear** result. Chameleon screening is non-linear and
+is not in it, so where screening matters this overstates the
+departure from GR.
+
 ### Scalar fields
 
 An action can carry dynamical fields, in which case the expansion
@@ -1011,10 +1042,6 @@ Most of what this section used to list has been built. What is left:
   what is missing is enough growth-suppression signal to constrain it.
   The compressed Planck priors cannot supply it -- they are blind to
   `m_nu` by construction, and `Fitter` says so.
-* **`f(R)` growth.** The background is solved from the action, but `mu`
-  there is scale-dependent -- a Compton wavelength enters -- so it is
-  refused rather than given a scale-free answer. `FRHuSawicki` carries
-  the standard form if that is what you need.
 
 ### Performance
 

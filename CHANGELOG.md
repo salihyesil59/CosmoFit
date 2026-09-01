@@ -302,6 +302,57 @@ it is which initialises first and not merely that both are loaded.
 No thread setting is involved either -- with `OMP_NUM_THREADS` unset
 the reproduction is 8/8 on 16 cores.
 
+### `f(R)` growth, which was the gap
+
+`theory.Action` could solve a general `f(R)` background from the
+action but refused `growth="quasi_static"`, because f(R)'s coupling
+is scale-dependent -- the scalaron has a Compton wavelength -- and
+the scale-free `mu = 1/f'` the teleparallel sectors use would have
+been wrong rather than approximate. That refusal was correct and is
+now unnecessary:
+
+    mu = (1/f_R) (1 + 4m)/(1 + 3m),   m = (k/a)^2 f_RR/f_R
+
+with `R` read off the model's own integrated background, in
+`theory.curvature.quasi_static_mu`. A brand-new f(R) can now be
+fitted to growth data, not only to distances -- which matters more
+than it sounds, because the background of a modified-gravity model
+can usually be tuned to imitate LCDM while its growth cannot.
+
+**The algebra was not the risk.** The GR-05 notebook in the
+companion toolkit derives `G_eff` from the perturbed field
+equations; subtracting its result from the expression above gives
+identically zero in Wolfram. That was checked against the
+derivation, not against the notebook's summary of it.
+
+**The units were the risk.** `m` is dimensionless only if `(k/a)^2`
+and `f_RR` are in matching units, and misplacing a factor of `c`,
+of `100`, or of `a` moves the Compton wavelength without making
+anything raise -- growth would come out smooth, plausible and
+wrong. So the load-bearing test holds the new formula against
+`FRHuSawicki`, which performs the same conversion through
+independently written code, and gets agreement to 2e-16 across
+three scale factors and three wavenumbers. The remaining tests
+pin the two physical limits (`1/f_R` far outside the Compton
+wavelength, `4/(3 f_R)` far inside), monotonicity in `k` between
+them, and that the departure from GR falls linearly in the
+coupling.
+
+That last one is stated as a *rate* rather than a tolerance, and
+the first attempt at it was wrong for an instructive reason:
+"mu is 1 when alpha is small" is not well posed, since for any
+alpha there is a `k` where `m` is not small. What is true at fixed
+`k` is that the departure falls linearly in alpha, and the test now
+asserts that.
+
+Two things this is not. It is the **linear** result -- chameleon
+screening is non-linear and absent, so where screening matters this
+overstates the departure from GR. And a metric action *linear* in R
+still declines `quasi_static`, which is right: that theory is
+general relativity, where `mu = 1` exactly and `growth="gr"` is the
+answer rather than an approximation. The error message used to
+misdescribe both cases and now says so.
+
 ### Checked against the notebooks that derive the same physics
 
 The `wljs-gr-toolkit` notebooks reduce a gravitational action on FLRW
