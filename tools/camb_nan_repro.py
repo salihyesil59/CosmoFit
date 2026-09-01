@@ -32,6 +32,18 @@ versions printed by this script:
 scipy's bundled OpenBLAS -- `scipy.linalg` is what loads that, and
 it is clean.
 
+**The order matters.** Importing `scipy.stats` *after* the glyph
+layout instead of before it is clean, 0/8. So this is not simply
+"both are present in the process"; it depends on which is
+initialised first, which is what one would expect from a
+module-layout or DLL-binding effect rather than from anything either
+library computes.
+
+Thread settings are not needed and not the cause: with
+`OMP_NUM_THREADS` unset this is 8/8 on a 16-core machine, and with
+`OMP_NUM_THREADS=1` it is 7/10. The rates quoted above were measured
+with `OMP_NUM_THREADS=1`.
+
 It is also specific to the non-linear branch: setting
 `pars.NonLinear = camb.model.NonLinear_none` makes the same call
 finite. HMcode's own feedback output is byte-identical between a
