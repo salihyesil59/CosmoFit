@@ -23,6 +23,7 @@ from .models import (
     RDE,
     DGP,
     FQExponential,
+    FTPowerLaw,
     FRTLinear,
     FRHuSawicki,
 )
@@ -59,6 +60,7 @@ __all__ = [
     "RDE",
     "DGP",
     "FQExponential",
+    "FTPowerLaw",
     "FRTLinear",
     "FRHuSawicki",
     "DistanceIntegrator",

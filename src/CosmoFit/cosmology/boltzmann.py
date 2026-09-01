@@ -88,6 +88,10 @@ _UNSUPPORTED = {
         "f(Q) gravity modifies the field equations themselves; "
         "CAMB's perturbation solver assumes GR.",
 
+    "FTPowerLaw":
+        "f(T) gravity modifies the field equations themselves; "
+        "CAMB's perturbation solver assumes GR.",
+
     "FRTLinear":
         "f(R,T) gravity modifies the field equations themselves; "
         "CAMB's perturbation solver assumes GR.",

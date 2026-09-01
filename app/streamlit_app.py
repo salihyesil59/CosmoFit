@@ -42,7 +42,7 @@ from CosmoFit import (
     LCDM, WCDM, CPL, JBP, BA, GCG,
     LogarithmicDE, PEDE, GEDE, LsCDM,
     IDE, RunningVacuum, Cardassian, DGP, HDE, ADE, RDE,
-    FQExponential, FRTLinear, FRHuSawicki,
+    FQExponential, FTPowerLaw, FRTLinear, FRHuSawicki,
     Fitter,
     model_from_expression,
     CCLikelihood,
@@ -106,6 +106,7 @@ BUILTIN_MODELS = {
     "RDE": RDE,
     "DGP": DGP,
     "FQExponential": FQExponential,
+    "FTPowerLaw": FTPowerLaw,
     "FRTLinear": FRTLinear,
     "FRHuSawicki": FRHuSawicki,
 }
@@ -128,7 +129,7 @@ MODEL_GROUPS = [
     ("Holographic",
      ["HDE", "ADE", "RDE"]),
     ("Modified gravity",
-     ["FQExponential", "FRTLinear", "FRHuSawicki"]),
+     ["FQExponential", "FTPowerLaw", "FRTLinear", "FRHuSawicki"]),
 ]
 
 #: The two routes to a model the library does not ship. `Custom`
@@ -158,6 +159,17 @@ ACTION_PRESETS = {
         params=(
             "A0 = -4.2, -30.0, 0.0, $A_0$\n"
             "b = 0.0, -2.0, 0.9, $b$"
+        ),
+        closure="A0",
+        growth="quasi_static",
+        fields="",
+    ),
+    "Power-law f(T)  ·  reproduces FTPowerLaw": dict(
+        gravity="T + A0*(-T)**b",
+        geometry="teleparallel",
+        params=(
+            "A0 = -4.2, -30.0, 0.0, $A_0$\n"
+            "b = 0.0, -2.0, 0.45, $n$"
         ),
         closure="A0",
         growth="quasi_static",
@@ -442,6 +454,17 @@ MODEL_INFO = {
         params="**λ** the exponential coupling",
         reduces="ΛCDM-like at λ → 0",
         ref="Anagnostopoulos, Basilakos & Saridakis (2021).",
+    ),
+
+    "FTPowerLaw": dict(
+        family="Modified gravity",
+        what="f(T) metric teleparallel gravity, the torsion "
+             "counterpart of f(Q). The field equations themselves "
+             "differ from Einstein's, so both the expansion history "
+             "and the growth of structure change.",
+        params="**n** the power; the amplitude is fixed by Ω_m, not free",
+        reduces="ΛCDM exactly at n = 0",
+        ref="Bengochea & Ferraro (2009); Linder (2010).",
     ),
 
     "FRTLinear": dict(
@@ -914,6 +937,7 @@ MODEL_EQUATIONS = {
     "RDE": r"\rho_{\rm DE} = 3\gamma M_p^2 (\dot H + 2H^2) \ \ (\text{Ricci scalar})",
     "DGP": r"E(z) = \sqrt{\Omega_{rc} + \Omega_m (1+z)^3} + \sqrt{\Omega_{rc}}",
     "FQExponential": r"f(Q) = Q\, e^{\lambda Q_0/Q},\quad Q=6H^2",
+    "FTPowerLaw": r"f(T) = T + \alpha T^{n},\quad T=6H^2",
     "FRTLinear": r"f(R,T) = R + 2\lambda T",
     "FRHuSawicki": r"f(R) = -m^2\dfrac{c_1(R/m^2)^n}{c_2(R/m^2)^n+1}",
 }
@@ -1008,6 +1032,7 @@ MODEL_STANDARD_PARAMS = {
     "RDE": set(),
     "DGP": set(),
     "FQExponential": set(),
+    "FTPowerLaw": set(),
     "FRTLinear": set(),
     "FRHuSawicki": set(),
 }

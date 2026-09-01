@@ -14,6 +14,88 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### `FTPowerLaw`, and the sibling that was missing
+
+The modified-gravity family had f(Q), f(R) and f(R,T) but no f(T) --
+the one theory in that group whose action the `theory` module's own
+documented example already derives. **`FTPowerLaw`** adds it: the
+Bengochea-Ferraro power law `f(T) = T + alpha T^n`, with `T = 6H^2`
+and general relativity at `f(T) = T`.
+
+`alpha` is not a free parameter. The `E(0) = 1` closure fixes it from
+`Omega_m`, so `n` is the only quantity beyond flat LCDM's `H0` and
+`Omega_m` -- the same shape as `FQExponential`, whose `lambda` is
+fixed the same way.
+
+Two limits are exact rather than approximate, and both are asserted
+as equalities rather than tolerances: `n = 0` is flat LCDM
+identically, since `f = T + alpha` is teleparallel GR plus a
+cosmological constant; `n = 1` is Einstein-de Sitter whatever
+`Omega_m` is, since `f = (1 + alpha) T` is a rescaled TEGR whose
+rescaling cancels out of the Friedmann equation. The second is the
+one that earns its keep -- it catches a closure constant that
+wrongly survives into a case where it must vanish, which closure
+alone would not.
+
+Growth: `mu(a) = 1/f_T`, scale-independent, exactly 1 at both GR
+limits (`n = 0`, and `Omega_m = 1` at any `n`).
+
+### The pole that was not where it looked
+
+The first implementation carried the closure amplitude
+`A = (Omega_m - 1)/(2n - 1)` through the Friedmann solve, and
+refused to build at all near `n = 1/2` where that diverges. That was
+wrong in an instructive way: the background does not depend on `A`,
+it depends on `(2n - 1) A`, and the closure makes that combination
+exactly `Omega_m - 1` -- finite everywhere. Written that way the
+Friedmann relation is
+
+    E^2 + (Omega_m - 1) * E^(2n) = Omega_m * (1+z)^3
+
+with no free amplitude in it and no pole. `E(z)` and `dEdz` now work
+at any `n`, `n = 1/2` included, and only `mu` refuses there, because
+only `mu` genuinely diverges: holding the background fixed at
+`n = 1/2` forces `alpha` to infinity, which switches gravity off.
+A model that had refused to answer a question it could answer
+perfectly well.
+
+### Checked against two independent implementations
+
+The Friedmann equation, the closure and `mu` were derived by a
+minisuperspace tetrad variation done symbolically in the
+[wljs-gr-toolkit](https://github.com/salihyesil59/wljs-gr-toolkit)
+GR-06 notebook, and checked there against the TEGR, LCDM and
+Einstein-de Sitter limits before any Python was written.
+
+The Python then agrees to ~1e-16 with *two* separate routes: that
+Wolfram derivation, and this library's own `theory.Action` reduction
+of `T + A0*(-T)**b`. The second is the interesting one. `theory`
+uses the opposite sign convention for the torsion scalar,
+`T = -6H^2`, so the two started out looking like different models;
+working through both showed the closure absorbs the difference
+exactly, and the agreement now covers the convention as well as the
+algebra. `tests/test_ft.py` keeps both comparisons, the second
+skipped when sympy is absent.
+
+The README's action-versus-hand table gains the row this makes
+possible: `T + A0*(-T)**b` had only ever been checkable at `b = 0`,
+against LCDM, because there was no hand-written f(T) to compare the
+general case with.
+
+### Carried forward, not hidden
+
+The same toolkit's GR-08 notebook finds that f(T)'s extra Lorentz
+modes have kinetic terms that vanish identically around flat FLRW.
+They do not propagate at linear order there, which is strong
+coupling, and it means linear perturbation theory is not a reliable
+guide to them. `mu` here is a statement about the metric sector,
+which is well behaved -- it is not a claim that the full theory is.
+Gravitational waves in f(T) are exactly luminal, so GW170817 does
+not constrain it. Both points are in the class docstring and in
+`REFERENCES.md` rather than left for a user to discover.
+
 ## v1.0.0
 
 The first stable release, and the point where `main` catches up with
