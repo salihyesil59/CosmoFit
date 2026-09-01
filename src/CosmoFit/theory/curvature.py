@@ -473,4 +473,70 @@ def quasi_static_mu(f_R, f_RR, a, k):
 
     m = Y2 * f_RR / f_R
 
-    return (1.0 + 4.0 * m) / (f_R * (1.0 + 3.0 * m))
+    denominator = 1.0 + 3.0 * m
+
+    if np.any(denominator <= 0.0) or np.any(f_R <= 0.0):
+        raise ValueError(
+            "This f(R) is not viable where mu was asked for: "
+            "1 + 3m <= 0 or f_R <= 0. Both require f_RR < 0 or "
+            "f_R < 0, which is a tachyonic scalaron or a ghost "
+            "graviton -- see `viability_failures`. There is a "
+            "finite number on the far side of that pole and it "
+            "does not mean anything, so it is not returned."
+        )
+
+    return (1.0 + 4.0 * m) / (f_R * denominator)
+
+
+# ============================================================
+# Viability: whether the theory is one worth fitting
+# ============================================================
+
+#: Why an f(R) is rejected, keyed by the condition that failed.
+VIABILITY_CONDITIONS = {
+    "f_R": (
+        "f_R > 0 -- the effective gravitational coupling. Where it "
+        "is negative the graviton is a ghost and the theory has no "
+        "stable vacuum; where it passes through zero the coupling "
+        "diverges."
+    ),
+    "f_RR": (
+        "f_RR >= 0 -- the scalaron's mass squared goes as 1/f_RR, "
+        "so a negative f_RR makes it tachyonic. That is the "
+        "Dolgov-Kawasaki instability, and its growth time is short "
+        "enough that the background this model integrates would not "
+        "survive to be observed. Zero is not flagged: it is the "
+        "general-relativity limit, where the scalaron is simply "
+        "absent."
+    ),
+}
+
+
+def viability_failures(f_R, f_RR):
+    """
+    Which of the two standard ``f(R)`` conditions are violated.
+
+    Returns the keys of :data:`VIABILITY_CONDITIONS` that fail
+    anywhere in the arrays given -- empty when the theory is
+    admissible over the range sampled.
+
+    These are not stylistic preferences. ``f_R > 0`` keeps the
+    graviton from being a ghost, and ``f_RR > 0`` keeps the scalaron
+    from being tachyonic; a model violating either is not a
+    cosmology whose parameters mean anything, however well it might
+    fit. Checking them is cheap and the alternative is fitting a
+    theory that has no business being fitted.
+    """
+
+    failures = []
+
+    if np.any(np.asarray(f_R, dtype=float) <= 0.0):
+        failures.append("f_R")
+
+    # Strictly negative, not merely non-positive: f_RR = 0 is the
+    # general-relativity limit and is perfectly well behaved --
+    # m -> 0 and mu -> 1/f_R, with no pole anywhere near.
+    if np.any(np.asarray(f_RR, dtype=float) < 0.0):
+        failures.append("f_RR")
+
+    return failures

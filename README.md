@@ -762,6 +762,39 @@ This is the **linear** result. Chameleon screening is non-linear and
 is not in it, so where screening matters this overstates the
 departure from GR.
 
+#### Is the theory worth fitting at all?
+
+A free function can be tuned to fit almost anything, so what
+separates a proposal from a curve is whether its perturbations
+behave. Two conditions decide it, and a compiled `f(R)` checks both
+along its own background:
+
+```python
+model.viability()
+# {"ok": False, "failed": ["f_RR"], "reasons": [...]}
+```
+
+* **`f_R > 0`** — the effective gravitational coupling. Negative
+  makes the graviton a ghost; zero makes the coupling diverge.
+* **`f_RR >= 0`** — the scalaron's mass squared goes as `1/f_RR`, so
+  negative makes it tachyonic. That is the Dolgov–Kawasaki
+  instability, and it is fast enough that such a background would
+  not survive to be observed. Zero is *not* flagged: that is the
+  general-relativity limit, where the scalaron is absent rather than
+  sick.
+
+`model.scalaron(z)` returns the pair directly.
+
+This matters because a non-viable `f(R)` does not announce itself.
+Flip the sign of `alpha` in the example above and `E(z)` stays
+perfectly smooth and finite — nothing raises, nothing looks wrong,
+and the model will happily be fitted. What does break is `mu`: with
+`f_RR < 0` the denominator `1 + 3m` passes through zero, and beyond
+that pole the formula still evaluates to a finite, plausible number.
+It is not returned. `mu` refuses and names the condition, on the
+same principle as the Boltzmann guard — a number that means nothing
+is worse than an error.
+
 ### Scalar fields
 
 An action can carry dynamical fields, in which case the expansion
