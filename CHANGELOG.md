@@ -353,6 +353,43 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### An admissibility gate for `f(R)`
+
+Inventing an `f(R)` that fits data is easy and, on its own, worth
+little: a free function can be tuned to almost anything. What
+separates a proposal from a curve is whether its perturbations
+behave, so a compiled `f(R)` now checks the two standard conditions
+along its own background -- `model.viability()`, with
+`model.scalaron(z)` returning `(f_R, f_RR)` directly.
+
+`f_R > 0` keeps the graviton from being a ghost. `f_RR >= 0` keeps
+the scalaron from being tachyonic -- the Dolgov-Kawasaki
+instability, whose growth time is short enough that such a
+background would not survive to be observed. Zero is deliberately
+*not* flagged: that is the general-relativity limit, where the
+scalaron is absent rather than sick, and flagging it would reject
+the one limit every f(R) has to pass through.
+
+The reason to automate this is that a non-viable f(R) does not
+announce itself. Flipping the sign of `alpha` in `R - 2L + alpha R^2`
+leaves `E(z)` smooth, finite and entirely plausible; nothing raises
+and the model fits happily. What actually breaks is `mu`: with
+`f_RR < 0` the denominator `1 + 3m` passes through zero, and past
+that pole the formula still returns a finite number. It no longer
+does -- `quasi_static_mu` refuses and names the condition, on the
+same principle as the Boltzmann guard.
+
+Not in this: the *mode count*. Confirming from the Hamiltonian
+analysis that a general f(R) propagates exactly one extra scalar is
+a job for the GR-09 notebook, and it carries a specific trap worth
+recording before anyone attempts it. In ADM variables
+`R = K_ij K^ij - K^2 + (3)R` **plus total derivatives**. Those are
+droppable in general relativity, where they multiply a constant;
+in f(R) they multiply `f'(chi)` and are not. Dropping them yields a
+plausible and wrong count -- the same trap `theory.curvature`
+already documents for the ordinary reduction, which is why that
+module uses a Lagrange multiplier instead.
+
 ### Checked against the notebooks that derive the same physics
 
 The `wljs-gr-toolkit` notebooks reduce a gravitational action on FLRW

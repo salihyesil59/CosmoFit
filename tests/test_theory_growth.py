@@ -260,3 +260,98 @@ def test_growth_defaults_to_gr_and_leaves_mu_alone():
     model = build(starobinsky(growth="gr"))
 
     assert float(model.mu(1.0, 0.1)) == 1.0
+
+
+# ============================================================
+# 6. The admissibility gate
+# ============================================================
+#
+# Whether the theory is one worth fitting at all. A free function
+# can be tuned to fit almost any data, so what separates a proposal
+# from a curve is that its perturbations behave: `f_R > 0` keeps the
+# graviton from being a ghost, `f_RR >= 0` keeps the scalaron from
+# being tachyonic. Neither is a stylistic preference and neither is
+# expensive to check.
+
+
+def test_a_positive_r_squared_correction_is_viable(star):
+
+    verdict = build(star).viability()
+
+    assert verdict["ok"]
+
+    assert verdict["failed"] == []
+
+
+def test_a_negative_r_squared_correction_is_tachyonic(star):
+    """
+    ``alpha < 0`` gives ``f_RR = 2 alpha < 0``, so the scalaron's
+    mass squared is negative -- the Dolgov-Kawasaki instability.
+    The model still integrates and still produces a perfectly
+    smooth E(z), which is exactly why this needs checking rather
+    than eyeballing.
+    """
+
+    model = build(star, alpha_fr=-1.0e-3)
+
+    assert np.all(np.isfinite(model.E(np.linspace(0.0, 3.0, 20))))
+
+    verdict = model.viability()
+
+    assert not verdict["ok"]
+
+    assert verdict["failed"] == ["f_RR"]
+
+    assert "tachyonic" in verdict["reasons"][0]
+
+
+def test_mu_refuses_rather_than_returning_the_far_side_of_the_pole(star):
+    """
+    With ``f_RR < 0`` the denominator ``1 + 3m`` passes through
+    zero, and beyond it the formula still evaluates to a finite
+    number. That number is meaningless, and returning it would put
+    a plausible-looking growth history into a fit.
+    """
+
+    model = build(star, alpha_fr=-1.0e-3)
+
+    with pytest.raises(ValueError, match="not viable"):
+        model.mu(1.0, 0.5)
+
+
+def test_the_scalaron_is_reported_in_the_documented_units(star):
+    """
+    ``f_R`` dimensionless, ``f_RR`` in 1/H0^2 -- the same units the
+    integrated ``R`` is in. For ``f = R - 2L + alpha R^2`` these are
+    ``1 + 2 alpha R`` and ``2 alpha`` exactly, which is worth
+    pinning because everything above depends on the pair being in
+    the units `quasi_static_mu` expects.
+    """
+
+    model = build(star)
+
+    R = float(model.ricci(0.0))
+    alpha = float(model.params.alpha_fr)
+
+    f_R, f_RR = model.scalaron(0.0)
+
+    assert float(f_R) == pytest.approx(1.0 + 2.0 * alpha * R, rel=1e-12)
+    assert float(f_RR) == pytest.approx(2.0 * alpha, rel=1e-12)
+
+
+def test_the_gr_boundary_is_not_reported_as_a_failure():
+    """
+    ``f_RR = 0`` is general relativity, where the scalaron is absent
+    rather than sick. Flagging it would reject the one limit every
+    f(R) has to pass through.
+    """
+
+    from CosmoFit.theory.curvature import viability_failures
+
+    assert viability_failures(1.0, 0.0) == []
+
+    assert viability_failures(1.0, -1e-30) == ["f_RR"]
+
+    assert viability_failures(-1.0, 1.0) == ["f_R"]
+
+    assert sorted(viability_failures(-1.0, -1.0)) == ["f_R", "f_RR"]

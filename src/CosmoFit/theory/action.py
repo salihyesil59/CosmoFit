@@ -49,10 +49,12 @@ from CosmoFit.cosmology.core.errors import ModelConfigurationError
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
 from CosmoFit.theory.curvature import (
+    VIABILITY_CONDITIONS,
     build_system as build_curvature_system,
     integrate as integrate_curvature,
     is_higher_order,
     quasi_static_mu,
+    viability_failures,
 )
 
 from CosmoFit.theory.fields import expansion_today, integrate
@@ -850,6 +852,8 @@ class Action:
                 "_F_RR": staticmethod(f_RR),
                 "_MU_ARGS": mu_args,
                 "mu": _make_curvature_mu(),
+                "scalaron": _make_scalaron(),
+                "viability": _make_viability(),
             })
 
         model = type(name, (_CurvatureModel,), attrs)
@@ -2139,6 +2143,66 @@ def _make_curvature_E():
     )
 
     return E
+
+
+def _make_scalaron():
+
+    def scalaron(self, z=0.0):
+        """
+        ``(f_R, f_RR)`` along this model's own background, at the
+        redshifts given. ``f_R`` is dimensionless; ``f_RR`` is in
+        units of ``1/H0^2``, matching the ``R`` this model
+        integrates.
+        """
+
+        values = self.params.as_dict()
+
+        args = tuple(float(values[name]) for name in self._MU_ARGS)
+
+        R = self.ricci(z)
+
+        return self._F_R(R, *args), self._F_RR(R, *args)
+
+    return scalaron
+
+
+def _make_viability():
+
+    def viability(self, z=None):
+        """
+        Whether this f(R) is a theory worth fitting, checked along
+        its own background.
+
+        Returns ``{"ok": bool, "failed": [...], "reasons": [...]}``.
+        The two conditions are ``f_R > 0`` (no graviton ghost) and
+        ``f_RR > 0`` (no tachyonic scalaron -- the Dolgov-Kawasaki
+        instability). See
+        :data:`theory.curvature.VIABILITY_CONDITIONS`.
+
+        This is a *sampled* statement, not a proof: the conditions
+        are evaluated on a grid over ``z``, so a violation confined
+        between samples is missed. It samples densely enough that
+        anything smooth would have to be contrived to hide, and the
+        default range is the one observations cover.
+        """
+
+        if z is None:
+            z = np.concatenate([
+                np.linspace(0.0, 3.0, 240),
+                np.geomspace(3.0, 1100.0, 240),
+            ])
+
+        f_R, f_RR = self.scalaron(z)
+
+        failed = viability_failures(f_R, f_RR)
+
+        return {
+            "ok": not failed,
+            "failed": failed,
+            "reasons": [VIABILITY_CONDITIONS[name] for name in failed],
+        }
+
+    return viability
 
 
 def _make_curvature_mu():
