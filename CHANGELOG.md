@@ -131,14 +131,48 @@ smallest bandpower. The discriminating power is intact -- a restore
 that is wrong by one part in 10^4 still moves the spectrum by
 3.7e-5, thirty-seven times the new tolerance.
 
-**What this does not fix.** The Planck test modules are unstable in
-full-suite runs on some machines in a way this does not explain:
-consecutive runs have produced 0, 1, 11 and 14 failures across
+**What this does not fix**, and what turned out to be behind most of
+it, is in the next entry.
+
+### One failing CMB test was manufacturing a dozen more
+
+The Planck modules had looked unstable for a while: consecutive
+full-suite runs produced 0, 1, 11 and 14 failures across
 `test_planck_lensing`, `test_planck_lite` and `test_planck_lowe`,
-while every one of those modules passes when run alone. The
-tolerances above were genuinely wrong and are genuinely fixed; the
-larger instability is still open, and it predates the f(T) work --
-it reproduces on the commit before it.
+while each of those modules passed when run alone. That reads like
+flakiness. Most of it was a cascade.
+
+`test_planck_lensing`, `test_planck_lowe` and `test_act_lensing`
+each build their likelihood in a **module-scoped** fixture, so every
+test in the file shares one mutable cosmology, and several of them
+move a parameter, check what it does, and move it back. That works
+until one of them fails -- at which point the restore line never
+runs, and the cosmology stays moved for everything after it.
+
+Caught in one run with full tracebacks. CAMB returned NaN for the
+baseline spectrum; the first two tests failed on that; the third
+failed before undoing its `ln1e10As += 0.10`; the fourth failed
+before undoing its own `+= 0.20` and `n_s -= 0.03`; and by the
+sigma8 check the shared cosmology was 0.30 high in `ln1e10As` and
+reported `sigma8 = 0.932` against an expected 0.811. Thirteen
+failures, one cause. How far the cascade travelled decided the
+count, which is exactly why it looked random.
+
+A new `tests/conftest.py` restores the shared cosmology after every
+test that uses one, pass or fail, and is a no-op for the rest of the
+suite. Verified against a deliberately failing test: without it the
+next test fails too, with it the next test sees the cosmology it
+expects.
+
+**Still open.** This does not explain why CAMB returned NaN for a
+standard LCDM in the first place, and that remains unfixed -- it did
+not reappear in the runs after this change, but three clean runs are
+not proof for something intermittent. What the fix does buy is that
+the next time it happens the suite reports the one real failure
+instead of thirteen invented ones, which is the difference between a
+diagnosable bug and noise. Both the NaN and the module-scoped
+fixtures predate the f(T) work; the cascade reproduces on the commit
+before it.
 
 ### Carried forward, not hidden
 
