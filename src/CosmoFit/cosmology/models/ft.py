@@ -99,6 +99,16 @@ class FTPowerLaw(Cosmology):
     default bounds stay on the branch ``n < 1/2``, which contains
     the LCDM limit.
 
+    On the branch ``n > 1/2`` the Friedmann relation can have **no
+    real solution** past some redshift, because its left-hand side
+    turns over: at ``n = 2`` and ``Omega_m = 0.315`` there is no
+    ``E`` above ``z = 0.05``. ``E(z)`` returns NaN there rather than
+    the value an unconverged Newton iteration happens to land on.
+    This is not a corner worth reaching for -- the default bounds
+    keep well away from it -- but it is worth stating, because the
+    unguarded version returned finite, plausible, non-monotonic
+    numbers instead.
+
     ``Omega_de(z)`` is reported, as for f(Q), as an
     *effective/geometric* dark-energy density
     ``E(z)^2 - Omega_m (1+z)^3``. There is no second fluid; the
@@ -173,6 +183,12 @@ class FTPowerLaw(Cosmology):
     #: class docstring.
     _POLE_MARGIN = 1e-3
 
+    #: How well the Newton result must satisfy the Friedmann
+    #: relation, relative to the right-hand side, before it is
+    #: believed. Newton converges to machine precision where a root
+    #: exists, so this only ever rejects the case where none does.
+    _RESIDUAL_TOLERANCE = 1e-10
+
     EXTRA_PARAMS = {
         "n": {
             "default": 0.0, "bounds": (-3.0, 0.45), "label": r"$n$",
@@ -228,6 +244,24 @@ class FTPowerLaw(Cosmology):
         Vectorized Newton solve of
         ``E^2 + (2n-1) A E^(2n) = Omega_m (1+z)^3`` for ``E^2``, at
         every z simultaneously.
+
+        The root is **verified**, not assumed. For ``n > 1/2`` the
+        left-hand side is not monotonic in ``E^2``: with
+        ``Omega_m - 1 < 0`` it turns over at
+        ``E^2 = [n(1-Omega_m)]^(1/(1-n))``, so beyond some redshift
+        the equation has no real solution at all -- at ``n = 2`` and
+        ``Omega_m = 0.315`` that happens above ``z = 0.05``. Newton
+        does not report this. It wanders off and returns whatever it
+        lands on, and those values look entirely plausible: ``E``
+        came back finite and even non-monotonic in ``z`` before this
+        check existed, which is a wrong answer of the worst kind,
+        the kind nothing downstream can detect.
+
+        So the iteration is kept on the physical branch, and the
+        result is only returned if it actually satisfies the
+        equation. Anything else is NaN, which is what the rest of
+        this library uses for a model evaluated where it has no
+        solution.
         """
 
         z = np.asarray(z, dtype=float)
@@ -241,11 +275,31 @@ class FTPowerLaw(Cosmology):
         # construction.
         x = rhs + (1.0 - self.Omega_m)
 
-        for _ in range(self._NEWTON_ITERATIONS):
-            xn = x ** n
-            g = x + c * xn - rhs
-            dg = 1.0 + n * c * xn / x
-            x = x - g / dg
+        with np.errstate(invalid="ignore", divide="ignore"):
+
+            for _ in range(self._NEWTON_ITERATIONS):
+
+                xn = x ** n
+                g = x + c * xn - rhs
+                dg = 1.0 + n * c * xn / x
+
+                x = x - g / dg
+
+                # E^2 <= 0 is off the branch the expansion history
+                # lives on; once there, Newton has already lost the
+                # root and anything it returns is noise.
+                x = np.where(x > 0.0, x, np.nan)
+
+            # Did it actually solve the equation? Scale the residual
+            # by the right-hand side, which is the size of the terms
+            # being cancelled.
+            residual = np.abs(x + c * x ** n - rhs)
+
+            x = np.where(
+                residual <= self._RESIDUAL_TOLERANCE * np.maximum(rhs, 1.0),
+                x,
+                np.nan,
+            )
 
         return x
 

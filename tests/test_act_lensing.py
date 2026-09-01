@@ -270,7 +270,11 @@ def test_amplitude_responds_to_the_primordial_amplitude(likelihood):
     model.params.ln1e10As -= 0.10
     model.refresh()
 
-    np.testing.assert_allclose(likelihood.model(), baseline, rtol=1e-12)
+    # Same reason as the matching check in test_planck_lensing.py:
+    # CAMB's output is not bit-reproducible between calls, so an
+    # rtol of 1e-12 on a recomputed spectrum fails intermittently.
+    # See the comment there for the measurements.
+    np.testing.assert_allclose(likelihood.model(), baseline, rtol=1e-6)
 
 
 @requires_camb

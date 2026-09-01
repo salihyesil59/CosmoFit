@@ -294,3 +294,62 @@ def test_matches_the_action_derivation(n):
         np.asarray(from_action.mu(a)), np.asarray(by_hand.mu(a)),
         rtol=0.0, atol=1e-14,
     )
+
+
+# ============================================================
+# 8. Where the model has no solution at all
+# ============================================================
+
+#: On the ``n > 1/2`` branch the Friedmann relation's left-hand
+#: side turns over, so past some redshift there is no real E at
+#: all. Newton does not notice: before the residual check it
+#: returned finite, plausible, *non-monotonic* values there --
+#: E(z=2) came back smaller than E(z=0.5) -- which is the kind of
+#: wrong answer nothing downstream can catch. NaN is what the rest
+#: of the library returns for a model evaluated where it has none.
+
+def test_no_real_solution_is_nan_not_a_number():
+
+    model = build(2.0)
+
+    # A solution does exist at and just above z = 0.
+    assert model.E(0.0) == pytest.approx(1.0, abs=1e-13)
+    assert np.isfinite(model.E(0.03))
+
+    # Past the turnover it does not, and must not be invented.
+    assert np.all(np.isnan(model.E(np.array([0.1, 0.5, 2.0]))))
+
+
+def test_solutions_are_monotonic_where_they_exist():
+    """
+    E(z) must increase with redshift for every n. This is what an
+    unconverged Newton result violated, and it is cheap to assert.
+    """
+
+    z = np.linspace(0.0, 3.0, 60)
+
+    for n in (-2.0, -1.0, -0.5, 0.0, 0.25, 0.45):
+
+        e = build(n).E(z)
+
+        assert np.all(np.isfinite(e))
+        assert np.all(np.diff(e) > 0.0)
+
+
+def test_the_solver_stays_quiet():
+    """
+    No RuntimeWarning may escape, even where the model has no
+    solution -- a warning is how the NaN went unnoticed the first
+    time.
+    """
+
+    import warnings
+
+    with warnings.catch_warnings():
+
+        warnings.simplefilter("error", RuntimeWarning)
+
+        model = build(2.0)
+
+        model.E(np.array([0.0, 0.1, 1.0, 3.0]))
+        model.dEdz(np.array([0.0, 0.1, 1.0, 3.0]))
