@@ -198,7 +198,26 @@ def test_lensing_amplitude_responds_the_right_way(likelihood):
     model.params.ln1e10As -= 0.10
     model.refresh()
 
-    np.testing.assert_allclose(likelihood.model(), baseline, rtol=1e-12)
+    # CAMB is not bit-reproducible from one call to the next. Its
+    # OpenMP reductions depend on how many threads the runtime
+    # actually uses, and that varies with what else is running.
+    # Measured on this very spectrum: the same parameters computed
+    # with one thread and with eight differ by up to 1e-10
+    # relative, and a full-suite run was seen to land 1.4e-12 away
+    # from the quiet-machine answer. An rtol of 1e-12 here was
+    # therefore not a tight check, it was a coin toss -- and one
+    # that came up tails more often the more loaded the machine,
+    # which is exactly the pattern that makes a flaky test hard to
+    # read.
+    #
+    # The tolerance has to clear that noise and still sit far below
+    # the effect it is checking: restoring the amplitude has to
+    # undo a change worth ~40% at the smallest bandpower. 1e-6 is
+    # four orders above the noise and five below the signal, so
+    # every way this can really fail -- refresh() not recomputing,
+    # the parameter not actually restored, a half-updated state --
+    # still fails it.
+    np.testing.assert_allclose(likelihood.model(), baseline, rtol=1e-6)
 
 
 # ============================================================

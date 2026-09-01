@@ -84,6 +84,62 @@ possible: `T + A0*(-T)**b` had only ever been checkable at `b = 0`,
 against LCDM, because there was no hand-written f(T) to compare the
 general case with.
 
+### `FTPowerLaw` returned plausible numbers where it has no solution
+
+Found by a `RuntimeWarning` in the test log, not by a failing test,
+which is the point.
+
+On the `n > 1/2` branch the Friedmann relation's left-hand side
+`E^2 + (Omega_m - 1) E^(2n)` is not monotonic: with `Omega_m < 1` it
+turns over, so past some redshift there is **no real E at all**. At
+`n = 2`, `Omega_m = 0.315` that happens above `z = 0.05`. Newton does
+not report this. It wandered off and returned whatever it landed on,
+and what it landed on looked entirely reasonable -- finite, and
+positive: `E(0.5) = 4.53`, `E(2.0) = 1.70`. Smaller at higher
+redshift. An expansion history running backwards, handed back without
+a word.
+
+The solve now stays on the physical branch and, more to the point,
+**verifies its own answer**: the returned root has to satisfy the
+equation it was solving, with a residual scaled by the right-hand
+side. Where it does not, the answer is NaN, which is what the rest of
+the library returns for a model evaluated where it has none. Nothing
+in the supported range changes -- the `E(z)` and `mu` values still
+match the Wolfram derivation to 4e-16, and the LCDM limit is still
+exact to the last bit.
+
+Three tests were added around it: that the no-solution regime is NaN
+rather than a number, that `E(z)` increases with `z` wherever it is
+finite (the invariant the unconverged result violated), and that the
+solver emits no warning, since a warning is how this hid in the first
+place.
+
+### Two CAMB tolerances that were a coin toss
+
+`test_planck_lensing.py` and `test_act_lensing.py` each bump the
+primordial amplitude, restore it, and assert the spectrum comes back
+to `rtol=1e-12`. CAMB is not bit-reproducible between calls: its
+OpenMP reductions depend on how many threads the runtime actually
+uses, which varies with machine load. Measured on the lensing
+bandpowers, one thread against eight differ by up to **1e-10**
+relative -- a hundred times the tolerance being asserted. A captured
+failure missed by 1.45e-12.
+
+Both are now `1e-6`: four orders above that noise floor and five
+below the effect being checked, which is a ~40% change at the
+smallest bandpower. The discriminating power is intact -- a restore
+that is wrong by one part in 10^4 still moves the spectrum by
+3.7e-5, thirty-seven times the new tolerance.
+
+**What this does not fix.** The Planck test modules are unstable in
+full-suite runs on some machines in a way this does not explain:
+consecutive runs have produced 0, 1, 11 and 14 failures across
+`test_planck_lensing`, `test_planck_lite` and `test_planck_lowe`,
+while every one of those modules passes when run alone. The
+tolerances above were genuinely wrong and are genuinely fixed; the
+larger instability is still open, and it predates the f(T) work --
+it reproduces on the commit before it.
+
 ### Carried forward, not hidden
 
 The same toolkit's GR-08 notebook finds that f(T)'s extra Lorentz
