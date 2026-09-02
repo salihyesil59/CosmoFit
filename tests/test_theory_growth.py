@@ -355,3 +355,81 @@ def test_the_gr_boundary_is_not_reported_as_a_failure():
     assert viability_failures(-1.0, 1.0) == ["f_R"]
 
     assert sorted(viability_failures(-1.0, -1.0)) == ["f_R", "f_RR"]
+
+
+# ============================================================
+# 7. The other kind of verdict: already excluded
+# ============================================================
+#
+# `viability` asks whether the theory is consistent. This asks
+# whether it is *allowed*, which is a different question with a
+# different answer, and the two are deliberately not merged into one
+# boolean.
+
+
+def test_screening_and_viability_answer_different_questions(star):
+    """
+    The R^2 model at alpha = 1e-3 is perfectly consistent -- no
+    ghost, no tachyon -- and nowhere near the Solar System bound.
+    A single "is it ok" flag would have to pick one of those to
+    report and would mislead either way.
+    """
+
+    model = build(star)
+
+    assert model.viability()["ok"] is True
+
+    verdict = model.screening()
+
+    assert verdict["ok"] is False
+
+    assert verdict["deviation"] > verdict["bound"]
+
+
+def test_the_scalaron_amplitude_is_what_is_being_bounded(star):
+    """
+    The quantity is ``|f_R(0) - 1|``, the fractional departure of
+    the gravitational coupling today.
+    """
+
+    model = build(star)
+
+    f_R, _ = model.scalaron(0.0)
+
+    assert model.screening()["deviation"] == pytest.approx(
+        abs(float(f_R) - 1.0), rel=1e-12,
+    )
+
+
+def test_a_model_close_enough_to_gr_passes_the_bound():
+    """
+    The bound has to be passable, or it is not a test of the model.
+    Shrinking alpha shrinks ``f_R - 1`` in proportion, so a small
+    enough correction is allowed by local tests -- and, being
+    indistinguishable from GR, is also of no interest, which is the
+    real tension these models live in.
+    """
+
+    model = build(starobinsky(alpha=1.0e-9))
+
+    assert model.screening()["ok"] is True
+
+
+def test_the_bound_can_be_relaxed_for_weaker_environments(star):
+    """
+    1e-6 is the Solar System number. Galaxies and clusters bound the
+    same quantity at 1e-5 and 1e-4, and a caller comparing against
+    those has to be able to say so.
+    """
+
+    model = build(star)
+
+    strict = model.screening()
+
+    loose = model.screening(bound=1.0)
+
+    assert strict["deviation"] == loose["deviation"]
+
+    assert loose["ok"] is True
+
+    assert loose["bound"] == 1.0

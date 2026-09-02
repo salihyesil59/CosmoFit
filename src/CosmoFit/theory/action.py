@@ -56,6 +56,7 @@ from CosmoFit.theory.curvature import (
     integrate_forward as integrate_curvature_forward,
     is_higher_order,
     quasi_static_mu,
+    screening_margin,
     viability_failures,
 )
 
@@ -895,6 +896,7 @@ class Action:
                 "mu": _make_curvature_mu(),
                 "scalaron": _make_scalaron(),
                 "viability": _make_viability(),
+                "screening": _make_screening(),
             })
 
         model = type(name, (_CurvatureModel,), attrs)
@@ -971,6 +973,7 @@ class Action:
                 "mu": _make_curvature_mu(),
                 "scalaron": _make_scalaron(),
                 "viability": _make_viability(),
+                "screening": _make_screening(),
             })
 
         model = type(name, (_ForwardCurvatureModel,), attrs)
@@ -2352,7 +2355,34 @@ class _ForwardCurvatureModel(_CurvatureModel):
             except RuntimeError:
                 return np.nan
 
-        solution = _bracketed_root(miss, lo, hi)
+        # Warm start. Each evaluation of `miss` is a full background
+        # integration, and the scan below needs up to seventeen of
+        # them -- measured at 48 s per likelihood call, which puts an
+        # MCMC out of reach. Along a chain the parameters move a
+        # little at a time, so the previous answer is nearly right
+        # and a narrow bracket around it usually costs two.
+        previous = getattr(self, "_closure_last", None)
+
+        solution = None
+
+        if previous is not None:
+
+            for width in (0.02, 0.1, 0.5):
+
+                a = max(lo, previous - width)
+                b = min(hi, previous + width)
+
+                if a >= b:
+                    continue
+
+                fa, fb = miss(a), miss(b)
+
+                if np.isfinite(fa) and np.isfinite(fb) and fa * fb <= 0.0:
+                    solution = float(brentq(miss, a, b, xtol=1.0e-13))
+                    break
+
+        if solution is None:
+            solution = _bracketed_root(miss, lo, hi)
 
         if solution is None:
             raise RuntimeError(
@@ -2364,6 +2394,7 @@ class _ForwardCurvatureModel(_CurvatureModel):
             )
 
         self._closure_cache = (key, solution)
+        self._closure_last = solution
 
         return solution
 
@@ -2473,6 +2504,43 @@ def _make_scalaron():
         return self._F_R(R, *args), self._F_RR(R, *args)
 
     return scalaron
+
+
+def _make_screening():
+
+    def screening(self, bound=None):
+        """
+        Whether local tests have already excluded this f(R).
+
+        Returns ``{"ok", "deviation", "bound"}``, where ``deviation``
+        is ``|f_R(0) - 1|`` -- the fractional departure of the
+        gravitational coupling today, which unscreened would appear
+        as a fifth force.
+
+        Deliberately **not** part of :meth:`viability`. That method
+        answers "is this a consistent theory"; this one answers "has
+        it already been ruled out", and a model can pass the first
+        while failing the second. Merging them into one boolean
+        would lose exactly the distinction a reader needs.
+
+        See :func:`theory.curvature.screening_margin` for what the
+        bound is and, more importantly, for what it does not settle:
+        chameleon screening is non-linear, so failing here means
+        "excluded unless screening rescues it".
+        """
+
+        from CosmoFit.theory.curvature import SOLAR_SYSTEM_BOUND
+
+        if bound is None:
+            bound = SOLAR_SYSTEM_BOUND
+
+        f_R, _ = self.scalaron(0.0)
+
+        deviation, ok = screening_margin(f_R, bound)
+
+        return {"ok": ok, "deviation": deviation, "bound": float(bound)}
+
+    return screening
 
 
 def _make_viability():
