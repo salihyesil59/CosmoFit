@@ -43,6 +43,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import sympy as sp
+from scipy.optimize import brentq
 
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.errors import ModelConfigurationError
@@ -52,6 +53,7 @@ from CosmoFit.theory.curvature import (
     VIABILITY_CONDITIONS,
     build_system as build_curvature_system,
     integrate as integrate_curvature,
+    integrate_forward as integrate_curvature_forward,
     is_higher_order,
     quasi_static_mu,
     viability_failures,
@@ -316,6 +318,7 @@ class Action:
         params: dict | None = None,
         closure: str | None = None,
         growth: str = "gr",
+        background: str = "backward",
         fields: dict | None = None,
         z_init: float = 3000.0,
     ):
@@ -324,12 +327,22 @@ class Action:
         self.fields = dict(fields or {})
         self.closure = closure
         self.growth = growth
+        self.background = background
         self.z_init = float(z_init)
 
         self.fluids = tuple(
             STANDARD_FLUIDS[f] if isinstance(f, str) else f
             for f in fluids
         )
+
+        if background not in ("backward", "forward"):
+            raise ValueError(
+                f"background must be 'backward' or 'forward', got "
+                f"{background!r}. It says which way a fourth-order "
+                f"f(R) is integrated, and the right answer is a "
+                f"property of the theory -- see "
+                f"`theory.curvature.integrate_forward`."
+            )
 
         if growth not in ("gr", "quasi_static"):
             raise ValueError(
@@ -381,7 +394,10 @@ class Action:
         #
         # 9.3 is the Lambda-CDM value at Omega_m = 0.3, in units of
         # H0^2: R = 6 (2 H^2 + Hdot) = 6 (2 - 3 Omega_m / 2) H0^2.
-        if self.is_fourth_order:
+        # Only backwards. Forwards, the curvature today is where the
+        # integration lands rather than where it starts, so it is
+        # derived and offering it as a parameter would be a lie.
+        if self.is_fourth_order and self.background == "backward":
 
             self.params.setdefault(
                 "R_0",
@@ -834,16 +850,21 @@ class Action:
         has to be integrated -- see :mod:`~theory.curvature`.
         """
 
-        if self.closure is not None:
+        if self.closure is not None and self.background == "backward":
             raise ValueError(
                 f"closure={self.closure!r} was given, but a general "
-                f"f(R) action needs no closure condition: H = 1 at "
-                f"a = 1 holds by construction, because the history "
-                f"is integrated outwards from there. The freedom "
-                f"that a closure would have fixed is carried by "
-                f"R_0, the Ricci scalar today, which is a "
-                f"parameter."
+                f"f(R) action integrated backwards needs no closure "
+                f"condition: H = 1 at a = 1 holds by construction, "
+                f"because the history is integrated outwards from "
+                f"there. The freedom a closure would have fixed is "
+                f"carried by R_0, the Ricci scalar today, which is "
+                f"a parameter. Pass background='forward' if you "
+                f"want the other arrangement, where R_0 is derived "
+                f"and the closure is shot for."
             )
+
+        if self.background == "forward":
+            return self._build_fourth_order_forward(name, label)
 
         system, args = self.curvature_system()
 
@@ -881,6 +902,105 @@ class Action:
         self._verify(model)
 
         return model
+
+    # ---------------------------------------------------------
+
+    def _build_fourth_order_forward(self, name: str, label: str | None) -> type:
+        """
+        Compile a general ``f(R)`` integrated *forwards*, from deep
+        in matter domination to today -- see
+        :func:`~theory.curvature.integrate_forward` for when that is
+        the direction a theory needs.
+
+        Two things swap over relative to the backward build. ``R_0``
+        is no longer a parameter, because the curvature today is
+        where the integration lands rather than where it starts. And
+        a closure parameter becomes *required*, because ``E(0) = 1``
+        is no longer automatic; it is the condition the closure is
+        shot for, exactly as in the second-order case.
+        """
+
+        if self.closure is None:
+            raise ValueError(
+                "background='forward' needs closure=<parameter "
+                "name>. Integrating towards today rather than away "
+                "from it means E(0) = 1 is a condition to satisfy "
+                "rather than a starting point, and the closure "
+                "names the parameter that satisfies it. In exchange "
+                "R_0 is not a parameter here: on the attractor the "
+                "curvature today is not free."
+            )
+
+        system, args = self.curvature_system()
+
+        arg_names = tuple(a.name for a in args)
+
+        if self.closure not in arg_names:
+            raise ValueError(
+                f"closure={self.closure!r} does not appear in the "
+                f"background equations ({list(arg_names)}), so "
+                f"shooting on it could not change E(0)."
+            )
+
+        extra = dict(self.params)
+
+        attrs = {
+            "MODEL_NAME": name,
+            "MODEL_LABEL": label,
+            "EXTRA_PARAMS": extra,
+            "ACTION": self,
+            "_ARGS": arg_names,
+            "_SYSTEM": system,
+            "_FLUIDS": self.fluids,
+            "_CLOSURE": self.closure,
+            "_CLOSURE_BRACKET": self._closure_bracket(),
+            "E": _make_curvature_E(),
+            "dEdz": _make_curvature_dEdz(),
+            "Omega_de": _make_Omega_de(),
+            "w": _make_w(),
+        }
+
+        if self.growth == "quasi_static":
+
+            f_R, f_RR, mu_args = self._compile_fourth_order_mu()
+
+            attrs.update({
+                "_F_R": staticmethod(f_R),
+                "_F_RR": staticmethod(f_RR),
+                "_MU_ARGS": mu_args,
+                "mu": _make_curvature_mu(),
+                "scalaron": _make_scalaron(),
+                "viability": _make_viability(),
+            })
+
+        model = type(name, (_ForwardCurvatureModel,), attrs)
+
+        self._verify(model)
+
+        return model
+
+    # ---------------------------------------------------------
+
+    def _closure_bracket(self):
+        """
+        Where to look for the closure value. The declared bounds if
+        there are any, since a parameter's bounds are the modeller's
+        own statement of where it is meaningful; otherwise a wide
+        interval around the default.
+        """
+
+        spec = self.params.get(self.closure, {})
+
+        bounds = spec.get("bounds")
+
+        if bounds is not None:
+            return (float(bounds[0]), float(bounds[1]))
+
+        default = float(spec.get("default", 1.0))
+
+        span = max(abs(default), 1.0) * 10.0
+
+        return (default - span, default + span)
 
     # ---------------------------------------------------------
 
@@ -2146,6 +2266,175 @@ class _CurvatureModel(Cosmology):
 
 
 # ------------------------------------------------------------
+
+class _ForwardCurvatureModel(_CurvatureModel):
+    """
+    A general ``f(R)`` integrated forwards, from deep in matter
+    domination to today.
+
+    The state and the equations are the backward model's; what
+    differs is where the integration starts and what has to be
+    solved for. See
+    :func:`~theory.curvature.integrate_forward` for why a theory
+    might need this direction, and
+    :meth:`~theory.action.Action._build_fourth_order_forward` for
+    what it costs.
+    """
+
+    _CLOSURE = None
+    _CLOSURE_BRACKET = (0.0, 10.0)
+
+    #: How close E(0) must come to 1 for the shot to count.
+    _CLOSURE_TOL = 1.0e-10
+
+    # ---------------------------------------------------------
+
+    def closure_value(self) -> float:
+        """
+        The closure parameter's value, solved so that ``E(0) = 1``.
+        """
+
+        return self._solved_closure()
+
+    # ---------------------------------------------------------
+
+    def ricci_today(self) -> float:
+        """
+        ``R_0`` in units of ``H0^2`` -- derived here rather than
+        given, which is the whole point of this direction.
+        """
+
+        return float(self.ricci(0.0))
+
+    # ---------------------------------------------------------
+
+    def _args_with(self, values, closure_value):
+
+        return tuple(
+            float(closure_value) if name == self._CLOSURE
+            else float(values[name])
+            for name in self._ARGS
+        )
+
+    # ---------------------------------------------------------
+
+    def _E0_for(self, values, closure_value, N_hi):
+
+        args = self._args_with(values, closure_value)
+
+        history = integrate_curvature_forward(
+            self._SYSTEM, args, float(values["Omega_m"]), 0.0, N_hi,
+        )
+
+        return float(history.H(0.0))
+
+    # ---------------------------------------------------------
+
+    def _solved_closure(self, N_hi=0.0):
+
+        values = self.params.as_dict()
+
+        key = tuple(
+            float(values[name])
+            for name in self._ARGS if name != self._CLOSURE
+        ) + (float(values["Omega_m"]),)
+
+        cached = getattr(self, "_closure_cache", None)
+
+        if cached is not None and cached[0] == key:
+            return cached[1]
+
+        lo, hi = self._CLOSURE_BRACKET
+
+        def miss(x):
+            try:
+                return self._E0_for(values, x, N_hi) - 1.0
+            except RuntimeError:
+                return np.nan
+
+        solution = _bracketed_root(miss, lo, hi)
+
+        if solution is None:
+            raise RuntimeError(
+                f"Could not find a value of {self._CLOSURE!r} in "
+                f"[{lo:.4g}, {hi:.4g}] that gives E(0) = 1 for this "
+                f"f(R). Widen that parameter's bounds, or check "
+                f"that the action can reproduce today's expansion "
+                f"rate at all."
+            )
+
+        self._closure_cache = (key, solution)
+
+        return solution
+
+    # ---------------------------------------------------------
+
+    def _history_for(self, N_lo: float, N_hi: float):
+
+        values = self.params.as_dict()
+
+        closure_value = self._solved_closure()
+
+        args = self._args_with(values, closure_value)
+
+        key = args + (float(values["Omega_m"]),)
+
+        cache = getattr(self, "_history_cache", None)
+
+        if cache is not None and cache[0] == key:
+
+            if cache[1].covers(N_lo, N_hi):
+                return cache[1]
+
+            N_lo = min(N_lo, cache[1].N_lo)
+            N_hi = max(N_hi, cache[1].N_hi)
+
+        history = integrate_curvature_forward(
+            self._SYSTEM, args, float(values["Omega_m"]), N_lo, N_hi,
+        )
+
+        self._history_cache = (key, history)
+
+        return history
+
+
+# ------------------------------------------------------------
+
+def _bracketed_root(f, lo, hi, samples=17):
+    """
+    A sign change on a coarse scan, then Brent on that sub-interval.
+
+    The scan is there because the closure's declared bounds are a
+    statement about where the parameter is meaningful, not about
+    where the background integrates: parts of the interval can
+    return NaN, and handing that straight to a root finder gets an
+    exception rather than an answer.
+    """
+
+    xs = np.linspace(lo, hi, samples)
+
+    # Evaluated one at a time and stopped at the first sign change
+    # rather than sampled all at once: each of these is a full
+    # background integration, and the scan is the expensive half of
+    # building a forward model.
+    previous = float(f(xs[0]))
+
+    for i in range(len(xs) - 1):
+
+        current = float(f(xs[i + 1]))
+
+        if np.isfinite(previous) and np.isfinite(current):
+
+            if previous == 0.0:
+                return float(xs[i])
+
+            if previous * current <= 0.0:
+                return float(brentq(f, xs[i], xs[i + 1], xtol=1.0e-13))
+
+        previous = current
+
+    return None
+
 
 def _make_curvature_E():
 

@@ -731,6 +731,47 @@ the difference is measured rather than assumed: a `1e-8` kick to
 `R_0` moves `E(z)` by less than that out to `z = 1100`, where a
 scalar field would have run away.
 
+#### Which direction the integration runs
+
+Backwards from today is the default, and it is well conditioned only
+while the scalaron's oscillating mode does not grow into the past.
+That holds for `R + alpha R^2`. It fails for the whole
+"disappearing cosmological constant" family — Hu–Sawicki,
+Starobinsky 2007, Tsujikawa, the arctan models — where `f_RR` falls
+steeply with `R`: measured on the arctan model, no achievable
+precision in `R_0` gets past `z ≈ 1.2`.
+
+Those integrate the other way:
+
+```python
+model = Action(
+    "R - (4*Lam/pi)*atan(R/Rw)",          # arXiv:1601.07928
+    params={"Lam": {"default": 2.25, "bounds": (1.0, 4.0)},
+            "Rw":  {"default": 1.0,  "bounds": (0.05, 20.0)}},
+    closure="Lam",
+    background="forward",
+    growth="quasi_static",
+).build("ArctanFR")
+```
+
+Forwards the oscillating mode **decays**, so a slightly wrong initial
+condition relaxes onto the attractor instead of leaving it. Two
+things swap over. `R_0` stops being a parameter and becomes derived
+— on the attractor the curvature today is not free — and a `closure`
+becomes *required*, because `E(0) = 1` is now a condition to satisfy
+rather than the point one starts from.
+
+Neither direction is universally better, and neither is guessed:
+which one a theory needs is a property of the theory.
+
+Below the starting redshift the history is continued analytically,
+because forward integration cannot start deep enough for the growth
+ODE and this family is General Relativity there anyway. That
+assumption is checked rather than trusted — moving the junction from
+`z = 20` to `z = 60` does not move `E(z)` or `fσ8`, and a model that
+has *not* returned to matter domination where it starts is refused
+rather than spliced.
+
 #### Growth, which is where `f(R)` actually differs
 
 `growth="quasi_static"` works here too, but it cannot be the
