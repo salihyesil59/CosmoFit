@@ -353,6 +353,69 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### Whether a model is *consistent* and whether it is *allowed*
+
+`viability()` answers the first: no ghost graviton, no tachyonic
+scalaron. It has nothing to say about the second, and the arctan
+model showed why that gap matters -- the literature reports it as
+violating fifth-force constraints (arXiv:1601.07928), while our gate
+passed it without comment.
+
+`model.screening()` closes that. It reports `|f_R(0) - 1|`, the
+fractional departure of the gravitational coupling today, against the
+Solar System bound of ~1e-6 from the thin-shell condition (Hu &
+Sawicki 2007). Deliberately a *separate* method rather than another
+entry in `viability()`: one asks whether the theory is sick and the
+other whether it is already ruled out, and a single boolean would
+have had to pick one and mislead about the other. `screening(bound=)`
+takes the looser galaxy and cluster numbers.
+
+Two things it does not claim. It is the linear estimate -- chameleon
+screening is non-linear, so failing means "excluded unless screening
+rescues it", which is how the same quantity is treated in the
+literature. And passing it is not a recommendation: a model small
+enough to pass is, for the same reason, hard to tell from General
+Relativity.
+
+**What it says about the arctan model**, at parameters held identical
+to LCDM's rather than refitted -- so the chi^2 gap is an upper bound
+on the penalty and not a fit result:
+
+| `Rw` | dchi2 vs LCDM | `mu(a=1)` | `\|f_R0-1\|` | over the bound |
+| --- | --- | --- | --- | --- |
+| 0.3 | +4.4 | 1.35 | 0.0101 | 1e4 |
+| 1.0 | +22.5 | 1.38 | 0.0358 | 3.6e4 |
+| 3.0 | +78.2 | 1.50 | 0.112 | 1.1e5 |
+
+The two right-hand columns are the point. What makes the model
+interesting is what excludes it: the same `Rw` that lifts `mu` to
+1.35 lifts the scalaron four orders above what local tests allow, and
+shrinking `Rw` until screening is satisfied leaves a model
+indistinguishable from LCDM to a part in a million. That is the
+standard f(R) tension, rederived here from the action rather than
+quoted.
+
+A full posterior was not run. At 20-27 s per likelihood evaluation --
+dominated by shooting the closure, and only slightly improved by
+warm-starting it from the previous step -- an MCMC is ~30 hours, and
+it would not change a verdict already settled by five orders of
+magnitude. Making it feasible means relaxing the integration
+tolerance during the closure search, which is a separate job.
+
+**A bug the gate caught in the integrator.** Checking viability over
+the full redshift range reported `f_RR < 0`, which this model cannot
+produce analytically. The cause was in the forward path's analytic
+continuation: it took the node *values* from the matter-dominated
+solution but the node *derivatives* from the model's right-hand side,
+and since `dR/dN` carries `1/f''(R)` -- minute at high curvature --
+asking for the slope at a point not exactly on the model's own
+solution returned an enormous number. The Hermite interpolant then
+swung to +-1e12 between correct nodes, and `R` came out negative at
+`z ~ 50`. `H` was unaffected, its slope following from
+`R = 6(2H^2 + H H')`, which is why `E(z)` looked perfectly healthy
+throughout. The continuation now carries its own analytic
+derivatives.
+
 ### The other direction, so the interesting f(R) models can be fitted
 
 The previous entry ends by saying the fix is forward integration or a
