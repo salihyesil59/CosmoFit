@@ -438,6 +438,210 @@ def integrate(system, values, R_today, N_lo, N_hi) -> History:
     )
 
 
+
+# ============================================================
+# The other direction
+# ============================================================
+
+#: Redshift the forward integration starts from. Deep enough that
+#: any f(R) returning to General Relativity at high curvature is
+#: indistinguishable from LCDM there, so LCDM initial conditions are
+#: right to the accuracy the attractor then improves on; shallow
+#: enough that the scalaron's oscillation is not so fast that the
+#: solver spends its life resolving it.
+_Z_INIT = 20.0
+
+
+def initial_conditions(Omega_m, z_init, Omega_de):
+    """
+    Where to start a forward integration: the LCDM values.
+
+    Any error here is the point rather than a problem -- forwards,
+    the oscillating mode decays, so the solution relaxes onto the
+    attractor and forgets what it was started with. That is checked
+    rather than assumed: `tests/test_theory_curvature.py` runs the
+    same model from three different starting redshifts and requires
+    the same answer today.
+    """
+
+    matter = Omega_m * (1.0 + z_init) ** 3
+
+    H = np.sqrt(matter + Omega_de)
+
+    R = 3.0 * (matter + 4.0 * Omega_de)
+
+    return H, R
+
+
+#: How far the integrated solution may sit from the matter-dominated
+#: one just above the starting redshift before the analytic
+#: extension below it stops being justified.
+_MATCH_TOL = 1.0e-3
+
+
+def _extend_below(
+    N, Y, N_lo, N_start, Omega_m, Omega_de, system, values,
+):
+    """
+    Continue the solution below the starting redshift analytically.
+
+    The growth ODE wants ``E(z)`` out to ``z ~ 10^4``, and forward
+    integration from there is not merely slow: at that curvature the
+    scalaron oscillates fast enough that the solution is destroyed
+    before it reaches today. But an ``f(R)`` of the family that
+    *needs* forward integration is one that returns to General
+    Relativity at high curvature, and by ``z ~ 50`` matter dominates
+    so completely -- ``Omega_m (1+z)^3`` is five orders above
+    ``Omega_de`` -- that the expansion there is the matter-dominated
+    one whatever the dark energy is doing.
+
+    So below the start the history is continued with that solution
+    rather than integrated. This is an assumption, and it is
+    **checked rather than asserted**: the integrated solution has to
+    agree with the same expression just above the junction, or the
+    model is not the kind this direction was built for and the
+    caller is told so instead of being handed a spliced answer.
+    """
+
+    a_num = np.exp(N)
+
+    reference = np.sqrt(Omega_m * a_num ** -3.0 + Omega_de)
+
+    near = N <= N_start + 1.0
+
+    drift = np.max(np.abs(Y[0][near] / reference[near] - 1.0))
+
+    if drift > _MATCH_TOL:
+        raise RuntimeError(
+            f"This f(R) is still {drift:.2e} away from a "
+            f"matter-dominated expansion just above z = "
+            f"{np.expm1(-N_start):.4g}, so continuing it "
+            f"analytically below that would be an invention rather "
+            f"than an approximation. Raise z_init until the model "
+            f"has returned to General Relativity there, or use the "
+            f"backward direction."
+        )
+
+    n_ext = max(_MIN_POINTS, int(_POINTS_PER_EFOLD * (N_start - N_lo)))
+
+    N_ext = np.linspace(N_lo, N_start, n_ext, endpoint=False)
+
+    a_ext = np.exp(N_ext)
+
+    matter = Omega_m * a_ext ** -3.0
+
+    Y_ext = np.vstack([
+        np.sqrt(matter + Omega_de),
+        3.0 * (matter + 4.0 * Omega_de),
+    ])
+
+    return np.concatenate([N_ext, N]), np.concatenate([Y_ext, Y], axis=1)
+
+
+def integrate_forward(
+    system, values, Omega_m, N_lo, N_hi, z_init=None, Omega_de=None,
+) -> History:
+    """
+    Integrate the ``f(R)`` background *forwards*, from ``z_init`` to
+    today and on to ``N_hi``.
+
+    Why there is a second direction
+    -------------------------------
+    :func:`integrate` goes backwards from today, which is well
+    conditioned only while the scalaron's oscillating mode does not
+    grow into the past. For the "disappearing cosmological constant"
+    family it does, and no achievable precision in ``R_0`` gets past
+    ``z ~ 1.2`` -- see this module's header. Forwards that same mode
+    *decays*, so those models integrate cleanly.
+
+    The direction is not universally better. It is worse for
+    ``R + alpha R^2``, where the mode grows the other way; that
+    model wants :func:`integrate`. Which one a theory needs is a
+    property of the theory, so :class:`~theory.action.Action` takes
+    it as an argument rather than guessing.
+
+    What it costs
+    -------------
+    ``E(0) = 1`` stops being automatic. Going backwards it holds by
+    construction, because the integration starts there; going
+    forwards, today is where the integration *ends*, and the value
+    it lands on is whatever the theory gives. So a forward model
+    needs a closure parameter to shoot with, exactly as a
+    second-order action does -- and in exchange ``R_0`` stops being
+    a free parameter and becomes a derived quantity, which is the
+    honest description of it: on the attractor, the curvature today
+    is not free.
+    """
+
+    if Omega_de is None:
+        Omega_de = 1.0 - Omega_m
+
+    # Read at call time, not bound as a default argument: a default
+    # argument freezes `_Z_INIT` at import, which silently makes the
+    # starting redshift unchangeable -- including by the test that
+    # is supposed to prove the answer does not depend on it.
+    if z_init is None:
+        z_init = _Z_INIT
+
+    N_lo = min(N_lo, 0.0) - _MARGIN
+    N_hi = max(N_hi, 0.0) + _MARGIN
+
+    N_start = -np.log1p(z_init)
+
+    def rhs(N, y):
+        return system.rhs(np.exp(N), *y, *values)
+
+    H_init, R_init = initial_conditions(Omega_m, z_init, Omega_de)
+
+    n = max(_MIN_POINTS, int(_POINTS_PER_EFOLD * abs(N_hi - N_start)))
+
+    solution = solve_ivp(
+        rhs, (N_start, N_hi), [float(H_init), float(R_init)],
+        method=_METHOD,
+        t_eval=np.linspace(N_start, N_hi, n),
+        rtol=_RTOL, atol=_ATOL,
+    )
+
+    if not solution.success:
+        raise RuntimeError(
+            f"Could not integrate this f(R) background forwards "
+            f"over N = [{N_start:.3g}, {N_hi:.3g}]: "
+            f"{solution.message}"
+        )
+
+    N, Y = solution.t, solution.y
+
+    if N_lo < N_start:
+        N, Y = _extend_below(
+            N, Y, N_lo, N_start, Omega_m, Omega_de, system, values,
+        )
+
+    derivatives = np.asarray(system.rhs(np.exp(N), *Y, *values), dtype=float)
+
+    H = Y[0]
+
+    if not np.all(np.isfinite(H)) or np.any(H <= 0.0):
+        raise RuntimeError(
+            "This f(R) background became non-physical (H reached "
+            "zero or stopped being finite) when integrated forwards."
+        )
+
+    residual = np.abs(
+        np.asarray(system.residual(np.exp(N), *Y, *values), dtype=float)
+    )
+
+    scale = np.maximum(np.abs(3.0 * H**2), 1.0e-300)
+
+    return History(
+        N[0], N[-1],
+        [
+            hermite_spline(N, Y[i], derivatives[i], extrapolate=False)
+            for i in range(Y.shape[0])
+        ],
+        float(np.max(residual / scale)),
+    )
+
+
 # ============================================================
 # Growth: the scale-dependent coupling
 # ============================================================

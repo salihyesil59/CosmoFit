@@ -353,6 +353,68 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### The other direction, so the interesting f(R) models can be fitted
+
+The previous entry ends by saying the fix is forward integration or a
+designer construction. This is the first of those.
+
+`Action(..., background="forward", closure="Lam")` integrates from
+deep in matter domination towards today instead of away from it.
+Backwards, the scalaron's oscillating mode grows and the problem is
+ill conditioned; forwards it decays, so a slightly wrong initial
+condition relaxes onto the attractor rather than leaving it. The
+arctan model that could not be integrated at all now runs cleanly:
+`E(0) = 1` to 1e-12, `R` rising monotonically, `f_R -> 1` and
+`f_RR -> 0` at high curvature, `fsigma8` computed.
+
+**Two things swap over.** `R_0` stops being a parameter and becomes
+derived -- on the attractor the curvature today is not free, and
+offering it as an input was always slightly dishonest. And a
+`closure` becomes required, because `E(0) = 1` is now the condition
+to satisfy rather than the point one starts from. That restores the
+same arrangement second-order actions have.
+
+**The direction is not universally better** and is not chosen
+automatically. `R + alpha R^2` wants the backward path, where its
+mode decays; the disappearing-cosmological-constant family wants
+this one. Which a theory needs is a property of the theory, so it is
+an argument rather than a guess.
+
+**The assumption, and how it is checked.** Forward integration
+cannot start deep enough for the growth ODE, which wants `E(z)` to
+`z ~ 10^4`: the scalaron oscillates too fast there to follow. So
+below the starting redshift the history is continued analytically,
+on the grounds that this family has returned to General Relativity
+and matter dominates by five orders of magnitude. That assumption
+does real work, so it gets two tests. Moving the junction from
+`z = 20` to `z = 60` must not move `Lam*`, `E(z)` or `fsigma8` --
+and does not. And a model still 1.8% away from matter domination
+where it starts is refused rather than spliced.
+
+Three mistakes made writing those tests are worth recording, since
+each would have left a green test proving nothing:
+
+* `z_init=_Z_INIT` as a *default argument* freezes the starting
+  redshift at import, so the test that moves it moved nothing and
+  reported a difference of exactly zero -- a run compared against
+  itself. Read at call time now.
+* The first transient measure compared `R` to a straight line.
+  `R` goes as `(1+z)^3`, so that number is dominated by ordinary
+  curvature and came out *larger* near today. It now measures the
+  largest relative *drop*, which is identically zero for a monotone
+  curve and therefore measures the oscillation and nothing else.
+* With that fixed the transient is 4.3% near the start, not the
+  "part in a thousand" a coarser sampling had suggested and which
+  had already been written into a docstring. Both the bound and the
+  claim were corrected; loosening the bound alone would have left
+  the prose lying.
+
+The transient is tolerable because it is confined: exactly zero
+drop over `z < 10`, which is the range anything is fitted against.
+
+This module is the slowest in the suite at around twenty minutes,
+since every model has its closure shot for. Noted rather than fixed.
+
 ### Two gaps in the action namespace, and one in what it can integrate
 
 Trying to compile a published arctan `f(R)` found three things, in
