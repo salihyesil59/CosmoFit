@@ -353,6 +353,50 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### Two gaps in the action namespace, and one in what it can integrate
+
+Trying to compile a published arctan `f(R)` found three things, in
+increasing order of interest.
+
+**`atan` was not in the namespace**, nor any inverse trigonometric or
+inverse hyperbolic function. The arctan f(R) models
+(arXiv:1601.07928, arXiv:1310.6915) and the arcsin one
+(arXiv:1507.04927) cannot be written without them, so the library was
+declining a published family with a name error rather than with a
+physics answer. Added.
+
+**`pi` was not either.** A bounded correction has to be normalised by
+its own saturation value, and an arctan saturates at `pi/2`; writing
+`3.14159...` instead would be uglier and inexact. Added as the only
+constant -- sympy's other one-letter ones, `E` and `S` especially,
+read as parameter names and would shadow them silently, which is the
+failure the namespace check exists to prevent.
+
+**And then it still would not integrate**, which is the finding worth
+keeping. `theory.curvature` integrates backwards from today, and that
+is well conditioned only while the scalaron's oscillating mode does
+not grow into the past -- true when `f_RR` is roughly constant, as in
+`R + alpha R^2`, and false for the whole "disappearing cosmological
+constant" family where `f_RR` falls steeply with `R`.
+
+Measured, on `R - (4 Lam/pi) atan(R/Rw)` with `Lam` tuned so `dR/dN`
+at `N = 0` matches an LCDM background exactly: usable only to
+`z ~ 1.2`, after which `R` turns over. Not the solver's fault -- RK45,
+DOP853, Radau and BDF all fail at the same point, and LSODA reports
+success while returning a non-monotonic `R` and NaNs past `z ~ 2.4`,
+which is worse than failing. Not a slightly wrong initial condition
+either: scanning `R_0` from 8 to 15 never reaches beyond `z ~ 1.2`,
+since the precision needed in `R_0` grows exponentially with the
+redshift wanted.
+
+The fix is not a better integrator. It is to integrate forwards from
+deep in matter domination, where the attractor attracts, or to impose
+the background and solve for the `f` that produces it -- the designer
+construction `FRHuSawicki` uses, which is why that model is written by
+hand rather than compiled from an action. Documented in
+`theory/curvature.py` so the next person meets the limit as a stated
+scope rather than as a mysterious failure.
+
 ### An admissibility gate for `f(R)`
 
 Inventing an `f(R)` that fits data is easy and, on its own, worth

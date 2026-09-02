@@ -42,6 +42,34 @@ vanishes, the equation stiffens, and the integration gets slower
 without ever becoming wrong. That is measured in
 ``tests/test_theory_curvature.py`` rather than asserted.
 
+Which f(R) this can and cannot do
+---------------------------------
+Backward integration from today is well conditioned only while the
+scalaron stays light enough for its oscillating mode not to grow
+into the past. That holds when ``f_RR`` is roughly constant --
+``R + alpha R^2`` is the case measured below -- and fails for the
+"disappearing cosmological constant" family, where ``f_RR`` falls
+steeply with ``R``: Hu-Sawicki, Starobinsky 2007, Tsujikawa, and the
+arctan models (arXiv:1601.07928, arXiv:1310.6915).
+
+Measured on ``R - (4 Lam/pi) atan(R/Rw)`` with ``Rw = 1`` and ``Lam``
+tuned so that ``dR/dN`` at ``N = 0`` matches an LCDM background
+exactly: the solution reaches only ``z ~ 1.2`` before ``R`` turns
+over and the oscillating mode takes it away from the attractor.
+That is not the integrator's choice -- RK45, DOP853, Radau and BDF
+all fail at the same point, and LSODA returns success with a
+non-monotonic ``R`` and NaNs beyond ``z ~ 2.4``, which is worse. Nor
+is it the initial condition being slightly off: scanning ``R_0`` from
+8 to 15 never gets past ``z ~ 1.2``, because the required precision
+in ``R_0`` grows exponentially with the redshift wanted.
+
+The fix for that family is not a better solver. It is to integrate
+*forwards* from deep in matter domination, where the attractor is an
+attractor, or to impose the background and solve for the ``f`` that
+produces it -- the designer construction that
+:class:`~cosmology.models.fr.FRHuSawicki` uses, which is why that
+model is written by hand and does not come through here.
+
 Direction of integration
 ------------------------
 Backwards, from today. That is the opposite of what
