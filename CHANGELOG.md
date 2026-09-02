@@ -353,6 +353,51 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### Making a forward f(R) fit feasible: 4.8x, and one idea that did not work
+
+A likelihood evaluation cost 48 s, which put an MCMC at 66 hours. It
+now costs 10 s, which puts it at 14 -- an overnight run rather than an
+impossible one. Every step was decided by measurement, and the one
+that sounded most convincing was the one that failed.
+
+**Profiling first, which contradicted the guess.** The growth ODE
+looked like the expensive part. It is not: `_solved_closure` was 89%
+of the call, with 26 background integrations per evaluation.
+
+**Separate tolerances for the shot and the answer (2.4x).** The
+closure is being solved so that `E(0) = 1`; the integration only has
+to be accurate enough to find that root. Going from `rtol = 1e-11` to
+`1e-7` moves `E(0)` by 6e-8 and costs six times less, because the
+equation is stiff and the step count falls with the tolerance. Taking
+the loose root as final does *not* work -- the build's own
+`E(0) = 1` check is at 1e-8 and rejected it, correctly -- so the
+search is followed by a secant refinement at full tolerance. Measured
+afterwards: the closure is stable to twelve digits along a chain, with
+`|E(0) - 1|` under 4e-12.
+
+**A secant warm start rather than a bracket (2x).** The first version
+tried fixed-width brackets around the previous answer. Profiling
+showed they essentially never bracketed, so every call fell through to
+the seventeen-point scan and the "optimisation" bought nothing. A
+secant from the previous root needs no bracket and converges in about
+three evaluations.
+
+**An analytic Jacobian, added and then removed.** The equation is
+stiff, LSODA was computing ~1950 numerical Jacobians per integration,
+and the expressions are already symbolic -- so this looked certain.
+The Jacobian was correct, agreeing with finite differences to 6e-8,
+and it did cut right-hand side calls from 52000 to 48800. Wall time
+got **9% worse**, at both tight and loose tolerances. The reason is
+that this system has two components: a numerical Jacobian costs two
+extra right-hand side calls, which is cheaper than evaluating the
+symbolic one. Analytic Jacobians pay for large systems and this is not
+one. Reverted, with the measurement left in `theory/curvature.py` so
+the experiment is not repeated.
+
+Still on the table, not done: caching the closure across a chain by
+interpolating `Lam*(Omega_m, Rw)`, which would remove the shooting
+entirely at the cost of an approximation to justify.
+
 ### Whether a model is *consistent* and whether it is *allowed*
 
 `viability()` answers the first: no ghost graviton, no tachyonic
