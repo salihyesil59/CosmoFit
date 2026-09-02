@@ -112,6 +112,16 @@ _MARGIN = 0.35
 #: explicit integrator answers that by taking very small steps.
 _METHOD = "LSODA"
 
+#: Tolerance for a shooting evaluation, as opposed to the history
+#: that is finally handed out. The closure is being solved to make
+#: E(0) = 1, and it only needs the integration accurate enough for
+#: that root to be found -- measured, going from 1e-11 to 1e-7 moves
+#: E(0) by 6e-8 and takes 6x less time, because this equation is
+#: stiff (LSODA spends most of its effort on Jacobians) and the step
+#: count falls with the tolerance.
+_SHOOT_RTOL = 1.0e-7
+_SHOOT_ATOL = 1.0e-9
+
 _RTOL = 1.0e-11
 _ATOL = 1.0e-13
 
@@ -203,6 +213,21 @@ class CurvatureSystem:
         self.rhs = sp.lambdify(
             signature, [solution[dH], solution[dR]], "numpy", cse=True,
         )
+
+        # No analytic Jacobian here, and that is a measurement
+        # rather than an omission.
+        #
+        # The equation is stiff -- dR/dN carries 1/f''(R) -- so LSODA
+        # works in its BDF half and wants d(rhs)/d(H, R), which it
+        # estimates by finite differences. Supplying the exact one
+        # from these same expressions looks like an obvious win and
+        # is not: measured, it cut the right-hand side calls from
+        # 52000 to 48800 and made the wall time 9% *worse*, at both
+        # tight and loose tolerances. The reason is that this system
+        # has two components, so a numerical Jacobian costs two extra
+        # right-hand side calls, which is cheaper than evaluating the
+        # symbolic one. Analytic Jacobians pay for large systems.
+        # This is not one.
 
         # The independent check. Two of the three equations of
         # motion define the right-hand side above, so their
@@ -558,6 +583,7 @@ def _extend_below(
 
 def integrate_forward(
     system, values, Omega_m, N_lo, N_hi, z_init=None, Omega_de=None,
+    rtol=None, atol=None,
 ) -> History:
     """
     Integrate the ``f(R)`` background *forwards*, from ``z_init`` to
@@ -601,6 +627,12 @@ def integrate_forward(
     if z_init is None:
         z_init = _Z_INIT
 
+    if rtol is None:
+        rtol = _RTOL
+
+    if atol is None:
+        atol = _ATOL
+
     N_lo = min(N_lo, 0.0) - _MARGIN
     N_hi = max(N_hi, 0.0) + _MARGIN
 
@@ -617,7 +649,7 @@ def integrate_forward(
         rhs, (N_start, N_hi), [float(H_init), float(R_init)],
         method=_METHOD,
         t_eval=np.linspace(N_start, N_hi, n),
-        rtol=_RTOL, atol=_ATOL,
+        rtol=rtol, atol=atol,
     )
 
     if not solution.success:

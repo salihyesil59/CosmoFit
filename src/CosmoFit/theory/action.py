@@ -2287,8 +2287,12 @@ class _ForwardCurvatureModel(_CurvatureModel):
     _CLOSURE = None
     _CLOSURE_BRACKET = (0.0, 10.0)
 
-    #: How close E(0) must come to 1 for the shot to count.
-    _CLOSURE_TOL = 1.0e-10
+    #: How close E(0) must come to 1 for the shot to count. The
+    #: build's own check is at 1e-8, so this has to be tighter.
+    _CLOSURE_TOL = 1.0e-11
+
+    #: Secant steps allowed when polishing at full tolerance.
+    _REFINE_STEPS = 5
 
     # ---------------------------------------------------------
 
@@ -2321,12 +2325,26 @@ class _ForwardCurvatureModel(_CurvatureModel):
 
     # ---------------------------------------------------------
 
-    def _E0_for(self, values, closure_value, N_hi):
+    def _E0_for(self, values, closure_value, N_hi, loose=True):
 
         args = self._args_with(values, closure_value)
 
+        # Loose tolerance while searching, on purpose: a shot is not
+        # the answer. See `theory.curvature._SHOOT_RTOL` -- the root
+        # moves by ~1e-8 and each evaluation costs six times less.
+        # The search is followed by a refinement at full tolerance,
+        # because 1e-8 is exactly the size of the E(0) = 1 check the
+        # build then applies, and a loose root fails it.
+        from CosmoFit.theory.curvature import _SHOOT_ATOL, _SHOOT_RTOL
+
+        kwargs = (
+            {} if not loose
+            else {"rtol": _SHOOT_RTOL, "atol": _SHOOT_ATOL}
+        )
+
         history = integrate_curvature_forward(
             self._SYSTEM, args, float(values["Omega_m"]), 0.0, N_hi,
+            **kwargs,
         )
 
         return float(history.H(0.0))
@@ -2355,34 +2373,29 @@ class _ForwardCurvatureModel(_CurvatureModel):
             except RuntimeError:
                 return np.nan
 
-        # Warm start. Each evaluation of `miss` is a full background
-        # integration, and the scan below needs up to seventeen of
-        # them -- measured at 48 s per likelihood call, which puts an
-        # MCMC out of reach. Along a chain the parameters move a
-        # little at a time, so the previous answer is nearly right
-        # and a narrow bracket around it usually costs two.
+        # Warm start. Each `miss` is a background integration and the
+        # scan below needs up to seventeen of them, which profiling
+        # put at 89% of a likelihood evaluation. Along a chain the
+        # parameters move a little at a time, so the previous answer
+        # is nearly right.
+        #
+        # A secant iteration rather than a bracket around it: fixed
+        # widths were tried first and essentially always failed to
+        # bracket, falling through to the full scan and buying
+        # nothing -- 26 evaluations per call, measured. The secant
+        # needs no bracket and converges in about three.
         previous = getattr(self, "_closure_last", None)
 
         solution = None
 
         if previous is not None:
-
-            for width in (0.02, 0.1, 0.5):
-
-                a = max(lo, previous - width)
-                b = min(hi, previous + width)
-
-                if a >= b:
-                    continue
-
-                fa, fb = miss(a), miss(b)
-
-                if np.isfinite(fa) and np.isfinite(fb) and fa * fb <= 0.0:
-                    solution = float(brentq(miss, a, b, xtol=1.0e-13))
-                    break
+            solution = _secant(miss, previous, lo, hi, tol=1.0e-8)
 
         if solution is None:
             solution = _bracketed_root(miss, lo, hi)
+
+        if solution is not None:
+            solution = self._refine_closure(values, solution, N_hi)
 
         if solution is None:
             raise RuntimeError(
@@ -2397,6 +2410,47 @@ class _ForwardCurvatureModel(_CurvatureModel):
         self._closure_last = solution
 
         return solution
+
+    # ---------------------------------------------------------
+
+    def _refine_closure(self, values, start, N_hi):
+        """
+        Polish a loosely-found closure at full tolerance.
+
+        A secant iteration rather than another bracketed solve: the
+        residual is smooth and very nearly linear this close to the
+        root, so two or three evaluations get there, and each one
+        costs six times a search evaluation.
+        """
+
+        step = max(abs(start), 1.0) * 1.0e-6
+
+        x0, x1 = start, start + step
+
+        f0 = self._E0_for(values, x0, N_hi, loose=False) - 1.0
+
+        if abs(f0) <= self._CLOSURE_TOL:
+            return x0
+
+        f1 = self._E0_for(values, x1, N_hi, loose=False) - 1.0
+
+        for _ in range(self._REFINE_STEPS):
+
+            if f1 == f0:
+                break
+
+            x2 = x1 - f1 * (x1 - x0) / (f1 - f0)
+
+            x0, f0 = x1, f1
+
+            x1 = x2
+
+            f1 = self._E0_for(values, x1, N_hi, loose=False) - 1.0
+
+            if abs(f1) <= self._CLOSURE_TOL:
+                break
+
+        return x1 if abs(f1) < abs(f0) else x0
 
     # ---------------------------------------------------------
 
@@ -2430,6 +2484,52 @@ class _ForwardCurvatureModel(_CurvatureModel):
 
 
 # ------------------------------------------------------------
+
+def _secant(f, start, lo, hi, tol, steps=6):
+    """
+    A secant iteration from a point already believed close.
+
+    Returns the root, or ``None`` if it wandered outside
+    ``[lo, hi]``, stalled, or hit a point the integrator could not
+    do -- in which case the caller falls back to scanning.
+    """
+
+    step = max(abs(start), 1.0) * 1.0e-4
+
+    x0 = float(start)
+    x1 = float(min(hi, max(lo, start + step)))
+
+    f0 = f(x0)
+
+    if not np.isfinite(f0):
+        return None
+
+    if abs(f0) <= tol:
+        return x0
+
+    f1 = f(x1)
+
+    for _ in range(steps):
+
+        if not np.isfinite(f1) or f1 == f0:
+            return None
+
+        if abs(f1) <= tol:
+            return x1
+
+        x2 = x1 - f1 * (x1 - x0) / (f1 - f0)
+
+        if not (lo <= x2 <= hi):
+            return None
+
+        x0, f0 = x1, f1
+
+        x1 = float(x2)
+
+        f1 = f(x1)
+
+    return x1 if np.isfinite(f1) and abs(f1) <= tol else None
+
 
 def _bracketed_root(f, lo, hi, samples=17):
     """
