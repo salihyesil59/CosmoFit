@@ -116,13 +116,31 @@ STANDARD_FLUIDS = {
 # ============================================================
 
 #: Functions a gravity/field expression may call.
+#:
+#: The inverse trigonometric and hyperbolic ones are here because
+#: published models use them: the arctan f(R) family
+#: (arXiv:1601.07928, arXiv:1310.6915) and the arcsin one
+#: (arXiv:1507.04927) cannot be written without them, and leaving
+#: them out silently pushed such an action into a name error rather
+#: than a physics answer.
 _SAFE_FUNCTIONS = {
     name: getattr(sp, name)
     for name in (
         "sqrt", "exp", "log", "sin", "cos", "tan",
         "sinh", "cosh", "tanh", "Abs", "sign",
+        "asin", "acos", "atan",
+        "asinh", "acosh", "atanh",
     )
 }
+
+
+#: Mathematical constants an expression may name. Only `pi`: it is
+#: needed to normalise a bounded correction (an arctan saturates at
+#: pi/2, so writing the saturated value costs a `pi`), and writing
+#: `3.14159...` instead would be both uglier and less exact. Sympy's
+#: other one-letter constants are deliberately left out -- `E` and
+#: `S` in particular read as parameter names and would shadow them.
+_SAFE_CONSTANTS = {"pi": sp.pi}
 
 
 #: Identifiers in an expression string: a name not preceded by a
@@ -149,6 +167,7 @@ def _sympify(expr: str, namespace: dict) -> sp.Expr:
     """
 
     local = dict(_SAFE_FUNCTIONS)
+    local.update(_SAFE_CONSTANTS)
     local.update(namespace)
 
     # Checked *before* parsing. sympify falls back to its own
@@ -166,7 +185,8 @@ def _sympify(expr: str, namespace: dict) -> sp.Expr:
             f"Unknown name(s) in expression {expr!r}: "
             f"{unknown}. Available: "
             f"{sorted(namespace)} plus "
-            f"{sorted(_SAFE_FUNCTIONS)}. Declare any new model "
+            f"{sorted(_SAFE_FUNCTIONS)} and "
+            f"{sorted(_SAFE_CONSTANTS)}. Declare any new model "
             f"parameter in Action(params=...)."
         )
 

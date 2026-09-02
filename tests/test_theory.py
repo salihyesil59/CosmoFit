@@ -36,7 +36,8 @@ from CosmoFit.cosmology.models import LCDM, FQExponential
 
 sympy = pytest.importorskip("sympy")
 
-from CosmoFit.theory import Action  # noqa: E402
+from CosmoFit.theory import Action
+from CosmoFit.theory.action import _SAFE_FUNCTIONS  # noqa: E402
 from CosmoFit.theory.minisuperspace import (  # noqa: E402
     GEOMETRIES,
     GEOMETRY_SCALAR,
@@ -530,6 +531,59 @@ def test_action_with_two_geometry_scalars_is_refused():
 
     with pytest.raises(ValueError, match="more than one geometry"):
         Action("R + T")
+
+
+def test_inverse_trigonometric_functions_are_available():
+    """
+    The published arctan f(R) models (arXiv:1601.07928,
+    arXiv:1310.6915) and the arcsin one (arXiv:1507.04927) cannot be
+    written without these. Leaving them out of the namespace turned
+    such an action into a name error rather than a physics answer,
+    which is a poor way to decline a model.
+    """
+
+    import sympy
+
+    action = Action(
+        "R - a0*Rw*atan(R/Rw)",
+        params={"a0": {"default": 0.3}, "Rw": {"default": 1.0}},
+    )
+
+    assert action.gravity.has(sympy.atan)
+
+    # and it is genuinely fourth order, so it takes the f(R) route
+    assert action.is_fourth_order
+
+    for name in ("asin", "acos", "atan", "asinh", "acosh", "atanh"):
+        assert name in _SAFE_FUNCTIONS
+
+
+def test_pi_is_available_as_a_constant():
+    """
+    A bounded correction has to be normalised by its own saturation
+    value, and an arctan saturates at pi/2. Writing 3.14159... would
+    be both uglier and inexact.
+    """
+
+    import sympy
+
+    action = Action(
+        "R - (4*Lam/pi)*atan(R/Rw)",
+        params={"Lam": {"default": 2.1}, "Rw": {"default": 1.0}},
+    )
+
+    assert action.gravity.has(sympy.pi)
+
+
+def test_sympys_other_one_letter_constants_stay_out_of_scope():
+    """
+    `E` and `S` are sympy constants and would shadow a parameter of
+    those names silently, which is exactly the failure the namespace
+    check exists to prevent.
+    """
+
+    with pytest.raises(ValueError, match="Unknown name"):
+        Action("R - 2*Lam + E", closure="Lam")
 
 
 def test_undeclared_parameter_is_refused():
