@@ -171,3 +171,104 @@ def test_the_compiled_teleparallel_path_agrees_with_the_written_one():
         np.asarray(written.mu(A), dtype=float),
         rtol=1e-10,
     )
+
+
+# ============================================================
+# 4. Reporting, as opposed to refusing
+# ============================================================
+#
+# `mu` raises, because a caller asking for a number must not be
+# handed a meaningless one. But "is this model admissible" is a
+# different question and deserves an answer rather than an
+# exception -- which is what the metric sector's `viability()`
+# already gave, and this sector did not.
+
+
+@pytest.mark.parametrize("n", [-0.5, 0.2, 0.45])
+def test_a_healthy_model_reports_viable(n):
+
+    model = FTPowerLaw(FTPowerLaw.PARAMS_CLASS(H0=70.0, Omega_m=0.3, n=n))
+
+    verdict = model.viability(np.linspace(0.0, 3.0, 100))
+
+    assert verdict["ok"]
+
+    assert verdict["failed"] == []
+
+
+@pytest.mark.parametrize("n", [0.6, 1.5])
+def test_an_unphysical_model_reports_why_instead_of_raising(n):
+    """
+    The same two cases `mu` refuses. Here they come back as a
+    verdict, so a caller can ask before committing to a fit.
+    """
+
+    model = FTPowerLaw(FTPowerLaw.PARAMS_CLASS(H0=70.0, Omega_m=0.3, n=n))
+
+    verdict = model.viability(np.linspace(0.0, 3.0, 100))
+
+    assert not verdict["ok"]
+
+    assert verdict["failed"] == ["f_prime"]
+
+    assert "repulsive" in verdict["reasons"][0]
+
+
+def test_the_coupling_itself_is_reachable():
+    """
+    `coupling(z)` returns `f'`, the counterpart of the metric
+    sector's `scalaron(z)`. Its reciprocal is `mu` where `mu` is
+    defined at all.
+    """
+
+    model = FTPowerLaw(FTPowerLaw.PARAMS_CLASS(H0=70.0, Omega_m=0.3, n=0.2))
+
+    f_prime = np.asarray(model.coupling(Z), dtype=float)
+
+    assert np.all(f_prime > 0.0)
+
+    assert np.allclose(
+        1.0 / f_prime, np.asarray(model.mu(A), dtype=float), rtol=1e-12,
+    )
+
+
+def test_the_exponential_model_reports_too():
+
+    model = FQExponential(FQExponential.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
+
+    assert model.viability()["ok"]
+
+    assert np.all(np.asarray(model.coupling(Z), dtype=float) > 0.0)
+
+
+def test_the_compiled_path_gives_the_same_verdict():
+    """
+    Both routes into `mu = 1/f'` now report as well as refuse, and
+    they have to agree about which models are admissible.
+    """
+
+    pytest.importorskip("sympy")
+
+    from CosmoFit.theory import Action
+
+    model = Action(
+        "T + A0*(-T)**b",
+        geometry="teleparallel",
+        params={"A0": {"default": 1.0}, "b": {"default": 0.45}},
+        closure="A0",
+        growth="quasi_static",
+    ).build("FTVerdict")
+
+    grid = np.linspace(0.0, 3.0, 100)
+
+    for b, expected in ((0.45, True), (0.6, False)):
+
+        compiled = model(model.PARAMS_CLASS(H0=70.0, Omega_m=0.3, b=b))
+
+        written = FTPowerLaw(
+            FTPowerLaw.PARAMS_CLASS(H0=70.0, Omega_m=0.3, n=b)
+        )
+
+        assert compiled.viability(grid)["ok"] is expected
+
+        assert written.viability(grid)["ok"] is expected

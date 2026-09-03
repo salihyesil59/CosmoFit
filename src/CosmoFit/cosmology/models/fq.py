@@ -6,7 +6,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from CosmoFit.cosmology.core.utils import coupling_from_derivative
+from CosmoFit.cosmology.core.utils import (
+    TELEPARALLEL_CONDITIONS,
+    coupling_from_derivative,
+    teleparallel_failures,
+)
 from CosmoFit.typing import Array, Redshift
 
 from CosmoFit.cosmology.numerics.powers import cube
@@ -207,3 +211,53 @@ class FQExponential(Cosmology):
         f_Q = np.exp(lam * x) * (1.0 - lam * x)
 
         return coupling_from_derivative(f_Q, model=type(self).__name__)
+
+    # ---------------------------------------------------------
+
+    def coupling(self, z: Redshift) -> Array:
+        """
+        ``f_Q`` on this model's own background -- the quantity whose
+        reciprocal is ``mu``.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        x = 1.0 / self.E(z) ** 2
+
+        return np.exp(self._lam * x) * (1.0 - self._lam * x)
+
+    def viability(self, z: Redshift | None = None) -> dict:
+        """
+        Whether this model is one worth fitting, checked along its
+        own background.
+
+        Returns ``{"ok": bool, "failed": [...], "reasons": [...]}``,
+        with the single condition ``f' > 0`` -- see
+        :data:`cosmology.core.utils.TELEPARALLEL_CONDITIONS`. The
+        counterpart of the metric sector's ``viability()``.
+
+        A *sampled* statement rather than a proof: the condition is
+        evaluated on a grid, so a violation confined between samples
+        is missed. The default range is the one observations cover.
+
+        Where ``mu`` raises, this reports -- a caller asking for a
+        number must not be handed a meaningless one, but a caller
+        asking whether the model is admissible wants an answer.
+        """
+
+        import numpy as _np
+
+        if z is None:
+            z = _np.concatenate([
+                _np.linspace(0.0, 3.0, 240),
+                _np.geomspace(3.0, 1100.0, 240),
+            ])
+
+        failed = teleparallel_failures(self.coupling(z))
+
+        return {
+            "ok": not failed,
+            "failed": failed,
+            "reasons": [TELEPARALLEL_CONDITIONS[k] for k in failed],
+        }
+
