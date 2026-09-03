@@ -1745,6 +1745,93 @@ def _render_best_fit(fit: Fitter) -> None:
 
 # ------------------------------------------------------------
 
+#: Session-state keys that describe *what to run*, as opposed to
+#: what was run or which tab is open. Saved and restored by prefix
+#: rather than by an exhaustive list, so a widget added later to an
+#: existing family is carried without anyone remembering to come
+#: back here.
+#:
+#: Deliberately excluded: `dl_*` (download button state),
+#: `*_model_choice` and `*_multiselect` (which result is being
+#: looked at), and `profile_run_`/`fisher_run_` (whether an
+#: expensive extra has been asked for). Restoring those would
+#: reproduce someone else's *view* rather than their configuration.
+_CONFIG_PREFIXES = (
+    "ds_", "dsver_", "compute_rd", "derive_sigma",
+    "model_choice_", "n_models",
+    "action_", "custom_",
+    "mcmc_", "param_editor_", "relevant_only_",
+)
+
+_CONFIG_EXCLUDE = ("action_load_", "action_preset_", "dataset_preset")
+
+
+def _configuration() -> dict:
+    """
+    The current configuration, as something that can be written to
+    a file and read back.
+
+    A run here can take fourteen dataset ticks, three models with
+    their own parameters, and a set of MCMC settings. Closing the
+    tab loses all of it, and there is no way to hand it to someone
+    else -- which for a tool whose whole point is reproducible
+    fitting is a gap worth closing.
+    """
+
+    return {
+        "version": __version__,
+        "state": {
+            key: value
+            for key, value in st.session_state.items()
+            if isinstance(key, str)
+            and key.startswith(_CONFIG_PREFIXES)
+            and not key.startswith(_CONFIG_EXCLUDE)
+            and isinstance(value, (str, int, float, bool, list, type(None)))
+        },
+    }
+
+
+def _restore_configuration(payload: dict) -> int:
+    """
+    Write a saved configuration back into session state.
+
+    Returns how many keys were applied.
+
+    Values are written rather than widgets set, and this runs
+    *above* the widgets it writes to, so they are picked up on the
+    same pass -- the same ordering the dataset presets rely on. A
+    `st.rerun()` here would be a second render for no gain.
+
+    Unknown keys are dropped rather than trusted: a file from a
+    later version can name a widget this one does not have, and
+    Streamlit raises on an unexpected key only once the widget
+    tries to use it, which would be a crash far from the cause.
+    """
+
+    state = (payload or {}).get("state") or {}
+
+    applied = 0
+
+    for key, value in state.items():
+
+        if not isinstance(key, str):
+            continue
+
+        if not key.startswith(_CONFIG_PREFIXES):
+            continue
+
+        if key.startswith(_CONFIG_EXCLUDE):
+            continue
+
+        st.session_state[key] = value
+
+        applied += 1
+
+    return applied
+
+
+# ------------------------------------------------------------
+
 def _equivalent_script(
     model_choice: str,
     model_names: list[str],
@@ -2659,6 +2746,55 @@ with version_col:
 
 with st.sidebar:
 
+    # ------------------------------------------------------
+    # Saving and restoring the whole configuration
+    # ------------------------------------------------------
+    #
+    # Placed above every widget it writes to, so a restored value
+    # is picked up on this same pass -- the ordering the dataset
+    # presets already rely on.
+
+    with st.expander("💾 Configuration"):
+
+        uploaded = st.file_uploader(
+            "Restore a saved configuration",
+            type=["json"],
+            key="config_upload",
+            help="A file saved below, from this session or someone "
+                 "else's. Datasets, models, parameters and MCMC "
+                 "settings come back; results do not.",
+        )
+
+        if uploaded is not None and not st.session_state.get(
+            "_config_applied_" + uploaded.name, False
+        ):
+            try:
+                applied = _restore_configuration(json.loads(uploaded.getvalue()))
+
+                # Once per file. Streamlit re-runs the whole script
+                # on every interaction and the uploader keeps
+                # returning the same file, so without this the
+                # configuration would be re-applied on every click
+                # and no edit made afterwards would ever stick.
+                st.session_state["_config_applied_" + uploaded.name] = True
+
+                st.success(f"Restored {applied} settings.")
+
+            except Exception as exc:
+                st.error(f"Could not read that file: {exc}", icon="🚫")
+
+        st.download_button(
+            "⬇️ Save this configuration",
+            data=json.dumps(_configuration(), indent=2),
+            file_name="cosmofit_configuration.json",
+            mime="application/json",
+            key="dl_config",
+            width="stretch",
+            help="Everything on this page that says *what to run* -- "
+                 "not what was run. Hand it to someone else and they "
+                 "get your setup, not your results.",
+        )
+
     st.markdown("### 📊 Datasets")
     st.caption("Shared by every model below -- comparisons need the same data.")
 
@@ -2861,16 +2997,27 @@ with st.sidebar:
         with col_a:
             nwalkers = st.number_input(
                 "Walkers", min_value=8, value=48, step=2,
+                key="mcmc_nwalkers",
                 help="At least 2x the number of free parameters you "
                      "tick below, or the fit will fail to start.",
             )
-            burnin = st.number_input("Burn-in", min_value=0, value=500, step=50)
+            burnin = st.number_input(
+                "Burn-in", min_value=0, value=500, step=50,
+                key="mcmc_burnin",
+            )
         with col_b:
-            nsteps = st.number_input("Steps", min_value=50, value=3000, step=50)
-            seed = st.number_input("Seed", min_value=0, value=42, step=1)
+            nsteps = st.number_input(
+                "Steps", min_value=50, value=3000, step=50,
+                key="mcmc_nsteps",
+            )
+            seed = st.number_input(
+                "Seed", min_value=0, value=42, step=1,
+                key="mcmc_seed",
+            )
 
         auto_processes = st.checkbox(
             "Use all available CPU cores", value=True,
+            key="mcmc_auto_processes",
             help="Let CosmoFit decide how many worker processes to "
                  "use (every core this session is allowed to run on, "
                  "but only when the run is long enough to be worth "
@@ -4063,6 +4210,36 @@ if fits:
 
         except Exception as exc:
             st.caption(f"Could not build the snippet: {exc}")
+
+    with st.expander("🔗 The posterior samples"):
+
+        st.caption(
+            "The chain is the expensive thing this page produced -- "
+            "the summary above is a handful of numbers derived from "
+            "it. Take the samples away to make your own contours, "
+            "re-marginalise, or combine them with something else."
+        )
+
+        for label, fit in zip(fit_labels, fits):
+
+            try:
+                samples = fit.flat_samples()
+
+            except Exception as exc:
+                st.caption(f"{label}: no chain to export ({exc})")
+                continue
+
+            frame = pd.DataFrame(samples, columns=list(fit.free_params))
+
+            st.download_button(
+                f"⬇️ {label} — {len(frame):,} samples (CSV)",
+                data=frame.to_csv(index=False),
+                file_name=f"cosmofit_chain_{label.replace(' ', '_')}.csv",
+                mime="text/csv",
+                key=f"dl_chain_{label}",
+                help="Post-burn-in, flattened across walkers. One row "
+                     "per sample, one column per free parameter.",
+            )
 
     st.download_button(
         "⬇️ Download result(s) (JSON)",
