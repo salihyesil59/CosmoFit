@@ -48,6 +48,7 @@ from scipy.optimize import brentq
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.errors import ModelConfigurationError
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
+from CosmoFit.cosmology.core.utils import coupling_from_derivative
 
 from CosmoFit.theory.curvature import (
     VIABILITY_CONDITIONS,
@@ -1351,7 +1352,13 @@ class Action:
             self.scalar, sign * E2,
         )
 
-        return sp.lambdify((E2, *args), 1 / f_prime, "numpy")
+        # `f'`, not `1/f'`. Taking the reciprocal here would hide the
+        # two ways it stops meaning anything -- a pole at `f' = 0`
+        # and repulsive gravity at `f' < 0` -- behind a number that
+        # looks perfectly ordinary. The reciprocal is taken in
+        # `cosmology.core.utils.coupling_from_derivative`, which
+        # refuses both.
+        return sp.lambdify((E2, *args), f_prime, "numpy")
 
     # ---------------------------------------------------------
 
@@ -1678,14 +1685,19 @@ def _make_mu(compiled):
 
         E2 = self._E2(1.0 / a - 1.0)
 
-        return np.asarray(
+        f_prime = np.asarray(
             compiled(E2, *self._parameter_values()), dtype=float,
         )
+
+        return coupling_from_derivative(f_prime, model=type(self).__name__)
 
     mu.__doc__ = (
         "Effective gravitational coupling G_eff/G_N = 1/f', the "
         "sub-horizon quasi-static limit of this model's "
-        "gravitational sector (see ``Action(growth=...)``)."
+        "gravitational sector (see ``Action(growth=...)``). Raises "
+        "where f' <= 0, since 1/f' is then either singular or "
+        "negative -- see "
+        "``cosmology.core.utils.coupling_from_derivative``."
     )
 
     return mu

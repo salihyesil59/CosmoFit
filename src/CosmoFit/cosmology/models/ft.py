@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.core.utils import coupling_from_derivative
 from CosmoFit.typing import Array, Redshift
 
 from CosmoFit.cosmology.numerics.powers import cube
@@ -366,4 +367,4 @@ class FTPowerLaw(Cosmology):
 
         f_T = 1.0 + n * A * x ** (n - 1.0)
 
-        return 1.0 / f_T
+        return coupling_from_derivative(f_T, model=type(self).__name__)
