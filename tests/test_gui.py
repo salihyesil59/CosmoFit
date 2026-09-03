@@ -1041,3 +1041,149 @@ def _snippet_generator():
     )
 
     return namespace["_equivalent_script"]
+
+
+# ============================================================
+# Saving and restoring a configuration
+# ============================================================
+
+
+def test_a_configuration_round_trips():
+    """
+    The point of saving is that what comes back is what went in.
+
+    A run here can be fourteen dataset ticks, several models with
+    their own parameters and a set of MCMC settings; closing the tab
+    lost all of it and there was no way to hand it to anyone else.
+
+    Applied through the app rather than the helper, because the
+    ordering is the part that can break: the panel writes into
+    session state *above* the widgets that read it, so a restored
+    value has to be picked up on the same pass.
+    """
+
+    import json
+
+    app = _apply_preset(_fresh(), "DESI DR2 + BBN → H₀ without the CMB")
+
+    state = app.session_state.filtered_state
+
+    before = {
+        key: value
+        for key, value in state.items()
+        if isinstance(key, str) and key.startswith(("ds_", "compute_rd"))
+    }
+
+    assert before, "the preset wrote nothing to restore"
+
+    saved = json.dumps({"version": "test", "state": before})
+
+    # A different starting point, so a successful restore cannot be
+    # confused with nothing having changed.
+    app = _apply_preset(app, "The Hubble tension, both sides")
+
+    changed = {
+        key: app.session_state.filtered_state[key] for key in before
+    }
+
+    assert changed != before, "the second preset did not change anything"
+
+    for key, value in json.loads(saved)["state"].items():
+        app.session_state[key] = value
+
+    app = app.run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    after = {key: app.session_state.filtered_state[key] for key in before}
+
+    assert after == before
+
+
+def test_the_configuration_carries_what_to_run_and_not_what_was_run():
+    """
+    A saved file is a setup, not a session. Restoring someone
+    else's view -- which model tab they had open, which plots they
+    had ticked -- would be worse than useless, since it would
+    silently point their results at a different model.
+    """
+
+    app = _fresh()
+
+    payload_keys = set(_configuration_keys(app))
+
+    assert any(k.startswith("ds_") for k in payload_keys), (
+        "dataset ticks are the configuration and must be saved"
+    )
+
+    for forbidden in ("dl_", "posterior_model_choice", "plots_model_choice",
+                      "single_plots_multiselect", "dataset_preset"):
+        assert not any(k.startswith(forbidden) for k in payload_keys), (
+            f"{forbidden!r} describes the view, not the run"
+        )
+
+
+def _configuration_keys(app):
+    """
+    Which keys the app's own filter would save, evaluated against
+    this app's session state.
+
+    Lifted from the module the same way `_snippet_generator` is, so
+    the test reads the real prefix lists rather than a copy that
+    could drift from them.
+    """
+
+    import ast
+    from pathlib import Path
+
+    source = Path(APP).read_text(encoding="utf-8")
+
+    tree = ast.parse(source)
+
+    namespace: dict = {}
+
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            getattr(t, "id", "") in ("_CONFIG_PREFIXES", "_CONFIG_EXCLUDE")
+            for t in node.targets
+        ):
+            exec(  # noqa: S102 - two literal tuples from this repo
+                compile(ast.Module(body=[node], type_ignores=[]), APP, "exec"),
+                namespace,
+            )
+
+    prefixes = namespace["_CONFIG_PREFIXES"]
+    exclude = namespace["_CONFIG_EXCLUDE"]
+
+    return [
+        key for key in app.session_state.filtered_state
+        if isinstance(key, str)
+        and key.startswith(prefixes)
+        and not key.startswith(exclude)
+    ]
+
+
+def test_the_chain_itself_can_be_taken_away():
+    """
+    The chain is what the run actually produced; the summary is a
+    handful of numbers derived from it. Downloading only the summary
+    means a two-hour fit cannot be re-marginalised, re-plotted or
+    combined with anything else without running it again.
+    """
+
+    app = _apply_preset(_fresh(timeout=600.0), "The Hubble tension, both sides")
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    labels = [b.label for b in app.download_button]
+
+    chain_buttons = [label for label in labels if "samples (CSV)" in label]
+
+    assert chain_buttons, f"no chain download offered; downloads were {labels}"
+
+    # the count in the label has to be the post-burn-in sample count,
+    # not the raw step count -- quoting the wrong one would have
+    # people believe they have more independent samples than they do
+    assert any(char.isdigit() for char in chain_buttons[0])

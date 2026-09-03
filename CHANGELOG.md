@@ -16,6 +16,43 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A configuration is a thing you can keep, and so is the chain
+
+Two more gaps between what the app produced and what you could
+leave with.
+
+**The configuration was lost on reload.** Fourteen dataset ticks,
+several models with their own parameters, a set of MCMC settings --
+closing the tab threw all of it away, and there was no way to hand
+a setup to a collaborator. It saves and restores as JSON now.
+
+Saved by prefix rather than by an exhaustive list, so a widget added
+later to an existing family is carried without anyone remembering to
+come back. What is deliberately *not* saved is as important: the
+download-button state, which model each results tab is looking at,
+and whether an expensive extra has been asked for. Those describe a
+view rather than a run, and restoring them would silently point
+someone's results at a different model.
+
+Restoring writes into session state *above* the widgets that read
+it, so the values land on the same pass -- the ordering the dataset
+presets already use -- and it applies once per file, because
+Streamlit re-runs the whole script on every interaction and the
+uploader keeps handing back the same file. Without that, no edit
+made after a restore would ever stick.
+
+**The chain could not be taken away.** The summary is a handful of
+numbers derived from the expensive thing; the chain *is* the
+expensive thing. Post-burn-in flattened samples now download as CSV,
+one row per sample and one column per free parameter, so a
+two-hour fit can be re-marginalised or combined with something else
+without running it again.
+
+Three tests. The round trip is driven through the app rather than
+the helper, because the ordering is the part that can break -- and
+it restores over a *different* preset first, so a successful restore
+cannot be confused with nothing having changed.
+
 ### The fit, as Python you can take away
 
 The app is a way into a Python library, not a replacement for it,
