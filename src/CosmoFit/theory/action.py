@@ -1016,7 +1016,9 @@ class Action:
 
         system, args = self.field_system()
 
-        mu = self._compile_scalar_tensor_mu()
+        compiled_mu = self._compile_scalar_tensor_mu()
+
+        mu = None if compiled_mu is None else compiled_mu
 
         arg_names = tuple(s.name for s in args)
         field_names = tuple(self.fields)
@@ -1071,7 +1073,7 @@ class Action:
             attrs["DERIVED_PARAMS"] = frozenset({self.closure})
 
         if mu is not None:
-            attrs["mu"] = _make_field_mu(mu)
+            attrs["mu"] = _make_field_mu(*mu)
 
         model = type(name, (_FieldModel,), attrs)
 
@@ -1165,7 +1167,16 @@ class Action:
 
         fields = [sp.Symbol(name) for name in self.fields]
 
-        return sp.lambdify((*fields, *args), mu, "numpy")
+        # `F` as well as `mu`. With `s = sum (dF/dphi)^2 >= 0` by
+        # construction, `F > 0` makes both `2F + 4s` and
+        # `F(2F + 3s)` strictly positive, and is the only way they
+        # can be: the pole sits at `2F + 3s = 0`, which needs
+        # `F = -3s/2 <= 0`. So one number decides whether this
+        # expression means anything, and it is worth returning.
+        return (
+            sp.lambdify((*fields, *args), mu, "numpy"),
+            sp.lambdify((*fields, *args), F, "numpy"),
+        )
 
     # ---------------------------------------------------------
 
@@ -2743,7 +2754,7 @@ def _make_curvature_dEdz():
     return dEdz
 
 
-def _make_field_mu(compiled):
+def _make_field_mu(compiled, coupling):
 
     def mu(self, a, k=None):
 
@@ -2761,13 +2772,29 @@ def _make_field_mu(compiled):
 
         args = tuple(float(values[name]) for name in self._ARGS)
 
+        F = np.asarray(coupling(*fields, *args), dtype=float)
+
+        if np.any(~np.isfinite(F)) or np.any(F <= 0.0):
+            raise ValueError(
+                f"{type(self).__name__} has a non-minimal coupling "
+                f"F = {float(np.nanmin(F)):.6g} somewhere in the "
+                f"requested range. F is the effective Newton "
+                f"constant's reciprocal, so F <= 0 is a ghost, and "
+                f"the scalar-tensor mu is then negative or "
+                f"singular -- 'mu = -2' and 'mu = inf' are both "
+                f"reachable values of the formula. F > 0 is the "
+                f"condition for it to mean anything."
+            )
+
         return np.asarray(compiled(*fields, *args), dtype=float)
 
     mu.__doc__ = (
         "Effective gravitational coupling G_eff/G_N in the "
         "sub-horizon quasi-static limit of scalar-tensor gravity "
         "(see ``Action(growth=...)``). Evaluated on the field's own "
-        "solution, so it varies with time as the field rolls."
+        "solution, so it varies with time as the field rolls. "
+        "Raises where the non-minimal coupling F <= 0, since the "
+        "expression is then negative or singular."
     )
 
     return mu

@@ -353,6 +353,39 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### The third mu, guarded -- and honestly labelled
+
+Having done the metric and teleparallel sectors, the scalar-tensor
+`mu` was the one left:
+
+    mu = (2F + 4s) / (F (2F + 3s)),    s = sum (dF/dphi)^2
+
+`s` is a sum of squares, so `F > 0` is both necessary and sufficient
+for that to be positive and finite -- the pole is at `2F + 3s = 0`,
+which needs `F = -3s/2 <= 0`. `F` is what rescales Newton's
+constant, so `F <= 0` is a ghost.
+
+Evaluated directly the expression does reach those values:
+`F = 0, s = 0.5` gives `inf`, `F = -0.5, s = 0` gives `-2`, and
+`F = -0.3, s = 0.2` sits on the pole at `-6e15`.
+
+**What could not be produced is a model that gets there.** Scanning
+`xi` from `+0.05` down to `-0.4` with two field starts, every case
+that builds returns a positive finite `mu`; the ones that would not
+are refused earlier, by the closure solve leaving its valid region.
+So the protection that exists today is incidental -- it comes from
+an unrelated mechanism -- and this guard is defence in depth rather
+than a fix for a reachable bug. That is said in the test and in the
+code, because a guard whose motivation is not written down looks
+like evidence of a bug that was never there.
+
+It costs nothing where nothing was wrong: the healthy branch returns
+the same numbers to five decimals.
+
+All three `mu` paths in the library now refuse the values that mean
+nothing rather than returning them, and by the same rule in each
+case -- the coefficient that rescales gravity has to be positive.
+
 ### The notebook comparison now covers perturbations, not just E(z)
 
 The agreement test compared expansion histories. That left the half

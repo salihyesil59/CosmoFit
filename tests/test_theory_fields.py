@@ -710,3 +710,51 @@ def test_the_coupling_warning_stays_quiet_otherwise(model_kwargs, datasets):
                 "xi": 0.05, "phi_i": 1.0,
             },
         )
+
+
+# ============================================================
+# The coupling that decides whether mu means anything
+# ============================================================
+
+
+def test_the_scalar_tensor_mu_is_guarded_on_the_coupling():
+    """
+    ``mu = (2F + 4s)/(F(2F + 3s))`` with ``s = sum (dF/dphi)^2``,
+    which is a sum of squares and so never negative. That makes
+    ``F > 0`` both necessary and sufficient for the expression to be
+    positive and finite: the pole is at ``2F + 3s = 0``, which needs
+    ``F = -3s/2 <= 0``.
+
+    Evaluated directly, the formula does reach those values --
+    ``F = 0, s = 0.5`` gives ``inf``; ``F = -0.5, s = 0`` gives
+    ``-2``; ``F = -0.3, s = 0.2`` sits on the pole and gives
+    ``-6e15``. What could *not* be produced through the public API
+    is a model that gets there, because the closure solve refuses
+    those parameter regions first. So this guard is defence in
+    depth rather than a fix for a reachable bug, and it is written
+    down that way in case a later action or a change to the closure
+    exposes the region.
+    """
+
+    model = scalar_tensor(xi=0.05)
+
+    built = make(model, H0=70.0, Omega_m=0.3, phi_i=1.0)
+
+    mu = np.asarray(built.mu(np.array([1.0, 0.6])), dtype=float)
+
+    assert np.all(mu > 0.0)
+
+    assert np.all(np.isfinite(mu))
+
+
+def test_the_healthy_scalar_tensor_branch_is_unchanged():
+    """
+    The guard must cost nothing where nothing was wrong. These are
+    the numbers from before it existed.
+    """
+
+    built = make(scalar_tensor(xi=0.05), H0=70.0, Omega_m=0.3, phi_i=1.0)
+
+    mu = np.asarray(built.mu(np.array([1.0, 0.6, 0.3])), dtype=float)
+
+    assert mu == pytest.approx([0.78478, 0.80797, 0.83023], abs=1e-5)
