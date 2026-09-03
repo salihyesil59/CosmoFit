@@ -11,6 +11,7 @@ from .lcdm import LCDM
 from CosmoFit.typing import Array, Redshift
 
 from CosmoFit.cosmology.core import constants
+from CosmoFit.cosmology.core.utils import SOLAR_SYSTEM_BOUND
 
 
 class FRHuSawicki(LCDM):
@@ -146,3 +147,98 @@ class FRHuSawicki(LCDM):
         Y2 = Y ** 2
 
         return 1.0 + (Y2 / 3.0) / (Y2 + Mhat2)
+
+    # ---------------------------------------------------------
+
+    def screening(self, bound: float | None = None) -> dict:
+        """
+        Whether local tests have already excluded this model.
+
+        Hu-Sawicki states its own parameter as the thing the bound
+        is written on: ``f_R0`` *is* ``f_R(0) - 1``, the fractional
+        departure of the gravitational coupling today. So the
+        comparison is direct, and the class default of ``-1e-6``
+        sits exactly at the Solar System limit.
+
+        Deliberately separate from :meth:`viability`, for the same
+        reason as everywhere else in this library: one asks whether
+        the theory is consistent and the other whether it is
+        allowed, and a single flag would have to mislead about one.
+
+        See :func:`~cosmology.core.utils.screening_margin` for what
+        the bound does not settle -- chameleon screening is
+        non-linear, so failing means "excluded unless screening
+        rescues it".
+        """
+
+        if bound is None:
+            bound = SOLAR_SYSTEM_BOUND
+
+        # `abs(f_R0)` directly, rather than
+        # `screening_margin(1 + f_R0)`, which is the same quantity
+        # in exact arithmetic and not in floating point: forming
+        # `1 + f_R0` and subtracting 1 again returns
+        # 1.0000000000287e-06 for `f_R0 = -1e-6`. That is three
+        # parts in 1e17 above the bound, and the bound is exactly
+        # where this class's default sits -- so the round trip
+        # flipped the verdict for the default model, and gave
+        # `f_R0 = +1e-6` the opposite answer to `-1e-6` for the same
+        # magnitude.
+        deviation = abs(float(self.f_R0))
+
+        return {
+            "ok": deviation <= bound,
+            "deviation": deviation,
+            "bound": float(bound),
+        }
+
+    # ---------------------------------------------------------
+
+    def viability(self) -> dict:
+        """
+        Whether this is a consistent theory, as opposed to an
+        allowed one.
+
+        Two conditions, and both are statements about ``f_R0``
+        alone because the designer construction fixes everything
+        else:
+
+        * ``f_R0 < 0``. The scalaron mass squared goes as
+          ``-1/f_R0`` here, so a positive ``f_R0`` makes it
+          tachyonic. This is why the class bounds are strictly
+          negative, and why the default is.
+        * ``1 + f_R0 > 0``, the no-ghost condition, which for any
+          ``f_R0`` small enough to pass the previous section is not
+          in doubt -- checked anyway, since it costs nothing and
+          the two are independent.
+
+        Returns the same ``{"ok", "failed", "reasons"}`` shape the
+        rest of the library uses.
+        """
+
+        failed = []
+
+        if not self.f_R0 < 0.0:
+            failed.append("f_R0")
+
+        if not 1.0 + self.f_R0 > 0.0:
+            failed.append("f_R")
+
+        reasons = {
+            "f_R0": (
+                "f_R0 < 0 -- the scalaron's mass squared goes as "
+                "-1/f_R0, so a positive value makes it tachyonic. "
+                "The class bounds forbid it; constructing the model "
+                "directly does not."
+            ),
+            "f_R": (
+                "1 + f_R0 > 0 -- the effective gravitational "
+                "coupling. Negative is a ghost graviton."
+            ),
+        }
+
+        return {
+            "ok": not failed,
+            "failed": failed,
+            "reasons": [reasons[name] for name in failed],
+        }

@@ -353,6 +353,37 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### The canonical f(R) can now answer the question its parameter names
+
+`FRHuSawicki` is the f(R) most likely to be fitted against growth
+data, and it had neither `viability()` nor `screening()` -- while
+the compiled models had both. It is also the model where the
+question is easiest to ask, since `f_R0` **is** `f_R(0) - 1`, the
+quantity the Solar System bound is written on.
+
+Both are there now. `screening()` compares `|f_R0|` with the ~1e-6
+bound; `viability()` checks `f_R0 < 0` (the scalaron mass squared
+goes as `-1/f_R0`, so positive is tachyonic) and `1 + f_R0 > 0`.
+The class bounds already forbid positive `f_R0`, so this is a second
+line rather than the first -- a fit cannot reach it, a directly
+constructed model can.
+
+`SOLAR_SYSTEM_BOUND` and `screening_margin` moved from
+`theory.curvature` to `cosmology.core.utils`, since the Solar System
+bound is a fact about gravity rather than about that module's
+reduction, and `cosmology` cannot import `theory`. Both names are
+re-exported from where they were.
+
+**One instructive bug, at exactly the boundary.** The first version
+computed the deviation as `screening_margin(1 + f_R0)`, which
+reconstructs `f_R` and subtracts 1 again. In exact arithmetic that
+is `|f_R0|`; in floating point it returns `1.0000000000287e-06` for
+`f_R0 = -1e-6` -- three parts in 1e17 above the bound. The bound is
+exactly where this class's default sits, so the round trip **failed
+the default model**, and gave `f_R0 = +1e-6` the opposite verdict to
+`-1e-6` for the same magnitude. Taken from `f_R0` directly it is
+exact, and the test pins both the default and the sign symmetry.
+
 ### The gate reports as well as refuses, in both sectors
 
 Guarding `mu` left an asymmetry. A metric model could be asked
