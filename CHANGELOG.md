@@ -353,6 +353,52 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### The arctan f(R), actually fitted
+
+With evaluations at 10 s a maximum-likelihood point is reachable, so
+the comparison stops being "chi2 at LCDM's parameters" and becomes a
+fit. Against CC + DESI BAO + Pantheon + fsigma8, 1690 points:
+
+| | LCDM | arctan f(R) |
+| --- | --- | --- |
+| chi2 | 1498.650 | 1497.807 |
+| free parameters | 4 | 5 |
+| `H0` | 68.87 | 68.89 |
+| `Omega_m` | 0.307 | 0.294 |
+| `sigma8` | 0.762 | **0.677** |
+| `Rw` | -- | 1.158 |
+
+`dchi2 = -0.84` for one extra parameter, so `dAIC = +1.16`: the
+cosmological data cannot tell them apart, with LCDM marginally
+preferred for being simpler.
+
+**Why it survives the data.** At the best fit `mu(a=1, k=0.1) = 1.39`,
+a 39% enhancement of the growth of structure -- and `sigma8` comes out
+11% lower than LCDM's. `fsigma8` is proportional to `sigma8`, so the
+amplitude of the enhancement is absorbed and only its *shape* in
+redshift is constrained. This is why the earlier fixed-parameter
+comparison overstated the penalty at `dchi2 = +22.5`: that was an
+upper bound with the amplitude not allowed to adjust, and it is now
+measured properly.
+
+**What kills it is not the data here.** The same best fit gives
+`|f_R0 - 1| = 0.041`, forty-one thousand times the Solar System bound.
+The model is theoretically consistent, fits the background and growth
+as well as LCDM, and is excluded by local tests by four orders of
+magnitude -- which is the whole reason `screening()` is separate from
+`viability()`, and would have been missed by either alone.
+
+An optimizer note, since it nearly cost a wrong number. The first run
+had `MB` among the free parameters, and the Pantheon likelihood
+marginalises `MB` analytically -- so it does not enter chi2 at all and
+the fit had a completely flat direction, which Nelder-Mead has no way
+to handle sensibly. The symptom was visible: the arctan fit pushed
+`MB` to its prior bound while the LCDM fit left it exactly at its
+initial value. Rerun without it, the answer was unchanged to five
+digits, so nothing was actually corrupted -- but a flat direction in a
+derivative-free optimizer is not something to leave in on the grounds
+that it happened to be harmless.
+
 ### Making a forward f(R) fit feasible: 4.8x, and one idea that did not work
 
 A likelihood evaluation cost 48 s, which put an MCMC at 66 hours. It
