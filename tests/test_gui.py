@@ -908,3 +908,136 @@ def test_the_gate_asks_the_two_questions_separately():
     assert not screening["ok"], "and it is excluded anyway"
 
     assert screening["deviation"] / screening["bound"] > 1e3
+
+
+# ============================================================
+# The equivalent Python
+# ============================================================
+
+
+def test_the_fit_is_offered_as_a_python_snippet():
+    """
+    This app is a way into a Python library, not a replacement for
+    it, and the step from "explored it here" to "ran it in a
+    notebook" was a transcription job done by reading widgets back.
+
+    What matters is not that a code block appears but that it is
+    *runnable* and *describes this fit*, so it is parsed rather than
+    matched against a template.
+    """
+
+    import ast
+
+    app = _apply_preset(_fresh(timeout=600.0), "The Hubble tension, both sides")
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    blocks = [c.value for c in app.code]
+
+    assert blocks, "no snippet rendered after a fit"
+
+    snippet = next(b for b in blocks if "Fitter(" in b)
+
+    ast.parse(snippet)
+
+    assert "from CosmoFit import" in snippet
+
+    assert "run_mcmc(" in snippet
+
+    # and it has to name the datasets this run actually used, not a
+    # fixed example
+    assert "desi" in snippet
+
+    assert "h0" in snippet
+
+
+def test_the_snippet_rebuilds_an_action_rather_than_importing_it():
+    """
+    A model built from a Lagrangian cannot be imported by name, so
+    the snippet has to reconstruct the ``Action``.
+
+    Driven through the generator directly rather than the app,
+    because reaching the action route end to end needs a Lagrangian
+    that fits, and what is under test here is the contract of the
+    snippet -- not whether a particular action converges. The
+    end-to-end path is covered for built-in models by the test
+    above.
+    """
+
+    import ast
+
+    generator = _snippet_generator()
+
+    snippet = generator(
+        model_choice="From an action",
+        model_names=["MyAction"],
+        action_specs=[{
+            "name": "MyAction",
+            "gravity": "R - 2*Lam",
+            "geometry": None,
+            "fluids": ["matter"],
+            "params": {},
+            "closure": "Lam",
+            "growth": "gr",
+            "fields": None,
+            "background": "forward",
+        }],
+        datasets=["cc", "desi"],
+        dataset_versions={},
+        free_params=["H0", "Omega_m"],
+        initial={"H0": 70.0, "Omega_m": 0.3},
+        bounds={},
+        compute_rd=False,
+        derive_sigma8=False,
+        nwalkers=10,
+        nsteps=100,
+        burnin=20,
+        seed=42,
+    )
+
+    ast.parse(snippet)
+
+    assert "from CosmoFit.theory import Action" in snippet
+
+    assert "Action(" in snippet and ".build('MyAction')" in snippet
+
+    # settings that differ from the default have to survive; ones
+    # that match it are left out rather than repeated back
+    assert "background='forward'" in snippet
+
+    assert "growth=" not in snippet, "'gr' is the default and is noise"
+
+
+def _snippet_generator():
+    """
+    ``_equivalent_script`` lifted out of the app module.
+
+    The app runs top to bottom under Streamlit and cannot simply be
+    imported, so the function is compiled from its own source. That
+    keeps this test on the real implementation rather than a copy
+    of it.
+    """
+
+    import ast
+    from pathlib import Path
+
+    source = Path(APP).read_text(encoding="utf-8")
+
+    tree = ast.parse(source)
+
+    function = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_equivalent_script"
+    )
+
+    namespace: dict = {}
+
+    exec(  # noqa: S102 - compiling one known function from this repo
+        compile(ast.Module(body=[function], type_ignores=[]), APP, "exec"),
+        namespace,
+    )
+
+    return namespace["_equivalent_script"]
