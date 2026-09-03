@@ -1367,6 +1367,7 @@ def _action_and_model(
     growth: str,
     fields_text: str,
     z_init: float,
+    background: str,
 ):
     """
     Build an :class:`~CosmoFit.theory.Action` and the model class it
@@ -1392,6 +1393,7 @@ def _action_and_model(
         growth=growth,
         fields=_parse_fields(fields_text) or None,
         z_init=float(z_init),
+        background=background,
     )
 
     return action, action.build(name)
@@ -1435,6 +1437,7 @@ def _action_widgets(slot: int) -> tuple:
         st.session_state.get(f"action_growth_{slot}", "gr"),
         st.session_state.get(f"action_fields_{slot}", ""),
         float(st.session_state.get(f"action_zinit_{slot}", 3000.0)),
+        st.session_state.get(f"action_background_{slot}", "backward"),
     )
 
 
@@ -1713,6 +1716,91 @@ def _render_best_fit(fit: Fitter) -> None:
         "Evaluated at the best-fit point. These sum to the total χ² "
         "above; a single dataset carrying a disproportionate share is "
         "where a tension lives."
+    )
+
+    _render_gate(fit)
+
+
+# ------------------------------------------------------------
+
+def _render_gate(fit: Fitter) -> None:
+    """
+    Whether the fitted model is a theory worth having fitted.
+
+    Two questions, kept apart because they have different answers.
+    ``viability()`` asks whether the theory is *consistent* -- no
+    ghost graviton, no tachyonic scalaron, a positive effective
+    coupling. ``screening()`` asks whether it is *allowed*, which
+    is a statement about local gravity tests and not about the
+    theory's health. A model can pass one and fail the other, and
+    the arctan f(R) does exactly that: it fits as well as LCDM and
+    is excluded by the Solar System by four orders of magnitude.
+
+    Only shown for models that answer -- most of the library is
+    dark energy on top of General Relativity, where neither
+    question arises.
+    """
+
+    cosmology = getattr(fit, "cosmology", None)
+
+    has_viability = hasattr(cosmology, "viability")
+    has_screening = hasattr(cosmology, "screening")
+
+    if not (has_viability or has_screening):
+        return
+
+    st.markdown("#### Is this a theory worth fitting?")
+
+    columns = st.columns(2)
+
+    with columns[0]:
+
+        if has_viability:
+            try:
+                verdict = cosmology.viability()
+
+                if verdict["ok"]:
+                    st.success("**Consistent** — no ghost, no tachyon.")
+                else:
+                    st.error(
+                        "**Not consistent.** "
+                        + " ".join(verdict["reasons"])
+                    )
+
+            except Exception as exc:
+                st.warning(f"Could not check consistency: {exc}")
+
+    with columns[1]:
+
+        if has_screening:
+            try:
+                verdict = cosmology.screening()
+
+                over = verdict["deviation"] / verdict["bound"]
+
+                if verdict["ok"]:
+                    st.success(
+                        f"**Allowed by local tests** — "
+                        f"|f_R0| = {verdict['deviation']:.3g}, "
+                        f"within the {verdict['bound']:.0e} bound."
+                    )
+                else:
+                    st.error(
+                        f"**Excluded by local tests** — "
+                        f"|f_R0| = {verdict['deviation']:.3g}, "
+                        f"{over:.3g}× the Solar System bound of "
+                        f"{verdict['bound']:.0e}."
+                    )
+
+            except Exception as exc:
+                st.warning(f"Could not check screening: {exc}")
+
+    st.caption(
+        "Consistency and exclusion are different questions and are "
+        "asked separately, because a model can pass one and fail the "
+        "other. The screening number is the *linear* estimate: "
+        "chameleon screening is non-linear, so failing it means "
+        "\"excluded unless screening rescues it\" rather than a proof."
     )
 
 
@@ -3100,6 +3188,33 @@ for i in range(n_models):
                             "`fsigma8` or `s8`."
                         ),
                     )
+
+                st.selectbox(
+                    "f(R) integration direction",
+                    options=["backward", "forward"],
+                    key=f"action_background_{i}",
+                    help=(
+                        "Only used by a general `f(R)` -- anything "
+                        "non-linear in `R`. `backward` integrates "
+                        "from today outwards, which is right while "
+                        "the scalaron's oscillating mode decays "
+                        "into the past, as it does for "
+                        "`R + alpha*R**2`. `forward` integrates "
+                        "from deep in matter domination towards "
+                        "today, and is what the \"disappearing "
+                        "cosmological constant\" family needs -- "
+                        "Hu-Sawicki, Starobinsky 2007, Tsujikawa, "
+                        "the arctan models. Backwards those reach "
+                        "only z ~ 1.2 however carefully `R_0` is "
+                        "chosen, because the mode grows the other "
+                        "way. Two things swap over with `forward`: "
+                        "`R_0` stops being a parameter and becomes "
+                        "derived, and a closure parameter becomes "
+                        "**required**, since `E(0) = 1` is then a "
+                        "condition to satisfy rather than where "
+                        "the integration starts."
+                    ),
+                )
 
                 with st.expander("Scalar fields, fluids, and z_init"):
 

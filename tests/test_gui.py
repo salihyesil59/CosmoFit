@@ -815,3 +815,96 @@ def test_a_library_warning_reaches_the_page():
     assert "**Model 1:**" in shown, shown
 
     assert "sdss_bao" in shown and "fsigma8" in shown
+
+
+# ============================================================
+# The admissibility gate, and the second integration direction
+# ============================================================
+#
+# Both were added to the library after this app was written, so
+# neither was reachable from it: a general f(R) could only be
+# integrated backwards, which the whole "disappearing cosmological
+# constant" family cannot survive, and nothing showed whether a
+# fitted model was a theory worth having fitted.
+
+
+def test_the_integration_direction_is_offered():
+    """
+    Without this control the GUI can only build the f(R) models
+    that integrate backwards -- which excludes Hu-Sawicki,
+    Starobinsky 2007, Tsujikawa and the arctan family.
+    """
+
+    app = _select_action(_fresh())
+
+    pickers = [
+        s for s in app.selectbox
+        if s.label == "f(R) integration direction"
+    ]
+
+    assert pickers, "the direction control is missing"
+
+    assert set(pickers[0].options) == {"backward", "forward"}
+
+    assert pickers[0].value == "backward", (
+        "backward has to stay the default: it is what every model "
+        "already in the library uses, and forward additionally "
+        "requires a closure parameter"
+    )
+
+
+def test_choosing_forward_reaches_the_builder():
+    """
+    A control that is displayed but not wired is worse than no
+    control. Setting it must change what the app builds, which is
+    checked by the app running clean afterwards rather than raising
+    a signature mismatch between the widget tuple and the builder.
+    """
+
+    app = _select_action(_fresh())
+
+    picker = [
+        s for s in app.selectbox
+        if s.label == "f(R) integration direction"
+    ][0]
+
+    app = picker.set_value("forward").run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+
+def test_a_model_with_no_gate_shows_no_verdict():
+    """
+    Most of the library is dark energy on top of General
+    Relativity, where neither question arises. Showing an empty
+    panel there would be noise.
+    """
+
+    from CosmoFit import LCDM
+
+    assert not hasattr(LCDM, "viability")
+
+    assert not hasattr(LCDM, "screening")
+
+
+def test_the_gate_asks_the_two_questions_separately():
+    """
+    The panel is driven by the model's own methods, so this checks
+    the pair it renders rather than the pixels: a model can be a
+    consistent theory and still be excluded by local tests, and
+    `FRHuSawicki` at a large enough amplitude is exactly that.
+    """
+
+    from CosmoFit import FRHuSawicki
+
+    model = FRHuSawicki(
+        FRHuSawicki.PARAMS_CLASS(H0=70.0, Omega_m=0.3, f_R0=-1e-2, n=1.0)
+    )
+
+    assert model.viability()["ok"], "the theory itself is fine"
+
+    screening = model.screening()
+
+    assert not screening["ok"], "and it is excluded anyway"
+
+    assert screening["deviation"] / screening["bound"] > 1e3
