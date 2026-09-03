@@ -353,6 +353,48 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### The same guard for the other half of the library
+
+The metric sector got its pole guarded and its viability checked;
+the teleparallel and symmetric-teleparallel sectors had neither, and
+they hold more models. `mu = 1/f'` there, and it fails the same two
+ways -- except that nothing said so.
+
+Measured, `FTPowerLaw` at `n = 0.6` across `z = 0, 0.5, 1, 2`:
+
+    mu = -0.91, -1.79, -4.88, +5.08
+
+Negative is *repulsive* gravity. The sign change between the last
+two is the denominator passing through zero, so the fourth number
+was computed on the far side of a singularity. All four are finite,
+the growth equation integrates them without complaint, and
+`fsigma8` comes out perfectly smooth. `n = 1.5` gave `mu` finite at
+`z = 0` and NaN everywhere else. A fit sampling that region would
+have been fitting nonsense with no way to notice.
+
+`cosmology.core.utils.coupling_from_derivative` now takes `f'` and
+returns `1/f'`, refusing `f' <= 0` and non-finite `f'`. Both routes
+into that expression use it -- the hand-written `FTPowerLaw` and
+`FQExponential`, and `theory.Action`'s compiled teleparallel path,
+which now lambdifies `f'` rather than `1/f'` precisely so the check
+has something to look at. `f' > 0` is the standard viability
+condition for these theories, the counterpart of `f_R > 0` in the
+metric sector.
+
+Raising rather than returning `nan` is deliberate: a fitter treats
+the exception as a rejected point, which is what an unphysical
+region of parameter space deserves.
+
+The two faults are reported separately, which took a second
+attempt. Quoting the smallest *finite* value when the real problem
+is a NaN names a perfectly good number as the culprit -- the first
+version told the user `f' = 0.475` was the trouble when 0.475 was
+fine and three of four points were NaN.
+
+Nothing healthy changed: `n = -1, 0.25, 0.45, 0.8` return exactly
+the numbers they did before, and the compiled path still agrees
+with the hand-written model to 1e-10.
+
 ### The arctan f(R), actually fitted
 
 With evaluations at 10 s a maximum-likelihood point is reachable, so

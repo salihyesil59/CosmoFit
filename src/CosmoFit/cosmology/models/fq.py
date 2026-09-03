@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from CosmoFit.cosmology.core.utils import coupling_from_derivative
 from CosmoFit.typing import Array, Redshift
 
 from CosmoFit.cosmology.numerics.powers import cube
@@ -205,4 +206,4 @@ class FQExponential(Cosmology):
 
         f_Q = np.exp(lam * x) * (1.0 - lam * x)
 
-        return 1.0 / f_Q
+        return coupling_from_derivative(f_Q, model=type(self).__name__)
