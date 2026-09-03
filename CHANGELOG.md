@@ -14,6 +14,25 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### The failing CI job was the documentation, not the tests
+
+Four builds on `dev` reported failure and the notification read as
+failing tests. Every test job passed on all three Python versions in
+every one of them; the job that failed was `api reference`, and its
+only warning was that `docs.scipy.org` had timed out while fetching
+an inventory. The build runs with `-W`, so a network hiccup was an
+error.
+
+`suppress_warnings` cannot fix it: `intersphinx` emits that warning
+with **no subtype**, checked in Sphinx 9.1's source after an attempt
+to suppress it changed nothing. So `docs/conf.py` now probes each
+`objects.inv` with a five-second timeout and passes Sphinx only the
+projects that answer. Cross-links survive when the network is up,
+degrade to plain text when it is not, and `-W` keeps its meaning for
+everything the sources actually control.
+
 ## v1.1.0
 
 Twenty-four commits on from `v1.0.0`. The theme is that a model now has

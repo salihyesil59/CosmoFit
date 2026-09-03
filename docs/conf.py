@@ -72,7 +72,6 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # links (`CHANGELOG.md`, `examples/`) resolve there and not here.
 # Rewriting them for Sphinx would break them where most people read
 # them.
-suppress_warnings = ["myst.xref_missing"]
 
 
 # ============================================================
@@ -114,13 +113,70 @@ napoleon_use_rtype = False
 # intersphinx
 # ============================================================
 
-intersphinx_mapping = {
+#: The projects worth cross-linking to, before any are checked.
+_INTERSPHINX_WANTED = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
     "emcee": ("https://emcee.readthedocs.io/en/stable/", None),
 }
+
+#: Seconds to wait for one inventory before giving up on it.
+_INTERSPHINX_TIMEOUT = 5.0
+
+
+def _inventory_reachable(base: str) -> bool:
+    """
+    Whether a project's ``objects.inv`` can actually be fetched.
+
+    The build runs with ``-W``, so every warning is an error, and
+    that is right for anything the sources control. It is wrong for
+    this one. When ``intersphinx`` cannot reach a host it emits
+    ``failed to reach any of the inventories``, and that warning
+    carries **no subtype**, so ``suppress_warnings`` cannot target
+    it -- checked in Sphinx 9.1's own source rather than guessed,
+    after an attempt to suppress it did nothing.
+
+    So the mapping is filtered here instead. A project that answers
+    keeps its cross-links; one that does not is dropped before
+    Sphinx is told about it, the references to it render as plain
+    text, and the build stays clean. Four builds on `dev` failed
+    whose only warning was that `docs.scipy.org` had timed out.
+    """
+
+    import urllib.request
+
+    try:
+        request = urllib.request.Request(
+            base.rstrip("/") + "/objects.inv", method="HEAD",
+        )
+        with urllib.request.urlopen(
+            request, timeout=_INTERSPHINX_TIMEOUT,
+        ) as response:
+            return 200 <= response.status < 400
+
+    except Exception:
+        return False
+
+
+intersphinx_mapping = {
+    name: target
+    for name, target in _INTERSPHINX_WANTED.items()
+    if _inventory_reachable(target[0])
+}
+
+_dropped = sorted(set(_INTERSPHINX_WANTED) - set(intersphinx_mapping))
+
+if _dropped:
+    print(
+        f"conf.py: no inventory for {', '.join(_dropped)}; "
+        f"cross-links to those projects will render as plain text."
+    )
+
+intersphinx_timeout = _INTERSPHINX_TIMEOUT
+
+suppress_warnings = ["myst.xref_missing"]
 
 
 # ============================================================
