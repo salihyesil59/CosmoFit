@@ -14,7 +14,13 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v1.1.0
+
+Twenty-four commits on from `v1.0.0`. The theme is that a model now has
+to earn the right to be fitted: every `mu` in the library refuses the
+values that mean nothing, every sector answers whether a theory is
+consistent and whether it is allowed, and the whole `f(R)` family that
+could not be integrated at all now can be.
 
 ### `FTPowerLaw`, and the sibling that was missing
 
