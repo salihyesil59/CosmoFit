@@ -16,6 +16,35 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The GUI caught up with the library
+
+Two things added to the library after the app was written were not
+reachable from it.
+
+**A general `f(R)` could only be integrated backwards.** The
+direction is now a control next to Growth, which means the whole
+"disappearing cosmological constant" family -- Hu-Sawicki,
+Starobinsky 2007, Tsujikawa, the arctan models -- can be built from
+the interface at all. `backward` stays the default, because it is
+what every model already in the library uses and `forward`
+additionally requires a closure parameter.
+
+**Nothing showed whether a fitted model was a theory worth having
+fitted.** The best-fit panel now ends with the gate: `viability()`
+on the left, `screening()` on the right, and the caption saying why
+they are two questions rather than one. It appears only for models
+that answer -- most of the library is dark energy on top of General
+Relativity, where neither question arises, and an empty panel there
+would be noise.
+
+Four GUI tests, and one of them earned its keep immediately: the
+first version looked for the direction control on a freshly booted
+app, where the action widgets are not rendered because a built-in
+model is selected. A control that is displayed but not wired is
+worse than no control, so the second test sets it and requires the
+app to run clean afterwards rather than raise a mismatch between
+the widget tuple and the builder signature.
+
 ### The failing CI job was the documentation, not the tests
 
 Four builds on `dev` reported failure and the notification read as
