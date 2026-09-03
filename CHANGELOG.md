@@ -14,7 +14,12 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v1.1.1
+
+Two fixes cut after `v1.1.0-dev` had already been published: the
+documentation build no longer fails when a network fetch times out,
+and the interface reaches the two capabilities the library gained in
+`v1.1.0` and it could not use.
 
 ### The GUI caught up with the library
 
