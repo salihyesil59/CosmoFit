@@ -353,6 +353,34 @@ general relativity, where `mu = 1` exactly and `growth="gr"` is the
 answer rather than an approximation. The error message used to
 misdescribe both cases and now says so.
 
+### The gate reports as well as refuses, in both sectors
+
+Guarding `mu` left an asymmetry. A metric model could be asked
+`viability()` and `screening()` and would answer; a teleparallel one
+had neither, so the only way to learn a parameter choice was
+unphysical was to call `mu` and catch the exception. That is fine
+for a fitter, which wants the point rejected, and poor for a person
+deciding whether a model is worth fitting at all.
+
+`coupling(z)` now returns `f'` -- the counterpart of the metric
+sector's `scalaron(z)` -- and `viability(z)` returns the same
+`{"ok", "failed", "reasons"}` verdict, on the single condition
+`f' > 0`. Both hand-written models have them and so does
+`theory.Action`'s compiled teleparallel path, and the two agree
+about which models are admissible.
+
+Refusing and reporting are deliberately different operations.
+`coupling_from_derivative` raises, because a caller asking for `mu`
+wants a number and must not be handed a meaningless one.
+`teleparallel_failures` returns a verdict, because a caller asking
+whether the model is viable wants an answer, and wants it for a
+whole redshift range at once rather than one exception at a time.
+
+Caught by the repository's own rule that the public surface is
+completely annotated: the first version of `viability` had no type
+annotations and `test_the_public_surface_is_completely_annotated`
+said so.
+
 ### The third mu, guarded -- and honestly labelled
 
 Having done the metric and teleparallel sectors, the scalar-tensor

@@ -48,7 +48,11 @@ from scipy.optimize import brentq
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.errors import ModelConfigurationError
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
-from CosmoFit.cosmology.core.utils import coupling_from_derivative
+from CosmoFit.cosmology.core.utils import (
+    TELEPARALLEL_CONDITIONS,
+    coupling_from_derivative,
+    teleparallel_failures,
+)
 
 from CosmoFit.theory.curvature import (
     VIABILITY_CONDITIONS,
@@ -804,6 +808,8 @@ class Action:
 
         if mu is not None:
             attrs["mu"] = _make_mu(mu)
+            attrs["coupling"] = _make_coupling(mu)
+            attrs["viability"] = _make_teleparallel_viability()
 
         model = type(name, (_ActionModel,), attrs)
 
@@ -1686,6 +1692,59 @@ def _make_Omega_de():
     )
 
     return Omega_de
+
+
+def _make_coupling(compiled):
+
+    def coupling(self, z):
+        """
+        ``f'`` on this model's own background -- the quantity whose
+        reciprocal is ``mu``, and whose sign decides whether that
+        reciprocal means anything.
+        """
+
+        E2 = self._E2(np.asarray(z, dtype=float))
+
+        return np.asarray(
+            compiled(E2, *self._parameter_values()), dtype=float,
+        )
+
+    return coupling
+
+
+def _make_teleparallel_viability():
+
+    def viability(self, z=None):
+        """
+        Whether this model is one worth fitting, checked along its
+        own background.
+
+        Returns ``{"ok": bool, "failed": [...], "reasons": [...]}``
+        with the single condition ``f' > 0``, the counterpart of the
+        metric sector's. Sampled rather than proved, on a grid over
+        ``z``.
+
+        Where ``mu`` raises, this reports: a caller asking for a
+        number must not get a meaningless one, and a caller asking
+        whether the model is admissible wants an answer rather than
+        an exception.
+        """
+
+        if z is None:
+            z = np.concatenate([
+                np.linspace(0.0, 3.0, 240),
+                np.geomspace(3.0, 1100.0, 240),
+            ])
+
+        failed = teleparallel_failures(self.coupling(z))
+
+        return {
+            "ok": not failed,
+            "failed": failed,
+            "reasons": [TELEPARALLEL_CONDITIONS[k] for k in failed],
+        }
+
+    return viability
 
 
 def _make_mu(compiled):

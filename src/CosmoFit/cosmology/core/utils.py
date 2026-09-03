@@ -98,3 +98,44 @@ def coupling_from_derivative(f_prime, model="this model"):
         )
 
     return 1.0 / f_prime
+
+
+#: Why a teleparallel or symmetric-teleparallel model is rejected.
+#: One condition, because there is only one: ``mu = 1/f'``, so
+#: everything about whether the coupling means anything is decided
+#: by the sign of ``f'``.
+TELEPARALLEL_CONDITIONS = {
+    "f_prime": (
+        "f' > 0 -- the effective gravitational coupling is 1/f'. "
+        "Where f' passes through zero the coupling diverges; where "
+        "it is negative gravity is repulsive, and the growth "
+        "equation integrates that into a perfectly smooth fsigma8. "
+        "This is the counterpart of f_R > 0 in the metric sector."
+    ),
+}
+
+
+def teleparallel_failures(f_prime):
+    """
+    Which of :data:`TELEPARALLEL_CONDITIONS` a model violates.
+
+    Returns the failing keys -- empty when the model is admissible
+    over the range sampled. The companion of
+    :func:`theory.curvature.viability_failures`, which does the same
+    job for the metric sector.
+
+    Reporting and refusing are kept apart on purpose.
+    :func:`coupling_from_derivative` raises, because a caller asking
+    for ``mu`` wants a number and must not be given a meaningless
+    one. This returns a verdict instead, because a caller asking
+    whether a model is viable wants an answer rather than an
+    exception -- and wants it for the whole range at once.
+    """
+
+    import numpy as np
+
+    f_prime = np.asarray(f_prime, dtype=float)
+
+    bad = np.any(~np.isfinite(f_prime)) or np.any(f_prime <= 0.0)
+
+    return ["f_prime"] if bad else []
