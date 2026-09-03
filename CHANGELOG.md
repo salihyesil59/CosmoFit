@@ -14,6 +14,37 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### The fit, as Python you can take away
+
+The app is a way into a Python library, not a replacement for it,
+and the step from "explored it here" to "ran it in a notebook" was
+a transcription job: read the widgets back, reconstruct the
+`Fitter` call, hope nothing was missed.
+
+The results now end with **the same fit in Python** -- the imports,
+the `Action` rebuilt from its Lagrangian where the model came from
+one, the `Fitter` call, and `run_mcmc` with the settings this run
+used. Copyable, and downloadable as a `.py`.
+
+It is built from the values the run itself used rather than from a
+template, so a snippet that disagrees with the run is a bug here
+rather than a difference the reader has to spot. The action spec is
+recorded from the same tuple the model is built from, for the same
+reason: a second reader of the widgets could drift from the first.
+
+Defaults are left out rather than repeated back -- `growth='gr'` and
+`background='backward'` say nothing -- and anything that differs
+from a default survives.
+
+Two tests. One runs a real fit and requires the snippet to *parse as
+Python* and to name the datasets that run actually used, rather than
+matching it against a template. The other drives the generator
+directly for the action case, because reaching that route end to end
+needs a Lagrangian that converges and what is under test is the
+snippet's contract, not whether a particular action fits.
+
 ## v1.1.1
 
 Two fixes cut after `v1.1.0-dev` had already been published: the

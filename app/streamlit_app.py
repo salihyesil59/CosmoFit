@@ -1458,7 +1458,29 @@ def _build_model_class(slot: int, model_choice: str):
                 "pip install 'cosmofit[theory]'."
             )
 
-        return _action_and_model(*_action_widgets(slot))[1]
+        widgets = _action_widgets(slot)
+
+        # Kept so the "same fit in Python" panel can reproduce the
+        # action rather than guess at it. Recorded from the very
+        # tuple the model is built from, so the two cannot disagree.
+        (
+            _name, _gravity, _geometry, _fluids, _params, _closure,
+            _growth, _fields, _z_init, _background,
+        ) = widgets
+
+        st.session_state[f"_action_spec_{slot}"] = {
+            "name": _name,
+            "gravity": _gravity,
+            "geometry": _geometry,
+            "fluids": list(_fluids),
+            "params": _parse_extra_params(_params),
+            "closure": _closure or None,
+            "growth": _growth,
+            "fields": _parse_fields(_fields) or None,
+            "background": _background,
+        }
+
+        return _action_and_model(*widgets)[1]
 
     if model_choice != CUSTOM_CHOICE:
         return BUILTIN_MODELS[model_choice]
@@ -1719,6 +1741,125 @@ def _render_best_fit(fit: Fitter) -> None:
     )
 
     _render_gate(fit)
+
+
+# ------------------------------------------------------------
+
+def _equivalent_script(
+    model_choice: str,
+    model_names: list[str],
+    action_specs: list[dict | None],
+    datasets: list[str],
+    dataset_versions: dict,
+    free_params: list[str],
+    initial: dict,
+    bounds: dict,
+    compute_rd: bool,
+    derive_sigma8: bool,
+    nwalkers: int,
+    nsteps: int,
+    burnin: int,
+    seed: int,
+) -> str:
+    """
+    The Python that reproduces what the page is configured to do.
+
+    This library is a Python library; the app is a way into it, not
+    a replacement for it. Anyone who explores here and then wants
+    the fit in a notebook, in a batch job, or under version control
+    has otherwise to reconstruct the `Fitter` call by reading the
+    widgets back -- which is exactly the sort of transcription that
+    goes wrong quietly.
+
+    Built from the same values the run uses rather than from a
+    template, so a snippet that disagrees with the run is a bug
+    here rather than a difference the reader has to notice.
+    """
+
+    lines = ["from CosmoFit import Fitter"]
+
+    action_specs = [spec for spec in action_specs if spec]
+
+    if action_specs:
+        lines.append("from CosmoFit.theory import Action")
+    elif model_names:
+        lines.append(f"from CosmoFit import {', '.join(sorted(set(model_names)))}")
+
+    lines.append("")
+
+    for index, spec in enumerate(action_specs):
+
+        arguments = [repr(spec["gravity"])]
+
+        for key in (
+            "geometry", "fluids", "params", "closure",
+            "growth", "fields", "background",
+        ):
+            value = spec.get(key)
+
+            if value in (None, "", (), {}, "gr", "backward"):
+                continue
+
+            arguments.append(f"{key}={value!r}")
+
+        lines.append(f"model_{index + 1} = Action(")
+        lines.extend(f"    {argument}," for argument in arguments)
+        lines.append(f").build({spec['name']!r})")
+        lines.append("")
+
+    versions = {
+        key: {"version": version}
+        for key, version in (dataset_versions or {}).items()
+        if key in datasets
+    }
+
+    for index, name in enumerate(model_names or ["model"]):
+
+        target = (
+            f"model_{index + 1}"
+            if index < len(action_specs)
+            else name
+        )
+
+        lines.append("fit = Fitter(")
+        lines.append(f"    model={target},")
+        lines.append(f"    datasets={datasets!r},")
+        lines.append(f"    free_params={free_params!r},")
+        lines.append(f"    initial={initial!r},")
+
+        if bounds:
+            lines.append(f"    bounds={bounds!r},")
+
+        if versions:
+            lines.append(f"    dataset_kwargs={versions!r},")
+
+        if compute_rd:
+            lines.append("    compute_rd=True,")
+
+        if derive_sigma8:
+            lines.append("    derive_sigma8=True,")
+
+        lines.append(")")
+        lines.append("")
+        lines.append(
+            f"fit.run_mcmc(nwalkers={nwalkers}, nsteps={nsteps}, "
+            f"burnin={burnin}, seed={seed})"
+        )
+        lines.append("")
+        lines.append("print(fit.summary())")
+
+        # One model is the common case and reads best as a script;
+        # several would need a loop, and guessing how someone wants
+        # to hold them is worse than showing the first and saying so.
+        if len(model_names) > 1:
+            lines.append("")
+            lines.append(
+                f"# Model 1 of {len(model_names)}. The others differ "
+                f"only in `model=`."
+            )
+        break
+
+    return "\n".join(lines)
 
 
 # ------------------------------------------------------------
@@ -3875,6 +4016,53 @@ if fits:
                             f"Could not render '{PLOT_LABELS.get(name, name)}': {exc}",
                             icon="🚫",
                         )
+
+    with st.expander("🐍 The same fit in Python"):
+
+        st.caption(
+            "This app is a way into the CosmoFit library, not a "
+            "replacement for it. Copy this to move the same fit into "
+            "a notebook, a batch job, or version control -- it is "
+            "built from the values this run used, so it cannot drift "
+            "away from what you just did."
+        )
+
+        try:
+            snippet = _equivalent_script(
+                model_choice=model_choice,
+                model_names=[
+                    getattr(cls, "MODEL_NAME", None) or cls.__name__
+                    for cls in model_classes
+                ],
+                action_specs=[
+                    st.session_state.get(f"_action_spec_{i}")
+                    for i in range(len(model_classes))
+                ],
+                datasets=list(selected_datasets),
+                dataset_versions=dict(dataset_versions),
+                free_params=list(free_params),
+                initial=dict(model_initial[0]),
+                bounds=dict(model_bounds[0] or {}),
+                compute_rd=bool(compute_rd),
+                derive_sigma8=bool(derive_sigma8),
+                nwalkers=int(nwalkers),
+                nsteps=int(nsteps),
+                burnin=int(burnin),
+                seed=int(seed),
+            )
+
+            st.code(snippet, language="python")
+
+            st.download_button(
+                "⬇️ Download as .py",
+                data=snippet,
+                file_name="cosmofit_run.py",
+                mime="text/x-python",
+                key="dl_script",
+            )
+
+        except Exception as exc:
+            st.caption(f"Could not build the snippet: {exc}")
 
     st.download_button(
         "⬇️ Download result(s) (JSON)",
