@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 
 def require_positive(value: float, name: str) -> float:
     """
@@ -60,8 +62,6 @@ def coupling_from_derivative(f_prime, model="this model"):
     treats the exception as a rejected point, which is exactly what
     an unphysical region of parameter space deserves.
     """
-
-    import numpy as np
 
     f_prime = np.asarray(f_prime, dtype=float)
 
@@ -132,10 +132,51 @@ def teleparallel_failures(f_prime):
     exception -- and wants it for the whole range at once.
     """
 
-    import numpy as np
-
     f_prime = np.asarray(f_prime, dtype=float)
 
     bad = np.any(~np.isfinite(f_prime)) or np.any(f_prime <= 0.0)
 
     return ["f_prime"] if bad else []
+
+
+#: The scalaron amplitude today that Solar System tests allow, from
+#: the thin-shell condition with the Galactic Newtonian potential
+#: (Hu & Sawicki 2007, arXiv:0705.1158). Bounds quoted in the
+#: literature for weaker environments are looser -- around 1e-5 from
+#: galaxies and 1e-4 from clusters -- so this is the strictest of
+#: the family and the one a model has to survive to be viable
+#: everywhere.
+SOLAR_SYSTEM_BOUND = 1.0e-6
+
+
+def screening_margin(f_R_today, bound=SOLAR_SYSTEM_BOUND):
+    """
+    How the scalaron's amplitude today compares with what local
+    tests allow.
+
+    ``|f_R - 1|`` is the fractional departure of the gravitational
+    coupling, and unscreened it would show up as a fifth force. The
+    standard cosmological proxy for "the Sun and the Earth are
+    screened" is that this number is smaller than the Galactic
+    potential, ~1e-6.
+
+    **This is an observational exclusion, not a sickness.** A model
+    failing here is internally consistent -- no ghost, no tachyon --
+    and simply already ruled out, which is a different statement
+    from the conditions in :func:`viability_failures` and is
+    reported separately for that reason.
+
+    **And it is the linear estimate.** Chameleon screening is
+    non-linear: a model can suppress the fifth force locally far
+    better than ``|f_R - 1|`` suggests, and settling that needs the
+    thin-shell calculation in the actual environment rather than one
+    cosmological number. So a failure here means "excluded unless
+    screening rescues it", which is how the literature treats the
+    same quantity -- not a proof.
+
+    Returns ``(deviation, ok)``.
+    """
+
+    deviation = float(np.max(np.abs(np.asarray(f_R_today, dtype=float) - 1.0)))
+
+    return deviation, deviation <= bound
