@@ -66,6 +66,23 @@ def _fresh(timeout: float = 300.0) -> AppTest:
     return app
 
 
+def _state(app: AppTest) -> dict:
+    """
+    The user-visible session state as a plain dict.
+
+    Streamlit 1.64 put ``AppTest.session_state`` behind a wrapper with
+    a public ``to_dict()`` and stopped exposing ``filtered_state``;
+    older releases have only ``filtered_state``.
+    """
+
+    state = app.session_state
+
+    if hasattr(type(state), "to_dict"):
+        return state.to_dict()
+
+    return state.filtered_state
+
+
 def _select_model(app: AppTest, name: str) -> AppTest:
     """
     Pick a model by name. The dropdown shows ``"CPL · Dark energy on
@@ -1066,7 +1083,7 @@ def test_a_configuration_round_trips():
 
     app = _apply_preset(_fresh(), "DESI DR2 + BBN → H₀ without the CMB")
 
-    state = app.session_state.filtered_state
+    state = _state(app)
 
     before = {
         key: value
@@ -1083,7 +1100,7 @@ def test_a_configuration_round_trips():
     app = _apply_preset(app, "The Hubble tension, both sides")
 
     changed = {
-        key: app.session_state.filtered_state[key] for key in before
+        key: _state(app)[key] for key in before
     }
 
     assert changed != before, "the second preset did not change anything"
@@ -1095,7 +1112,7 @@ def test_a_configuration_round_trips():
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
-    after = {key: app.session_state.filtered_state[key] for key in before}
+    after = {key: _state(app)[key] for key in before}
 
     assert after == before
 
@@ -1156,7 +1173,7 @@ def _configuration_keys(app):
     exclude = namespace["_CONFIG_EXCLUDE"]
 
     return [
-        key for key in app.session_state.filtered_state
+        key for key in _state(app)
         if isinstance(key, str)
         and key.startswith(prefixes)
         and not key.startswith(exclude)
