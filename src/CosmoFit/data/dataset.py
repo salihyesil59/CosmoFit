@@ -26,11 +26,6 @@ if TYPE_CHECKING:
 class CCDataset:
     """
     Cosmic Chronometer measurements.
-
-    ``sigma`` is the tabulated error of each measurement, which is only
-    the diagonal, uncorrelated part of the uncertainty; the total
-    errors, including the systematics correlated across redshift, are
-    those of ``covariance`` (``covariance.sigma``).
     """
 
     z: np.ndarray

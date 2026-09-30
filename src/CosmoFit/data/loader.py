@@ -49,9 +49,7 @@ CC_FILES = {
 
         "data": "CC_32_Favale2023_data.txt",
 
-        # Moresco et al. (2020) systematic error budget, in percent of
-        # H(z); the covariance is built from it -- see `load_cc`.
-        "systematics": "data_MM20.dat",
+        "correlation": "CC_32_Favale2023_Moresco2020_correlation.txt",
 
         "reference": "Favale, Gomez-Valent & Migliaccio (2023), MNRAS 523, 3406, arXiv:2301.09591",
 
@@ -1400,10 +1398,6 @@ def load_cc(
     """
     Load a Cosmic Chronometer dataset.
 
-    The covariance includes the systematic errors of the method,
-    built by :func:`_cc_covariance`; the tabulated ``sigma`` alone is
-    only its diagonal, uncorrelated part.
-
     Parameters
     ----------
     version : str, optional
@@ -1442,27 +1436,37 @@ def load_cc(
 
     sigma = data[:, 2]
 
-    systematics = _load_txt(
+    covariance = None
 
-        dataset_path / entry["systematics"],
+    if "correlation" in entry:
 
-    )
+        corr_path = (
 
-    covariance = make_covariance(
+            dataset_path
 
-        cov=_cc_covariance(
+            / entry["correlation"]
 
-            z,
+        )
 
-            H,
+        if corr_path.exists():
 
-            sigma,
+            correlation = _load_txt(
 
-            systematics,
+                corr_path,
 
-        ),
+            )
 
-    )
+            covariance = make_covariance(
+
+                cov=correlation * np.outer(
+
+                    sigma,
+
+                    sigma,
+
+                ),
+
+            )
 
     return CCDataset(
 
@@ -1477,70 +1481,6 @@ def load_cc(
         reference=entry["reference"],
 
     )
-
-
-def _cc_covariance(
-    z: np.ndarray,
-    H: np.ndarray,
-    sigma: np.ndarray,
-    systematics: np.ndarray,
-) -> np.ndarray:
-    """
-    Full covariance of cosmic chronometer H(z) measurements.
-
-    Follows Moresco et al. (2020): the tabulated errors ``sigma``,
-    uncorrelated between measurements, on the diagonal, plus two
-    systematic contributions that are fully correlated across
-    redshift, from the initial mass function and from the choice of
-    stellar population synthesis model::
-
-        C_ij = sigma_i^2 delta_ij  +  sum_k H_i f_k(z_i) H_j f_k(z_j)
-
-    with ``f_k(z)`` the fractional error of component ``k``, linearly
-    interpolated in the table and held at its end values beyond it,
-    as ``np.interp`` does.
-
-    Parameters
-    ----------
-    z, H, sigma : ndarray
-        Redshifts, H(z) and the tabulated (diagonal) errors.
-    systematics : ndarray
-        The Moresco et al. (2020) table: columns ``z``, ``IMF``,
-        ``stlib``, ``mod`` and ``mod_ooo``, in percent.
-
-    Returns
-    -------
-    ndarray
-        The covariance matrix, in (km/s/Mpc)^2.
-
-    Notes
-    -----
-    Of the four tabulated components, ``IMF`` and ``mod_ooo`` are
-    used: the combination of Moresco's public covariance notebook,
-    and the one whose correlation matrix the Favale et al. (2023)
-    compilation distributes (bundled next to the data as
-    ``CC_32_Favale2023_Moresco2020_correlation.txt``, and checked
-    against this function in the test suite).
-
-    References
-    ----------
-    Moresco et al. (2020), ApJ 898, 82 (2020ApJ...898...82M);
-    https://gitlab.com/mmoresco/CCcovariance
-    """
-
-    z_table = systematics[:, 0]
-
-    covariance = np.diag(sigma**2)
-
-    for column in (1, 4):                       # IMF, mod_ooo
-
-        fractional = np.interp(z, z_table, systematics[:, column]) / 100
-
-        error = H * fractional
-
-        covariance = covariance + np.outer(error, error)
-
-    return covariance
 
 
 # ============================================================

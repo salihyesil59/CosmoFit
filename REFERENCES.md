@@ -23,16 +23,6 @@ repository.
   [arXiv:2301.09591](https://arxiv.org/abs/2301.09591)
 - Used by: [`data/cc/favale2023/`](src/CosmoFit/data/cc/favale2023/),
   [`likelihoods/cc.py`](src/CosmoFit/likelihoods/cc.py)
-- **Moresco et al. (2020)**, *Setting the stage for cosmic chronometers.
-  II. Impact of stellar population synthesis models systematics and
-  full covariance matrix*, ApJ 898, 82.
-  [ADS 2020ApJ...898...82M](https://ui.adsabs.harvard.edu/abs/2020ApJ...898...82M/abstract)
-- `data_MM20.dat` (systematic error budget) is copied unmodified from
-  [gitlab.com/mmoresco/CCcovariance](https://gitlab.com/mmoresco/CCcovariance)
-  at commit `881413330a7f1e1e5203607d6964db49b4c6c461`; the CC
-  covariance is built from it (`data.loader._cc_covariance`), and
-  `CC_32_Favale2023_Moresco2020_correlation.txt` is kept as the
-  check on that construction.
 
 ### DESI 2024 BAO
 
