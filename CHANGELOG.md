@@ -16,6 +16,38 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The cosmic chronometer errors were too small
+
+The CC covariance was rebuilt from the correlation matrix Favale et
+al. (2023) distribute as `C = R * outer(sigma, sigma)`, with `sigma`
+the tabulated errors. But the tabulated errors are only the
+diagonal, uncorrelated part of the uncertainty: the correlation was
+computed from a covariance that also carries the systematics of the
+method, fully correlated across redshift, and those never made it
+back in. Every CC error was too small, by 0.2% to 21%, and the
+covariance still looked right -- its correlation matrix *was* the
+published one.
+
+How it showed: the correlation matrix, off its diagonal, factorizes
+as `a_i a_j` to 0.6%, which is what a single fully correlated
+systematic produces. Reading the implied systematic as a fraction
+of H(z) gives a noisy mess if `sigma` is the total error, and an
+exact, piecewise-constant function of redshift if it is not -- 5.42%
+over 0.17 < z < 0.38, which is `sqrt(5.40^2 + 0.47^2)`, the SPS-model
+and IMF entries of Moresco et al. (2020)'s published systematic
+budget. Building the covariance that way reproduces the distributed
+correlation matrix to 5e-12.
+
+The covariance is now built from that budget (`data_MM20.dat`,
+copied unmodified from Moresco's CCcovariance repository), and the
+distributed correlation matrix is kept as the check on it. The
+recipe is validated independently too: on Moresco's own 15
+measurements it reproduces the flat-LCDM fit quoted in his notebook,
+H0 = 65.995 +5.545 -5.591, to within that run's sampling noise. On
+the 32-point compilation, a flat-LCDM fit to CC alone widens from
+H0 = 71.1 +/- 5.3 to 70.8 +/- 6.1 (Fisher estimate), and every
+combined fit that includes CC gives CC a little less weight.
+
 ### A configuration is a thing you can keep, and so is the chain
 
 Two more gaps between what the app produced and what you could
