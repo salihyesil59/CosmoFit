@@ -273,6 +273,39 @@ any `epsilon`.
 
 The compressed Planck priors' `z_*` fitting formula still assumes a
 standard early universe. That is a separate issue.
+### The CC covariance had its systematic correlations shrunk
+
+The cosmic chronometer covariance was built as
+`R * outer(sigma, sigma)`, where `R` is the correlation matrix
+distributed with the Favale et al. (2023) compilation and `sigma`
+are its tabulated errors.
+
+That correlation was built from `diag(sigma^2) + sum_k s_k s_k^T`.
+Here `s_k = H(z) f_k(z)` are the IMF and stellar-population entries
+of the Moresco et al. (2020) systematic budget. The budget reproduces
+its off-diagonal to 1e-9. Rescaling it by `sigma` alone shrank every
+off-diagonal term below `sum_k s_k s_k^T`, by the factor
+`sigma_i sigma_j / sqrt((sigma_i^2 + s_i^2)(sigma_j^2 + s_j^2))`.
+
+**Which reading this adopts.** An earlier attempt (b1adbbf, reverted
+in 8104328) also added `s^2` to the diagonal. That treats the
+tabulated errors as statistical only, which is how Moresco's own
+notebook treats *his* table. For the Moresco points in this
+compilation, though, the tabulated errors are already close to
+statistical and SPS errors in quadrature (6.2 against 6.1 at
+z = 0.1791), and Favale et al. do not release a covariance that could
+settle it. So the diagonal stays at the published errors, and only
+the correlation, which is wrong under either reading, is restored:
+
+    C_ii = sigma_i^2,    C_ij = sum_k s_k(z_i) s_k(z_j)
+
+The budget, `data_MM20.dat`, is copied unmodified from
+gitlab.com/mmoresco/CCcovariance. The distributed correlation file
+stays as the test of it.
+
+A flat-LCDM fit to CC alone goes from **H0 = 71.1 +/- 5.27 to
+71.3 +/- 5.61** (Fisher). For comparison, the reverted diagonal
+reading gives +/- 6.13.
 
 ### A configuration is a thing you can keep, and so is the chain
 

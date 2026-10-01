@@ -26,6 +26,10 @@ if TYPE_CHECKING:
 class CCDataset:
     """
     Cosmic Chronometer measurements.
+
+    ``sigma`` is each measurement's total error, and is the diagonal of
+    ``covariance``; the off-diagonal terms are the systematics of the
+    method, correlated across redshift.
     """
 
     z: np.ndarray
