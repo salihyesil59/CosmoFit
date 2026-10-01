@@ -458,3 +458,132 @@ def test_conflicting_datasets_warn(pair):
         for message in messages
 
     ), messages
+
+
+# ============================================================
+# Cosmic chronometers: the systematics correlate the measurements
+# ============================================================
+
+def _cc_systematic_covariance(data):
+    """
+    ``sum_k s_k s_k^T``, ``s_k(z) = H(z) f_k(z)``, for the IMF and SPS
+    (``mod_ooo``) entries of the Moresco et al. (2020) budget -- each
+    fully correlated across redshift on its own.
+    """
+
+    from CosmoFit.data.loader import DATA_DIR
+
+    table = np.loadtxt(DATA_DIR / "cc" / "favale2023" / "data_MM20.dat")
+
+    total = np.zeros((len(data.H), len(data.H)))
+
+    for column in (1, 4):
+
+        fraction = np.interp(data.z, table[:, 0], table[:, column]) / 100.0
+
+        total += np.outer(data.H * fraction, data.H * fraction)
+
+    return total
+
+
+def test_cc_diagonal_is_the_tabulated_errors():
+    """
+    The tabulated errors are taken as the total ones: for the Moresco
+    points in the compilation they are already the statistical and SPS
+    errors in quadrature, so the systematic is not added to them again.
+    """
+
+    from CosmoFit.data.loader import load_cc
+
+    data = load_cc()
+
+    np.testing.assert_allclose(
+        np.diag(data.covariance.matrix), data.sigma ** 2, rtol=1e-14,
+    )
+
+
+def test_cc_off_diagonal_is_the_full_systematic_correlation():
+    """
+    The covariance used to be ``R * outer(sigma, sigma)``, with ``R``
+    the correlation distributed with the compilation. That correlation
+    was built from ``diag(sigma^2) + s s^T`` -- its off-diagonal is
+    reproduced exactly by the Moresco budget under that construction,
+    which this checks first -- so rescaling it by ``sigma`` alone left
+    every off-diagonal term below the systematic covariance. That is
+    wrong whichever reading of ``sigma`` is right.
+    """
+
+    from CosmoFit.data.loader import DATA_DIR, load_cc
+
+    data = load_cc()
+
+    systematic = _cc_systematic_covariance(data)
+
+    released = np.loadtxt(
+        DATA_DIR / "cc" / "favale2023"
+        / "CC_32_Favale2023_Moresco2020_correlation.txt",
+    )
+
+    # The budget is the one behind the distributed correlation.
+    total = np.sqrt(data.sigma ** 2 + np.diag(systematic))
+    off = ~np.eye(len(data.z), dtype=bool)
+
+    np.testing.assert_allclose(
+        (systematic / np.outer(total, total))[off],
+        released[off],
+        rtol=0, atol=1e-9,
+    )
+
+    # And the covariance carries it in full.
+    np.testing.assert_allclose(
+        data.covariance.matrix[off], systematic[off], rtol=1e-12,
+    )
+
+    old = released * np.outer(data.sigma, data.sigma)
+
+    assert np.all(data.covariance.matrix[off] > old[off])
+
+    assert np.linalg.eigvalsh(data.covariance.matrix).min() > 0.0
+
+
+def test_cc_h0_error_with_correlated_systematics():
+    """
+    Flat LCDM to CC alone, Fisher error on H0 at the best fit: 5.27
+    with the old covariance, 5.61 now (and 6.13 if the systematic were
+    also added to the diagonal, the reading not adopted).
+    """
+
+    from scipy.optimize import minimize
+
+    from CosmoFit.data.loader import load_cc
+
+    data = load_cc()
+
+    inverse = np.linalg.inv(data.covariance.matrix)
+
+    def model(p):
+
+        return p[0] * np.sqrt(p[1] * (1.0 + data.z) ** 3 + 1.0 - p[1])
+
+    def chi2(p):
+
+        r = data.H - model(p)
+
+        return r @ inverse @ r
+
+    best = minimize(chi2, [70.0, 0.3], method="Nelder-Mead",
+                    options={"xatol": 1e-7, "fatol": 1e-10}).x
+
+    jacobian = np.empty((len(data.z), 2))
+
+    for k, step in enumerate((1e-3, 1e-5)):
+
+        dp = np.zeros(2)
+        dp[k] = step
+
+        jacobian[:, k] = (model(best + dp) - model(best - dp)) / (2 * step)
+
+    error = np.sqrt(np.linalg.inv(jacobian.T @ inverse @ jacobian)[0, 0])
+
+    assert best[0] == pytest.approx(71.3, abs=0.1)
+    assert error == pytest.approx(5.61, abs=0.02)

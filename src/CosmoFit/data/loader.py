@@ -49,6 +49,12 @@ CC_FILES = {
 
         "data": "CC_32_Favale2023_data.txt",
 
+        # Moresco et al. (2020) systematic error budget, in percent of
+        # H(z); the off-diagonal covariance is built from it -- see
+        # `_cc_covariance`. The distributed correlation matrix is kept
+        # next to it as the check on that construction (tests only).
+        "systematics": "data_MM20.dat",
+
         "correlation": "CC_32_Favale2023_Moresco2020_correlation.txt",
 
         "reference": "Favale, Gomez-Valent & Migliaccio (2023), MNRAS 523, 3406, arXiv:2301.09591",
@@ -228,8 +234,10 @@ DES_SN5YR_FILES = {
         "covariance": "DES-SN5YR_STAT+SYS.npz",
 
         "reference": (
-            "Sanchez et al. (2024), arXiv:2406.05046; "
-            "DES Collaboration (2024), arXiv:2401.02929"
+            "Popovic et al. (2026), MNRAS, arXiv:2511.07517 "
+            "(DES-Dovekie recalibration, 1820 SNe; supersedes "
+            "Vincenzi et al. 2024 / DES Collaboration 2024, "
+            "arXiv:2401.02929)"
         ),
 
     },
@@ -836,11 +844,20 @@ PRIOR_FILES = {
 
         "folder": "tau",
 
+        # The low-l-only constraint first, so it is the default: it
+        # is what the "tau" dataset exists for -- breaking plik_lite's
+        # tau-A_s degeneracy -- and the only one of the two that can
+        # sit next to plik_lite without counting its spectra twice.
         "versions": {
+
+            "planck2018_lowe": {
+                "data": "tau_planck2018_lowe_only.txt",
+                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209 (lowE alone)",
+            },
 
             "planck2018": {
                 "data": "tau_planck2018_lowe.txt",
-                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209",
+                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209 (TT,TE,EE+lowE)",
             },
 
         },
@@ -1158,31 +1175,45 @@ def _load_pantheon_covariance(
 
 # ------------------------------------------------------------
 
+#: Lower redshift limit of the Pantheon+ Hubble-flow sample.
+#:
+#: Below z = 0.01 a supernova's redshift is dominated by its
+#: peculiar velocity rather than by the expansion, and Brout et al.
+#: (2022) cut those light curves from every cosmological fit: 1590
+#: of the 1701 survive. This loader used to keep all 1624
+#: non-calibrators instead, including 44 at 0.001 < z_HD < 0.01, and
+#: to drop the 10 calibrator light curves that sit above the cut --
+#: a sample nobody had published a fit to.
+PANTHEON_Z_MIN = 0.01
+
+
 def _build_pantheon_mask(
+    z_hd: np.ndarray,
     is_calibrator: np.ndarray,
     include_cepheid: bool,
+    z_min: float = PANTHEON_Z_MIN,
 ) -> np.ndarray:
     """
-    Build the Pantheon sample mask.
+    Build the Pantheon+ sample mask.
+
+    Without Cepheids this is the Hubble-flow cut alone,
+    ``z_HD > z_min``. A calibrator above the cut is an ordinary
+    Hubble-flow supernova in that fit and stays in; the ones below
+    it go with every other low-z light curve.
+
+    With Cepheids, every calibrator is added back regardless of
+    redshift, since their distances come from the Cepheids rather
+    than from the redshift. This is the 1657-row Pantheon+SH0ES
+    sample.
     """
+
+    mask = z_hd > z_min
 
     if include_cepheid:
 
-        return np.ones(
+        mask = mask | (is_calibrator == 1)
 
-            is_calibrator.size,
-
-            dtype=bool,
-
-        )
-
-    return (
-
-        is_calibrator
-
-        == 0
-
-    )
+    return mask
 
 # ------------------------------------------------------------
 
@@ -1392,11 +1423,87 @@ def available_datasets() -> dict[str, list[str]]:
 # Cosmic Chronometers
 # ============================================================
 
+def _cc_covariance(
+    z: np.ndarray,
+    H: np.ndarray,
+    sigma: np.ndarray,
+    systematics: np.ndarray,
+) -> np.ndarray:
+    r"""
+    Covariance of the cosmic chronometer H(z) measurements.
+
+    The tabulated errors ``sigma`` are taken as each measurement's
+    *total* error and stay on the diagonal unchanged. What they cannot
+    carry is the correlation: the method's systematics -- the initial
+    mass function and the stellar population synthesis model, from the
+    budget of Moresco et al. (2020) -- are the same assumption at every
+    redshift, so they are fully correlated between measurements::
+
+        C_ii = sigma_i^2
+        C_ij = sum_k s_k(z_i) s_k(z_j)       (i != j)
+        s_k(z) = H(z) f_k(z)
+
+    with ``f_k`` the fractional error of component ``k`` (``IMF`` and
+    ``mod_ooo``), interpolated in the table and held at its end values
+    beyond it.
+
+    Why the diagonal is not ``sigma^2 + s^2``
+    -----------------------------------------
+    That is the other reading, and it is what Moresco's own notebook
+    does with *his* table, whose errors are statistical only. For the
+    15 Moresco points in the Favale et al. (2023) compilation the
+    tabulated errors are already close to the statistical and SPS
+    errors in quadrature (6.2 against sqrt(4.3^2 + 4.2^2) = 6.1 at
+    z = 0.1791, median ratio 1.02), so adding ``s^2`` again would count
+    the systematic twice. Favale et al. do not release their covariance
+    -- the correlation file bundled with the data is not an official
+    product -- so the diagonal cannot be settled from the release
+    itself; this keeps it at the published errors.
+
+    The off-diagonal is not in question either way. The bundled
+    correlation's off-diagonal factorizes as ``a_i a_j``, and ``s``
+    from this budget reproduces it under the construction its author
+    used. Turning that correlation back into a covariance with
+    ``outer(sigma, sigma)``, as this library did, shrank every
+    off-diagonal term below ``s_i s_j`` -- by the factor
+    ``sigma_i sigma_j / sqrt((sigma_i^2 + s_i^2)(sigma_j^2 + s_j^2))``
+    -- which is wrong under both readings.
+
+    References
+    ----------
+    Moresco et al. (2020), ApJ 898, 82 (2020ApJ...898...82M);
+    https://gitlab.com/mmoresco/CCcovariance
+    """
+
+    z_table = systematics[:, 0]
+
+    correlated = np.zeros((len(z), len(z)))
+
+    for column in (1, 4):                       # IMF, mod_ooo
+
+        fractional = np.interp(z, z_table, systematics[:, column]) / 100.0
+
+        error = H * fractional
+
+        correlated += np.outer(error, error)
+
+    covariance = correlated - np.diag(np.diag(correlated))
+
+    covariance += np.diag(sigma ** 2)
+
+    return covariance
+
+# ------------------------------------------------------------
+
 def load_cc(
     version: str = "favale2023",
 ) -> CCDataset:
     """
     Load a Cosmic Chronometer dataset.
+
+    The covariance keeps the tabulated errors on its diagonal and adds
+    the correlation the method's systematics induce between
+    measurements -- see :func:`_cc_covariance`.
 
     Parameters
     ----------
@@ -1436,37 +1543,27 @@ def load_cc(
 
     sigma = data[:, 2]
 
-    covariance = None
+    systematics = _load_txt(
 
-    if "correlation" in entry:
+        dataset_path / entry["systematics"],
 
-        corr_path = (
+    )
 
-            dataset_path
+    covariance = make_covariance(
 
-            / entry["correlation"]
+        cov=_cc_covariance(
 
-        )
+            z,
 
-        if corr_path.exists():
+            H,
 
-            correlation = _load_txt(
+            sigma,
 
-                corr_path,
+            systematics,
 
-            )
+        ),
 
-            covariance = make_covariance(
-
-                cov=correlation * np.outer(
-
-                    sigma,
-
-                    sigma,
-
-                ),
-
-            )
+    )
 
     return CCDataset(
 
@@ -1847,6 +1944,7 @@ def load_bao_lowz(
 def load_pantheon(
     version: str = "pantheon+sh0es",
     include_cepheid: bool = False,
+    z_min: float = PANTHEON_Z_MIN,
 ) -> PantheonDataset:
     """
     Load a Pantheon+ / Pantheon+SH0ES supernova dataset.
@@ -1857,7 +1955,15 @@ def load_pantheon(
         Dataset version.
 
     include_cepheid : bool, optional
-        If True, include Cepheid calibrator supernovae.
+        If True, add the Cepheid-calibrator supernovae below
+        ``z_min`` back in, together with their Cepheid distance
+        moduli (``CEPH_DIST``) -- the Pantheon+SH0ES sample, 1657
+        light curves. If False (default), the Hubble-flow sample
+        alone, 1590 light curves.
+
+    z_min : float, optional
+        Hubble-flow cut on ``z_HD``. Default 0.01, as in every
+        published Pantheon+ fit.
 
     Returns
     -------
@@ -1906,11 +2012,17 @@ def load_pantheon(
 
     is_calibrator = table["IS_CALIBRATOR"].astype(int)
 
+    ceph_dist = table["CEPH_DIST"].astype(float)
+
     mask = _build_pantheon_mask(
+
+        z_hd,
 
         is_calibrator,
 
         include_cepheid,
+
+        z_min,
 
     )
 
@@ -1923,6 +2035,8 @@ def load_pantheon(
     m_b_corr = m_b_corr[mask]
 
     is_calibrator = is_calibrator[mask]
+
+    ceph_dist = ceph_dist[mask]
 
     covariance = covariance[
 
@@ -1973,6 +2087,8 @@ def load_pantheon(
         covariance=covariance,
 
         cepheid=is_calibrator,
+
+        ceph_dist=ceph_dist,
 
         reference=entry["reference"],
 

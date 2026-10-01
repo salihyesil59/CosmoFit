@@ -126,8 +126,9 @@ pip install cosmofit
     CAMB -- slow, LCDM and w(z) models only); **Planck 2018 CMB lensing** (9 bandpowers of the
     reconstructed lensing potential, `8 <= L <= 400`), the CMB's own measurement of how much
     structure grew; and **Planck 2018 low-l EE** as the tabulated, *non-Gaussian* likelihood it
-    actually is rather than the usual `tau = 0.0544 +- 0.0073` shorthand (which is still
-    available as the `"tau"` dataset)
+    actually is rather than a Gaussian shorthand (which is still available as the `"tau"`
+    dataset: `0.0506 +- 0.0086` from lowE alone by default, or the familiar `0.0544 +- 0.0073`,
+    which is the TT,TE,EE+lowE posterior and must not be combined with `planck_lite`)
   * **ACT DR6 CMB lensing** -- a second, independent lensing reconstruction, tighter than
     Planck's (2.3% on the amplitude), built on the lensing convergence rather than the potential
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)

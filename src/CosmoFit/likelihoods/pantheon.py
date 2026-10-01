@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from CosmoFit.data.loader import load_pantheon
+from CosmoFit.data.loader import PANTHEON_Z_MIN, load_pantheon
 
 from .base import BaseLikelihood, AnalyticOffsetMixin
 
@@ -24,10 +24,24 @@ class PantheonLikelihood(BaseLikelihood, AnalyticOffsetMixin):
         Pantheon dataset version.
 
     include_cepheid
-        If True, include Cepheid calibrator supernovae.
+        If False (default), the Hubble-flow sample: the 1590 light
+        curves with ``z_HD > 0.01``, which constrain the shape of
+        the distance-redshift relation but not its absolute scale.
+
+        If True, the Pantheon+SH0ES sample: the 77 Cepheid-calibrator
+        light curves are added, and for those the predicted distance
+        modulus is the host galaxy's Cepheid distance (``CEPH_DIST``)
+        rather than the cosmological ``mu(z)`` -- their redshifts are
+        too small to say anything about the expansion, and their
+        Cepheids are what fix ``M_B``. That is what lets this one
+        dataset measure H0 (Brout et al. 2022, Eqs. 14-15).
+
+    z_min
+        Hubble-flow cut on ``z_HD``. Default 0.01, as in every
+        published Pantheon+ fit.
 
     marginalize_MB : bool, optional
-        If True (default), the SN absolute magnitude (and,
+        If True (the default without Cepheids), the SN absolute magnitude (and,
         equivalently, the H0 - M_B degeneracy) is marginalized
         over analytically instead of being fit as an explicit
         nuisance parameter:
@@ -46,8 +60,13 @@ class PantheonLikelihood(BaseLikelihood, AnalyticOffsetMixin):
 
         If False, ``cosmology.MB`` is added to the model as an
         explicit free/fixed nuisance parameter instead
-        (m_B = mu(z) + M_B), useful when calibrating H0 with
-        Cepheid distances.
+        (m_B = mu(z) + M_B).
+
+        Defaults to ``not include_cepheid``. Marginalizing with the
+        calibrators in is refused: the analytic marginalization
+        removes exactly the absolute scale the Cepheids exist to
+        supply, so the calibrators would be carried along and
+        contribute nothing.
     """
 
     def __init__(
@@ -55,14 +74,38 @@ class PantheonLikelihood(BaseLikelihood, AnalyticOffsetMixin):
         cosmology,
         version: str = "pantheon+sh0es",
         include_cepheid: bool = False,
-        marginalize_MB: bool = True,
+        marginalize_MB: bool | None = None,
+        z_min: float = PANTHEON_Z_MIN,
     ):
+
+        if marginalize_MB is None:
+            marginalize_MB = not include_cepheid
+
+        if include_cepheid and marginalize_MB:
+
+            raise ValueError(
+
+                "`include_cepheid=True` with `marginalize_MB=True` "
+
+                "throws the calibration away: the analytic "
+
+                "marginalization removes the absolute magnitude M_B, "
+
+                "and fixing M_B is the only thing the Cepheid hosts "
+
+                "do. Leave `marginalize_MB` at its default (False with "
+
+                "Cepheids) and free `MB`.",
+
+            )
 
         dataset = load_pantheon(
             version=version,
             include_cepheid=include_cepheid,
+            z_min=z_min,
         )
 
+        self.include_cepheid = bool(include_cepheid)
         self.marginalize_MB = marginalize_MB
 
         super().__init__(
@@ -117,6 +160,18 @@ class PantheonLikelihood(BaseLikelihood, AnalyticOffsetMixin):
         dl_model = dm_model * (1.0 + self.data.z_hel)
 
         mu_model = 5.0 * np.log10(dl_model) + 25.0
+
+        if self.include_cepheid:
+
+            # The calibrators' distances are measured, not
+            # predicted: their Cepheids give mu directly, and their
+            # redshifts (most below 0.01) are peculiar-velocity
+            # noise. Brout et al. (2022) Eq. 14.
+            mu_model = np.where(
+                self.data.cepheid == 1,
+                self.data.ceph_dist,
+                mu_model,
+            )
 
         if self.marginalize_MB:
             return mu_model

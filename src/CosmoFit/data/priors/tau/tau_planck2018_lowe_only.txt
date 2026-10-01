@@ -1,0 +1,15 @@
+# Reionization optical depth from Planck 2018 large-scale E-mode
+# polarization *alone* (the "lowE"/SimAll likelihood).
+# Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209:
+# tau = 0.0506 +- 0.0086 from lowE.
+#
+# This is the version to pair with plik_lite ("planck_lite"). plik_lite
+# covers l >= 30, where tau enters through the exp(-2 tau) damping and
+# is degenerate with A_s; this prior breaks the degeneracy and adds
+# nothing plik_lite already contains. The familiar 0.0544 +- 0.0073
+# ("planck2018" version) is the TT,TE,EE+lowE posterior -- it already
+# includes the high-l spectra, so combining it with plik_lite counts
+# them twice.
+#
+# [value] [sigma]   tau_reio
+0.0506 0.0086

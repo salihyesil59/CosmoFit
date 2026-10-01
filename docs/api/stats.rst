@@ -18,6 +18,9 @@ Model comparison
 .. automodule:: CosmoFit.stats.model_comparison
    :members:
 
+.. automodule:: CosmoFit.stats.significance
+   :members:
+
 Bayesian evidence
 -----------------
 

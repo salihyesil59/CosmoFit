@@ -315,6 +315,8 @@ def mahalanobis_from_lcdm(w0_samples, wa_samples, lcdm_point=(-1.0, 0.0)):
 
     from scipy import stats as _stats
 
+    from .significance import p_to_sigma
+
     samples = np.column_stack([
         np.asarray(w0_samples, dtype=float),
         np.asarray(wa_samples, dtype=float),
@@ -332,7 +334,7 @@ def mahalanobis_from_lcdm(w0_samples, wa_samples, lcdm_point=(-1.0, 0.0)):
     p_value = float(_stats.chi2.sf(d2, df=2))
 
     # Two-tailed 1D equivalent, the convention "n sigma" refers to.
-    sigma = float(_stats.norm.isf(p_value / 2.0))
+    sigma = p_to_sigma(p_value)
 
     return {
         "mean": mean,

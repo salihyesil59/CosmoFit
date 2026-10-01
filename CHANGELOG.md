@@ -16,6 +16,297 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Pantheon+ was not the published sample, and its Cepheids did nothing
+
+Two problems with one loader. Both were found in an audit of the
+likelihoods against their releases, not from a symptom: each one
+produced a perfectly ordinary posterior.
+
+**The Hubble-flow cut was missing.** Every published Pantheon+ fit
+(Brout et al. 2022) uses the 1590 light curves with `z_HD > 0.01`.
+Below that, peculiar velocities make up a large part of the
+redshift. The loader kept all 1624 non-calibrators instead,
+including 44 with `0.001 < z_HD < 0.01`. It also dropped the 10
+calibrator light curves above the cut. Those are ordinary
+Hubble-flow supernovae in an SN-only fit. The app's dataset note
+already said "1590 SNe", so the number that was documented was the
+right one. It was just not what got loaded.
+
+**`include_cepheid=True` put the calibrators on the Hubble
+diagram.** Their predicted magnitudes came from the cosmological
+`mu(z)` at redshifts of a few thousandths, rather than from their
+Cepheid distances (`CEPH_DIST`). They were also combined with the
+default analytic `M_B` marginalization, which removes the absolute
+scale that calibrators exist to fix. The one configuration meant to
+measure H0 could not. Now:
+
+- with Cepheids, calibrators are predicted as `CEPH_DIST + M_B`
+  (Brout et al. 2022, Eq. 14);
+- the sample is the 1657-row Pantheon+SH0ES selection;
+- `marginalize_MB` defaults to `False`, and asking for `True` raises.
+
+Profiling `(H0, M_B)` at `Omega_m = 0.334` now gives
+**H0 = 73.52 ± 1.0** from this one dataset. Brout et al. quote
+73.5 ± 1.1.
+
+Combining that configuration with a SH0ES `h0` prior counts the
+Cepheid hosts twice, and nothing caught it. `Fitter` now warns. It
+does not warn for TDCOSMO's `H0`, which is independent of the
+ladder. This could not be one more name pair in
+`CONFLICTING_DATASETS`, because whether `"pantheon"` and `"h0"`
+overlap depends on their options.
+
+Nine tests, eight of which fail on the previous loader. One of them
+is the H0 measurement above.
+
+Notebook outputs that include Pantheon+ predate this and were made
+with the 1624-row sample.
+### CAMB was handed models whose physics it does not solve
+
+`supports_cmb_spectra` decided by class name, plus whether a model
+defines `w(z)`. Anything with a `w` that nobody had put on the list
+went through. An audit found three ways that happened. Each one
+returned a normal-looking spectrum.
+
+- **`IDE`.** Matter and dark energy exchange energy, and the model
+  has a `w`. CAMB was given wCDM with an uncoupled CDM fluid. The
+  C_l and sigma8 came out independent of the coupling `xi`, while
+  `xi` still moved the background and was in CAMB's cache key. So
+  CAMB re-ran on every change of `xi` and returned the same thing.
+- **Action models with `growth="quasi_static"`.** These are `f(T)`,
+  `f(Q)`, `f(R)` and scalar-tensor `F(phi) R` built through
+  `theory.Action`. Each one carries an action-derived `w` and its
+  own `mu(a, k)`. CAMB solved GR's perturbations for them.
+- **`define_model` with both `w` and `mu`.** Same outcome.
+
+The gate now asks what a model does rather than what it is called:
+
+- **Overriding `mu`** means the model changes the perturbation
+  equations, and it is refused.
+- **Overriding `Omega_matter`** means matter is not conserved, and
+  it is refused.
+
+The name list stays for the cases those two checks cannot see, such
+as the holographic family. It is now matched along the MRO, so a
+subclass of a refused model is refused for the same reason. The LCDM
+check is now `issubclass`, which replaces
+`issubclass(cls, tuple()) if False else name == "LCDM"`. That line
+reduced to a name comparison by accident.
+
+One case is deliberately left open. An action model with the default
+`growth="gr"` declares that its extra degrees of freedom do not reach
+the clustering, which is the effective-dark-energy assumption. CAMB's
+PPF fluid is that same assumption, so such a model is still accepted.
+
+Eleven tests. Five failed against the old gate, and the action-model
+case had not been noticed at all.
+### HDE and ADE's z_t and q0 were evaluated on one background
+
+`derived.q_of_z` writes each posterior sample into the cosmology and
+reads `q(z)` back. It skipped `refresh()`, on the grounds that `E(z)`
+and `dE/dz` are analytic in the parameters. For HDE and ADE they are
+not. Both solve an ODE for the dark-energy density and interpolate
+the solution, and only `refresh()` re-solves it.
+
+So every sample was evaluated on the background of whichever point
+had been refreshed last. `c_hde` enters only through that ODE, so
+every sample produced the same q(z) from `c_hde`'s side. The
+`z_t` and `q0` posteriors carried only the spread of the analytic
+part of E(z), along with the GUI's derived-quantity panel built on
+them.
+
+`q_of_z` now refreshes at every sample. That costs a distance-table
+rebuild of a few milliseconds per sample, and `derived` caps samples
+at 5000.
+
+Three tests. One builds HDE at three values of `c_hde` and requires
+each sample to match a freshly built model; it failed before.
+### A likelihood-ratio test reported less significance than a tension
+
+The library had two definitions of "n sigma":
+
+- `stats.tension` and `stats.cpl_diagnostics` used the two-tailed
+  Gaussian equivalent. That is the convention papers quote, and for
+  one degree of freedom it is exactly `sqrt(delta_chi2)`.
+- `likelihood_ratio_test` used the one-tailed `norm.isf(p)`. So
+  `delta_chi2 = 4` for one extra parameter came out as **1.69 sigma
+  instead of 2.0**, and 9 came out as 2.78 instead of 3.
+
+The same evidence therefore read weaker in a model comparison than
+in a tension. That matters for exactly the question this library is
+used to ask: how strongly do the data prefer CPL over LCDM.
+
+There is now one conversion, `stats.significance.p_to_sigma`, and
+every caller uses it. The test that pinned the old value (2.0486 for
+`delta_chi2 = 5.39`) now pins `sqrt(5.39) = 2.32`. LRT significances
+shown in notebook outputs and the GUI's comparison tab predate this.
+### The tau prior recommended for plik_lite already contained plik
+
+The `"tau"` dataset shipped one number, `0.0544 +- 0.0073`. It was
+described as Planck's low-l polarization constraint and recommended
+as `"planck_lite"`'s companion, in its docstring, in plik_lite's, in
+the README and in the GUI's "Full CMB" preset.
+
+That number is not the low-l constraint. It is the TT,TE,EE+lowE
+*posterior*, so it already carries the high-l spectra that
+plik_lite adds again. The repository had the proof in its own test
+suite: `test_planck_lowe` profiles plik_lite together with the low-l
+EE table and reproduces exactly `0.0544 +- 0.0073`. The pairing
+counted those spectra twice, on the parameter where plik_lite on its
+own is weakest.
+
+- **New default:** the `"tau"` dataset now defaults to
+  `"planck2018_lowe"`, which is **`0.0506 +- 0.0086`** from low-l EE
+  alone.
+- **Old number kept:** the familiar value stays available as
+  `"planck2018"`, for fits with no CMB spectra in them.
+- **Warning:** `Fitter` warns when that version meets `"planck_lite"`.
+  It is a version-dependent rule, so it is not a pair in
+  `CONFLICTING_DATASETS`.
+
+Fits that used `"tau"` with `"planck_lite"` change. That change is
+the point of the fix: `tau` and everything degenerate with it
+(`ln1e10As`, `sigma8`) were constrained too tightly before.
+### DES-SN5YR is the Dovekie recalibration, and is now cited as one
+
+The bundled `DES-SN5YR_HD.csv` is byte-identical to
+`4_DISTANCES_COVMAT/DES-Dovekie_HD.csv` in des-science/DES-SN5YR.
+That is the reanalysis of Popovic et al. (2026, arXiv:2511.07517):
+the same supernovae, recalibrated with the Dovekie photometric
+calibration, giving 1820 supernovae after selection.
+
+Every citation in the library named the release this one replaced:
+the loader's `reference`, the likelihood docstring and
+REFERENCES.md cited Vincenzi et al. / DES Collaboration (2024),
+which has 1829 supernovae. The app's dataset note said "1829 SNe".
+Only the likelihood docstring's mention of
+`DES-Dovekie-SN_Likelihood.py` gave it away.
+
+The data, covariance and likelihood were already right. The fix
+is to what a fit using them should be quoted against: the two
+releases give different distances to the same objects, and so
+different w0-wa results.
+
+The original 2024 release is still published (tag 1.3 of the data
+repository). Shipping it as a second version is left for later: it
+adds about 6 MB and uses a different covariance format.
+### f(R,T)'s H0 was not the Hubble rate today
+
+`FRTLinear` sampled `Omega_L` as a parameter independent of
+`Omega_m`. Its docstring said this was how the f(R,T) literature
+fits the model, and the closure test excluded it by name. That left
+
+    E(0)^2 = Omega_k + (1 + 3 beta) Omega_m + (1 + 4 beta) Omega_L
+
+as whatever the sampler made it, so the parameter called `H0` was not
+H(z=0). Every comparison that reads `H0` as the Hubble constant then
+compared against the wrong number:
+
+- an `"h0"` prior;
+- the SN absolute magnitude;
+- the CMB shift parameter `R = sqrt(Omega_m) H0 D_M / c`;
+- the `E_cmb` renormalization.
+
+Fits that report independent `Omega_m` and `Omega_L` posteriors are
+fitting a spatial curvature they do not name. This model has an
+explicit `Omega_k`, so it can be named.
+
+`Omega_L` is now derived from `E(0) = 1`:
+`(1 - Omega_k - (1 + 3 beta) Omega_m) / (1 + 4 beta)`. It is declared
+in `DERIVED_PARAMS`, so freeing it warns like ADE's `Omega_m`. The
+closure exclusion is gone from the tests, and a new test checks
+`E(0) = 1` and `H(0) = H0` at `beta = -0.1, 0.05, 0.15`, flat and
+curved. The default `beta = 0` is GR, where the old code happened to
+close.
+
+**Breaking:** `Omega_L` is no longer a parameter of `FRTLinear`.
+Drop it from `free_params` and `initial`. To recover the old freedom,
+free `Omega_k`.
+### A computed r_d now sees each model's own early universe
+
+`compute_rd=True` integrated `r_d = int c_s/H dz` with `H` built from
+photons, neutrinos and `Omega_m` alone. The docstring stated why:
+dark energy is negligible before recombination. That holds for most
+models in the library. It does not hold for several others, which
+each got LCDM's `r_d` with no warning:
+
+- **Running vacuum** dilutes matter as `(1+z)^{3(1-nu)}`, so at
+  `nu = 1e-3` the early matter density is 2-3% low.
+- **Interacting dark energy** swaps part of the matter budget into
+  the dark-energy scaling.
+- **Ricci dark energy** carries a matter-like term 29% the size of
+  matter at `gamma = 0.45`.
+- **A Chaplygin gas** behaves as dust early on, but that dust is not
+  in `Omega_m`.
+- **f(R,T)** multiplies matter by `1 + 3 beta`.
+- **CPL** and its relatives with `w(z -> inf) >= 0` are early dark
+  energies.
+
+The fix takes the departure from each model's own `E(z)`:
+
+    delta(z) = E(z)^2 / [Omega_m (1+z)^3 + Omega_k (1+z)^2] - 1
+
+That departure is added to `H` inside the integral. It is evaluated
+up to z = 1e5 and held constant above that, where radiation
+dominates and an ODE-based model's `E(z)` may not be defined. The
+`z_drag` fit is evaluated at the cold-matter density that gives the
+model's own expansion rate there. This is exact for an extra
+component that dilutes like matter, and an approximation otherwise:
+it carries the expansion, not any change to recombination itself.
+
+It only switches on where `|delta| > 1e-7` at the probe redshifts.
+LCDM's own cosmological constant is about 2e-9 there, so LCDM, every
+w(z) model in the usual range, and the CAMB validation of the
+standard integral are untouched. Because the departure depends on
+parameters the old cache key deliberately left out, it is now part
+of the key. Previously, changing `nu` returned the cached `r_d`.
+
+At default parameters: RDE 147.06 -> 137.34 Mpc, the Chaplygin gas
+-> 127.81, IDE at `xi = 0.05` -> 151.61, running vacuum at
+`nu = 1e-3` +0.57%, HDE -0.002% (its early dark energy is real but
+small).
+
+The test is a model that is LCDM plus a component that dilutes
+exactly like matter. Its `r_d` must equal LCDM's at
+`Omega_m (1 + epsilon)`. It does, to 1e-6, and it failed before at
+any `epsilon`.
+
+The compressed Planck priors' `z_*` fitting formula still assumes a
+standard early universe. That is a separate issue.
+### The CC covariance had its systematic correlations shrunk
+
+The cosmic chronometer covariance was built as
+`R * outer(sigma, sigma)`, where `R` is the correlation matrix
+distributed with the Favale et al. (2023) compilation and `sigma`
+are its tabulated errors.
+
+That correlation was built from `diag(sigma^2) + sum_k s_k s_k^T`.
+Here `s_k = H(z) f_k(z)` are the IMF and stellar-population entries
+of the Moresco et al. (2020) systematic budget. The budget reproduces
+its off-diagonal to 1e-9. Rescaling it by `sigma` alone shrank every
+off-diagonal term below `sum_k s_k s_k^T`, by the factor
+`sigma_i sigma_j / sqrt((sigma_i^2 + s_i^2)(sigma_j^2 + s_j^2))`.
+
+**Which reading this adopts.** An earlier attempt (b1adbbf, reverted
+in 8104328) also added `s^2` to the diagonal. That treats the
+tabulated errors as statistical only, which is how Moresco's own
+notebook treats *his* table. For the Moresco points in this
+compilation, though, the tabulated errors are already close to
+statistical and SPS errors in quadrature (6.2 against 6.1 at
+z = 0.1791), and Favale et al. do not release a covariance that could
+settle it. So the diagonal stays at the published errors, and only
+the correlation, which is wrong under either reading, is restored:
+
+    C_ii = sigma_i^2,    C_ij = sum_k s_k(z_i) s_k(z_j)
+
+The budget, `data_MM20.dat`, is copied unmodified from
+gitlab.com/mmoresco/CCcovariance. The distributed correlation file
+stays as the test of it.
+
+A flat-LCDM fit to CC alone goes from **H0 = 71.1 +/- 5.27 to
+71.3 +/- 5.61** (Fisher). For comparison, the reverted diagonal
+reading gives +/- 6.13.
+
 ### A configuration is a thing you can keep, and so is the chain
 
 Two more gaps between what the app produced and what you could

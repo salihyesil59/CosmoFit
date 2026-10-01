@@ -546,6 +546,98 @@ def _warn_conflicting_datasets(names) -> None:
             )
 
 
+def _warn_calibrated_twice(likelihoods) -> None:
+    """
+    Warn if Pantheon+'s Cepheid calibrators meet a SH0ES ``H0``.
+
+    Not expressible in :data:`CONFLICTING_DATASETS`, which pairs
+    names: whether ``"pantheon"`` and ``"h0"`` overlap depends on
+    options. Without Cepheids Pantheon+ carries no absolute scale and
+    the pair is fine; TDCOSMO's ``H0`` comes from lensing time delays
+    and is independent either way. Only Cepheids plus a SH0ES ``H0``
+    is the same calibration twice -- the SH0ES number *is* those
+    Cepheid hosts and those supernovae.
+    """
+
+    import warnings
+
+    cepheids = any(
+        isinstance(lk, PantheonLikelihood) and lk.include_cepheid
+        for lk in likelihoods
+    )
+
+    sh0es = [
+        lk.version for lk in likelihoods
+        if isinstance(lk, H0Likelihood)
+        and lk.version.startswith("sh0es")
+    ]
+
+    if cepheids and sh0es:
+
+        warnings.warn(
+
+            f"Pantheon+ with `include_cepheid=True` already contains "
+
+            f"the SH0ES calibration, and the 'h0' dataset "
+
+            f"('{sh0es[0]}') is that same calibration summarized as "
+
+            f"one number. Combining them counts the Cepheid hosts "
+
+            f"twice. Drop one of the two, or use the independent "
+
+            f"'tdcosmo2025' H0.",
+
+            UserWarning,
+
+            stacklevel=3,
+
+        )
+
+
+def _warn_tau_counted_twice(likelihoods) -> None:
+    """
+    Warn if ``plik_lite`` meets the TT,TE,EE+lowE ``tau``.
+
+    Version-dependent, so not a :data:`CONFLICTING_DATASETS` pair:
+    the default ``"tau"`` (``0.0506 +- 0.0086``, lowE alone) is
+    exactly the companion ``plik_lite`` needs, while the familiar
+    ``0.0544 +- 0.0073`` is Planck's full posterior and already
+    contains the high-l spectra ``plik_lite`` adds again.
+    """
+
+    import warnings
+
+    lite = any(isinstance(lk, PlanckLiteLikelihood) for lk in likelihoods)
+
+    full = any(
+        isinstance(lk, TauLikelihood) and lk.version == "planck2018"
+        for lk in likelihoods
+    )
+
+    if lite and full:
+
+        warnings.warn(
+
+            "The 'tau' dataset's 'planck2018' version (0.0544 +- "
+
+            "0.0073) is Planck's TT,TE,EE+lowE posterior: it already "
+
+            "contains the high-l spectra 'planck_lite' fits, so the "
+
+            "pair counts them twice. Use the default "
+
+            "'planck2018_lowe' version (0.0506 +- 0.0086, low-l EE "
+
+            "alone).",
+
+            UserWarning,
+
+            stacklevel=3,
+
+        )
+
+
 def dataset_label(names) -> str:
     """
     A fit's dataset combination as one short, readable string:
@@ -969,6 +1061,10 @@ class Fitter:
             kwargs = dataset_kwargs.get(name, {})
 
             self.likelihoods.append(cls(self.cosmology, **kwargs))
+
+        _warn_calibrated_twice(self.likelihoods)
+
+        _warn_tau_counted_twice(self.likelihoods)
 
         self.joint = JointLikelihood(*self.likelihoods)
 

@@ -21,6 +21,16 @@ repository.
   to calibrate the ladders and measure the curvature of the Universe.
   A model-independent study*, MNRAS 523, 3406.
   [arXiv:2301.09591](https://arxiv.org/abs/2301.09591)
+- **Moresco et al. (2020)**, *Setting the stage for cosmic chronometers.
+  II. Impact of stellar population synthesis models systematics and
+  full covariance matrix*, ApJ 898, 82.
+  [ADS 2020ApJ...898...82M](https://ui.adsabs.harvard.edu/abs/2020ApJ...898...82M/abstract)
+- `data_MM20.dat` (systematic error budget) is copied unmodified from
+  [gitlab.com/mmoresco/CCcovariance](https://gitlab.com/mmoresco/CCcovariance)
+  at commit `881413330a7f1e1e5203607d6964db49b4c6c461`; the off-diagonal
+  CC covariance is built from it (`data.loader._cc_covariance`), and
+  `CC_32_Favale2023_Moresco2020_correlation.txt` is kept as the check
+  on that construction.
 - Used by: [`data/cc/favale2023/`](src/CosmoFit/data/cc/favale2023/),
   [`likelihoods/cc.py`](src/CosmoFit/likelihoods/cc.py)
 
@@ -216,15 +226,21 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 
 ### DES-SN5YR (Type Ia Supernovae)
 
-- **Sanchez et al. (2024)**, *The Dark Energy Survey Supernova Program:
-  Data Release*, ApJ 975, 5.
-  [arXiv:2406.05046](https://arxiv.org/abs/2406.05046)
-- **DES Collaboration et al. (2024)**, *The Dark Energy Survey:
-  Cosmology Results with ~1500 New High-redshift Type Ia Supernovae
-  Using the Full 5-year Dataset*, ApJL 973, L14.
-  [arXiv:2401.02929](https://arxiv.org/abs/2401.02929)
+- **Popovic et al. (2026)**, *The Dark Energy Survey Supernova Program:
+  A Reanalysis Of Cosmology Results And Evidence For Evolving Dark
+  Energy With An Updated Type Ia Supernova Calibration*, MNRAS.
+  [arXiv:2511.07517](https://arxiv.org/abs/2511.07517) -- the
+  **DES-Dovekie** recalibration, and the release actually bundled here
+  (1820 SNe: 1623 DES + 197 low-z).
+- Superseded by it, and *not* bundled: **Vincenzi et al. (2024)**, ApJ
+  975, 86, and **DES Collaboration et al. (2024)**, *Cosmology Results
+  with ~1500 New High-redshift Type Ia Supernovae Using the Full
+  5-year Dataset*, ApJL 973, L14,
+  [arXiv:2401.02929](https://arxiv.org/abs/2401.02929) (1829 SNe;
+  tag 1.3 of the data repository).
 - Data source: [des-science/DES-SN5YR](https://github.com/des-science/DES-SN5YR)
-  (official data release)
+  (official data release; `4_DISTANCES_COVMAT/DES-Dovekie_HD.csv` and
+  `STAT+SYS.npz`)
 - Used by: [`data/sn/des-sn5yr/`](src/CosmoFit/data/sn/des-sn5yr/),
   [`likelihoods/des_sn5yr.py`](src/CosmoFit/likelihoods/des_sn5yr.py)
 - **Note:** don't combine with Pantheon+ in the same fit -- see the

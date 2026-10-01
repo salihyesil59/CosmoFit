@@ -37,8 +37,7 @@ import pytest
 import CosmoFit as C
 
 
-#: Every model, by name. ``FRTLinear`` is excluded from the closure
-#: check below (only) -- see `test_friedmann_closure`.
+#: Every model, by name.
 ALL_MODELS = [
     "LCDM", "WCDM", "CPL", "JBP", "BA", "LogarithmicDE",
     "PEDE", "GEDE", "LsCDM", "GCG", "IDE", "RunningVacuum",
@@ -72,13 +71,10 @@ def build(name, **kwargs):
 # 1. Friedmann closure
 # ============================================================
 
-#: ``FRTLinear`` deliberately does *not* satisfy E(0) = 1 with its
-#: default parameters: its ``Omega_m`` and ``Omega_L`` are
-#: independent free parameters rather than being tied by a flatness
-#: closure, which is how f(R,T) papers actually fit the model, and
-#: which its own class docstring states explicitly. Excluded here
-#: rather than silently passing a weakened assertion.
-_NO_CLOSURE = {"FRTLinear"}
+#: Every model closes, ``FRTLinear`` included: its ``Omega_L`` used
+#: to be free and E(0) = 1 did not hold, which made its ``H0`` not the
+#: Hubble rate today. It is derived from the closure now.
+_NO_CLOSURE: set[str] = set()
 
 _CLOSURE_MODELS = [m for m in ALL_MODELS if m not in _NO_CLOSURE]
 
@@ -118,6 +114,41 @@ def test_friedmann_closure(name, Omega_k):
         f"for Omega_k={Omega_k}: E(0) = {e0}"
 
     )
+
+
+@pytest.mark.parametrize("beta", [-0.1, 0.05, 0.15])
+@pytest.mark.parametrize("Omega_k", [0.0, -0.05, 0.05])
+def test_frt_closes_away_from_gr(beta, Omega_k):
+    """
+    The default ``beta = 0`` is GR, where closing is easy. Its
+    ``Omega_L`` used to be free, and away from beta = 0 nothing tied
+    E(0) to 1 -- so the parameter called H0 was not H(z=0).
+    """
+
+    model = build("FRTLinear", beta=beta, Omega_k=Omega_k)
+
+    e0 = float(np.atleast_1d(model.E(0.0))[0])
+
+    assert e0 == pytest.approx(1.0, abs=1e-12)
+
+    assert model.H(0.0) == pytest.approx(model.H0, rel=1e-12)
+
+
+def test_frt_omega_l_is_derived_not_sampled():
+
+    import warnings
+
+    with warnings.catch_warnings(record=True) as caught:
+
+        warnings.simplefilter("always")
+
+        from CosmoFit.stats.fitter import _warn_derived_parameters
+
+        _warn_derived_parameters(C.FRTLinear, ["Omega_m", "Omega_L"])
+
+    assert any("Omega_L" in str(w.message) for w in caught)
+
+    assert "Omega_L" not in C.FRTLinear.PARAMS_CLASS.names()
 
 
 # ============================================================

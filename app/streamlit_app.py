@@ -471,12 +471,9 @@ MODEL_INFO = {
         family="Modified gravity",
         what="f(R,T) gravity: gravity couples to the trace of the "
              "matter stress-energy tensor as well as to curvature. "
-             "Note that Ω_m and Ω_L are **independent** here, not tied "
-             "by flatness -- so E(0) = 1 does not hold automatically, "
-             "which is how this model is actually fitted in the "
-             "literature.",
-        params="**β** the matter-geometry coupling · **Ω_L** the "
-               "Λ-like component, independent of Ω_m",
+             "Ω_L follows from Ω_m, Ω_k and β through E(0) = 1, so "
+             "H₀ is the Hubble rate today.",
+        params="**β** the matter-geometry coupling (Ω_L is derived)",
         reduces="GR at β = 0 (with Ω_L = 1 - Ω_m)",
         ref="Harko, Lobo, Nojiri & Odintsov (2011).",
     ),
@@ -653,7 +650,7 @@ DATASET_INFO = {
 
     "pantheon": dict(
         observable="corrected apparent magnitude m_B",
-        n="1590 SNe", z="0.001 – 2.26",
+        n="1590 SNe", z="0.01 – 2.26",
         what=(
             "The largest SN Ia compilation here. The absolute "
             "magnitude M_B is analytically marginalized, so this "
@@ -665,9 +662,11 @@ DATASET_INFO = {
 
     "des_sn5yr": dict(
         observable="distance modulus μ",
-        n="1829 SNe", z="0.025 – 1.13",
+        n="1820 SNe", z="0.025 – 1.14",
         what=(
-            "Dark Energy Survey 5-year sample. Of the three SN "
+            "Dark Energy Survey 5-year sample, in its DES-Dovekie "
+            "recalibration (Popovic et al. 2026), which supersedes "
+            "the original 2024 release. Of the three SN "
             "compilations this one pulls hardest away from a "
             "cosmological constant -- which is exactly why it is worth "
             "running all three separately."
@@ -808,7 +807,8 @@ DATASET_INFO = {
         observable="τ (reionization optical depth)",
         n="1 number", z="z ≈ 8",
         what=(
-            "Planck's large-scale polarization constraint. Only "
+            "Planck's large-scale polarization constraint, "
+            "τ = 0.0506 ± 0.0086 from low-ℓ EE alone. Only "
             "meaningful alongside the full CMB spectra, which cover "
             "ℓ ≥ 30 where τ is degenerate with the primordial "
             "amplitude. Without it, ln10¹⁰A_s is unconstrained."

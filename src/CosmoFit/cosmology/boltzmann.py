@@ -40,12 +40,23 @@ inventing physics the model never specified. Three cases:
   smooth dark-energy fluid, including across ``w = -1``, where a
   quintessence-fluid treatment breaks down.
 
-* **Modified-gravity models** (f(Q), f(R,T), f(R)) are refused.
-  Their whole content is that the field equations differ from GR,
-  which is exactly what CAMB's perturbation solver assumes. A model
-  like ``FRHuSawicki`` would run -- its background is LCDM's by
-  construction -- and would return LCDM's C_l while its ``f_R0``
-  did nothing, which is worse than an error. So this raises instead.
+* **Modified-gravity models** are refused. Their whole content is
+  that the field equations differ from GR, which is exactly what
+  CAMB's perturbation solver assumes. A model like ``FRHuSawicki``
+  would run -- its background is LCDM's by construction -- and would
+  return LCDM's C_l while its ``f_R0`` did nothing, which is worse
+  than an error. So this raises instead.
+
+  They are recognized by what they do rather than by name: any
+  model overriding ``mu(a, k)``. That includes every model built
+  from an action in a modified-gravity sector, which carries an
+  effective ``w`` as well and used to be let through on it.
+
+* **Models that do not conserve matter** (``IDE``,
+  ``RunningVacuum``: anything overriding ``Omega_matter``) are
+  refused for the same reason. CAMB's cold dark matter has its own
+  continuity equation, so an energy exchange with dark energy would
+  move the background and vanish from the perturbations.
 
 Where a model is refused, the compressed distance priors
 (``"planck"``) still work: they only need ``E(z)``.
@@ -62,9 +73,13 @@ import numpy as np
 NEUTRINO_MASS_DENOM = 93.14
 
 
-#: Models whose perturbations CAMB cannot represent, mapped to why.
-#: Checked by class name so that importing the modified-gravity
-#: modules is not required.
+#: Models whose perturbations CAMB cannot represent, mapped to why --
+#: for the cases :func:`supports_cmb_spectra`'s generic checks cannot
+#: see. Most of these would also be caught by them (every
+#: modified-gravity model here overrides ``mu``); they stay listed
+#: for the more specific reason. Checked by class name, along the
+#: MRO, so that importing the modified-gravity modules is not
+#: required.
 _UNSUPPORTED = {
 
     "ADE":
@@ -131,21 +146,56 @@ def supports_cmb_spectra(model) -> tuple[bool, str]:
 
     name = cls.__name__
 
-    if name in _UNSUPPORTED:
-        return False, _UNSUPPORTED[name]
+    # Walk the MRO so a subclass of a refused model is refused for
+    # the same reason, rather than slipping past under a new name.
+    for klass in cls.__mro__:
 
-    if name == "LCDM" or issubclass(cls, tuple()) if False else name == "LCDM":
+        if klass.__name__ in _UNSUPPORTED:
+            return False, _UNSUPPORTED[klass.__name__]
+
+    from CosmoFit.cosmology.core.base import Cosmology
+
+    # What a model *does*, not what it is called. A name list can
+    # only refuse the models someone remembered to add to it; these
+    # two checks cover every model built since, including those
+    # generated at runtime by `define_model` and `theory.Action`.
+
+    if getattr(cls, "mu", Cosmology.mu) is not Cosmology.mu:
+
+        return False, (
+            f"{name} defines its own mu(a, k) -- the gravitational "
+            f"coupling of matter perturbations differs from GR's, "
+            f"which is the equation CAMB's perturbation solver is "
+            f"built on. CAMB would return spectra for GR "
+            f"perturbations on this background, with every "
+            f"parameter that only enters mu doing nothing."
+        )
+
+    if (
+        getattr(cls, "Omega_matter", Cosmology.Omega_matter)
+        is not Cosmology.Omega_matter
+    ):
+
+        return False, (
+            f"{name} does not conserve matter: it exchanges energy "
+            f"between matter and dark energy (or the vacuum), so "
+            f"matter does not dilute as (1+z)^3. CAMB's cold dark "
+            f"matter obeys its own continuity equation, so the "
+            f"coupling would drop out of the spectra entirely while "
+            f"still moving the background."
+        )
+
+    from CosmoFit.cosmology.models.lcdm import LCDM
+
+    if issubclass(cls, LCDM):
         return True, ""
 
     if not hasattr(cls, "w"):
-
         return False, (
-
             f"{name} defines an expansion history E(z) but no "
             f"dark-energy equation of state w(z), and the two are "
             f"not interchangeable -- many different perturbation "
             f"histories share one E(z)."
-
         )
 
     return True, ""

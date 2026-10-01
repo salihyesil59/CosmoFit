@@ -63,7 +63,9 @@ Gaussian and a bandpower covariance does not describe it. The
 practical consequence is that ``tau`` enters only through the
 ``exp(-2 tau)`` damping of the high-l spectra and is therefore
 degenerate with ``ln1e10As``. Add the ``"tau"`` dataset (Planck's
-lowE constraint, ``tau = 0.0544 +- 0.0073``) to break it. Without
+lowE constraint, ``tau = 0.0506 +- 0.0086`` -- not the more familiar
+``0.0544 +- 0.0073``, which is the TT,TE,EE+lowE posterior and already
+contains these spectra) to break it. Without
 it, ``ln1e10As`` and anything derived from it are unconstrained,
 and the fit will say so by returning a posterior as wide as the
 prior.
