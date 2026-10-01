@@ -61,6 +61,45 @@ is the H0 measurement above.
 
 Notebook outputs that include Pantheon+ predate this and were made
 with the 1624-row sample.
+### CAMB was handed models whose physics it does not solve
+
+`supports_cmb_spectra` decided by class name, plus whether a model
+defines `w(z)`. Anything with a `w` that nobody had put on the list
+went through. An audit found three ways that happened. Each one
+returned a normal-looking spectrum.
+
+- **`IDE`.** Matter and dark energy exchange energy, and the model
+  has a `w`. CAMB was given wCDM with an uncoupled CDM fluid. The
+  C_l and sigma8 came out independent of the coupling `xi`, while
+  `xi` still moved the background and was in CAMB's cache key. So
+  CAMB re-ran on every change of `xi` and returned the same thing.
+- **Action models with `growth="quasi_static"`.** These are `f(T)`,
+  `f(Q)`, `f(R)` and scalar-tensor `F(phi) R` built through
+  `theory.Action`. Each one carries an action-derived `w` and its
+  own `mu(a, k)`. CAMB solved GR's perturbations for them.
+- **`define_model` with both `w` and `mu`.** Same outcome.
+
+The gate now asks what a model does rather than what it is called:
+
+- **Overriding `mu`** means the model changes the perturbation
+  equations, and it is refused.
+- **Overriding `Omega_matter`** means matter is not conserved, and
+  it is refused.
+
+The name list stays for the cases those two checks cannot see, such
+as the holographic family. It is now matched along the MRO, so a
+subclass of a refused model is refused for the same reason. The LCDM
+check is now `issubclass`, which replaces
+`issubclass(cls, tuple()) if False else name == "LCDM"`. That line
+reduced to a name comparison by accident.
+
+One case is deliberately left open. An action model with the default
+`growth="gr"` declares that its extra degrees of freedom do not reach
+the clustering, which is the effective-dark-energy assumption. CAMB's
+PPF fluid is that same assumption, so such a model is still accepted.
+
+Eleven tests. Five failed against the old gate, and the action-model
+case had not been noticed at all.
 
 ### A configuration is a thing you can keep, and so is the chain
 
