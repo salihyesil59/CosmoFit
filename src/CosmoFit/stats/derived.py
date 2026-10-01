@@ -141,9 +141,14 @@ def q_of_z(fit, z, burnin=None, max_samples=_MAX_SAMPLES):
 
     cosmology = fit.cosmology
 
-    # q(z) = -1 + (1+z) E'(z)/E(z) needs only E and dE/dz, both of
-    # which are analytic in the parameters for every model here -- no
-    # `refresh()` (which would rebuild the chi(z) table) is required.
+    # q(z) = -1 + (1+z) E'(z)/E(z) needs only E and dE/dz, but those
+    # are not analytic in the parameters for every model: HDE and ADE
+    # solve an ODE for the dark-energy density and interpolate it, and
+    # only `refresh()` re-solves it. Skipping it, as this once did,
+    # evaluated every sample on the background of whatever point was
+    # refreshed last -- z_t and q0 came back with the spread of the
+    # analytic part of E(z) alone. So refresh at every sample: it costs
+    # one distance-table rebuild, a few milliseconds.
     #
     # The parameter object is shared and mutated in place, so snapshot
     # it and put it back afterwards: leaving the cosmology sitting on
@@ -156,6 +161,7 @@ def q_of_z(fit, z, burnin=None, max_samples=_MAX_SAMPLES):
     try:
         for i, theta in enumerate(flat):
             cosmology.params.update(**dict(zip(names, theta)))
+            cosmology.refresh()
             out[i] = cosmology.background.q(z)
     finally:
         cosmology.params.update(**saved)
