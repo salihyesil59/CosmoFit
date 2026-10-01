@@ -228,8 +228,10 @@ DES_SN5YR_FILES = {
         "covariance": "DES-SN5YR_STAT+SYS.npz",
 
         "reference": (
-            "Sanchez et al. (2024), arXiv:2406.05046; "
-            "DES Collaboration (2024), arXiv:2401.02929"
+            "Popovic et al. (2026), MNRAS, arXiv:2511.07517 "
+            "(DES-Dovekie recalibration, 1820 SNe; supersedes "
+            "Vincenzi et al. 2024 / DES Collaboration 2024, "
+            "arXiv:2401.02929)"
         ),
 
     },

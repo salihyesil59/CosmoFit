@@ -56,8 +56,18 @@ class DESSN5YRLikelihood(BaseLikelihood, AnalyticOffsetMixin):
 
     References
     ----------
-    Sanchez et al. (2024), arXiv:2406.05046 (data release).
-    DES Collaboration (2024), arXiv:2401.02929 (cosmology results).
+    Popovic et al. (2026), MNRAS, arXiv:2511.07517 -- the DES-Dovekie
+    reanalysis these files come from (byte-identical to
+    ``4_DISTANCES_COVMAT/DES-Dovekie_HD.csv`` and ``STAT+SYS.npz`` in
+    des-science/DES-SN5YR): the same supernovae recalibrated with the
+    Dovekie photometric calibration, 1820 SNe after selection.
+
+    It supersedes the original release (Vincenzi et al. 2024; DES
+    Collaboration 2024, arXiv:2401.02929; 1829 SNe), which is still
+    tagged as version 1.3 of that repository but is *not* what is
+    bundled here. The two give different distances to the same
+    supernovae, and so different w0-wa constraints -- quote the
+    right one.
     """
 
     def __init__(
