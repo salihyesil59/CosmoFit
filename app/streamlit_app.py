@@ -471,12 +471,9 @@ MODEL_INFO = {
         family="Modified gravity",
         what="f(R,T) gravity: gravity couples to the trace of the "
              "matter stress-energy tensor as well as to curvature. "
-             "Note that Ω_m and Ω_L are **independent** here, not tied "
-             "by flatness -- so E(0) = 1 does not hold automatically, "
-             "which is how this model is actually fitted in the "
-             "literature.",
-        params="**β** the matter-geometry coupling · **Ω_L** the "
-               "Λ-like component, independent of Ω_m",
+             "Ω_L follows from Ω_m, Ω_k and β through E(0) = 1, so "
+             "H₀ is the Hubble rate today.",
+        params="**β** the matter-geometry coupling (Ω_L is derived)",
         reduces="GR at β = 0 (with Ω_L = 1 - Ω_m)",
         ref="Harko, Lobo, Nojiri & Odintsov (2011).",
     ),

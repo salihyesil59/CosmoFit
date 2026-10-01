@@ -40,12 +40,20 @@ class FRTLinear(Cosmology):
                  + (1 + 3*beta) * Omega_m * (1+z)^3
                  + (1 + 4*beta) * Omega_L
 
-    Unlike LCDM, ``Omega_m`` and ``Omega_L`` are independent free
-    parameters here, *not* tied by a flatness closure
-    (Omega_L = 1 - Omega_m - Omega_k) -- at beta=0 that closure falls
-    out on its own, but for beta != 0 it generally doesn't, which
-    matches how f(R,T) papers actually fit this model (independent
-    Omega_m/Omega_L posteriors, not summing to 1). Only the linear
+    ``Omega_L`` is *derived*, from the Friedmann equation at z = 0:
+
+        Omega_L = (1 - Omega_k - (1 + 3*beta) * Omega_m) / (1 + 4*beta)
+
+    which is what makes ``E(0) = 1`` -- i.e. what makes ``H0`` the
+    Hubble rate today. It used to be a free parameter independent of
+    ``Omega_m``. Then ``E(0)^2 = Omega_k + (1+3*beta) Omega_m +
+    (1+4*beta) Omega_L`` was whatever the sampler made it, the
+    parameter called ``H0`` was not H(z=0), and everything that reads
+    ``H0`` as the Hubble constant -- an H0 prior, the SN absolute
+    magnitude, the CMB shift parameter ``R`` -- compared it with the
+    wrong number. f(R,T) fits that quote independent ``Omega_m`` and
+    ``Omega_L`` posteriors are fitting a curvature they do not name;
+    here ``Omega_k`` is that parameter, and it is explicit. Only the linear
     (f(T) proportional to T) case is implemented; the general
     f(R,T) = R + alpha*T^n form is not, since the units/normalization
     convention for alpha in the papers surveyed for this couldn't be
@@ -69,10 +77,9 @@ class FRTLinear(Cosmology):
 
     Notes
     -----
-    Adds ``Omega_L`` (the Lambda-like component's density parameter,
-    default 0.7, independent of ``Omega_m``) and ``beta`` (the
-    dimensionless matter-geometry coupling, default 0.0 = GR) via
-    ``EXTRA_PARAMS``.
+    Adds ``beta`` (the dimensionless matter-geometry coupling,
+    default 0.0 = GR) via ``EXTRA_PARAMS``. ``Omega_L`` is a derived
+    property, not a parameter.
 
     References
     ----------
@@ -97,13 +104,30 @@ class FRTLinear(Cosmology):
     #: than crashing, but bounding the prior to the physically
     #: sensible regime is the right fix, not just a safety net.
     EXTRA_PARAMS = {
-        "Omega_L": {
-            "default": 0.7, "bounds": (0.0, 1.2), "label": r"$\Omega_L$",
-        },
         "beta": {
             "default": 0.0, "bounds": (-0.2, 0.2), "label": r"$\beta$",
         },
     }
+
+    #: ``Omega_L`` is fixed by the Friedmann equation at z = 0 -- see
+    #: :attr:`Omega_L` -- so freeing it would sample a number nothing
+    #: reads.
+    DERIVED_PARAMS = frozenset({"Omega_L"})
+
+    # ---------------------------------------------------------
+
+    @property
+    def Omega_L(self) -> float:
+        """
+        The Lambda-like component's density parameter, from ``E(0) = 1``:
+
+            Omega_L = (1 - Omega_k - (1 + 3*beta) Omega_m) / (1 + 4*beta)
+        """
+
+        return (
+            (1.0 - self.Omega_k - (1.0 + 3.0 * self.beta) * self.Omega_m)
+            / (1.0 + 4.0 * self.beta)
+        )
 
     # ---------------------------------------------------------
 
