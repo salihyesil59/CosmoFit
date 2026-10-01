@@ -100,6 +100,27 @@ PPF fluid is that same assumption, so such a model is still accepted.
 
 Eleven tests. Five failed against the old gate, and the action-model
 case had not been noticed at all.
+### HDE and ADE's z_t and q0 were evaluated on one background
+
+`derived.q_of_z` writes each posterior sample into the cosmology and
+reads `q(z)` back. It skipped `refresh()`, on the grounds that `E(z)`
+and `dE/dz` are analytic in the parameters. For HDE and ADE they are
+not. Both solve an ODE for the dark-energy density and interpolate
+the solution, and only `refresh()` re-solves it.
+
+So every sample was evaluated on the background of whichever point
+had been refreshed last. `c_hde` enters only through that ODE, so
+every sample produced the same q(z) from `c_hde`'s side. The
+`z_t` and `q0` posteriors carried only the spread of the analytic
+part of E(z), along with the GUI's derived-quantity panel built on
+them.
+
+`q_of_z` now refreshes at every sample. That costs a distance-table
+rebuild of a few milliseconds per sample, and `derived` caps samples
+at 5000.
+
+Three tests. One builds HDE at three values of `c_hde` and requires
+each sample to match a freshly built model; it failed before.
 
 ### A configuration is a thing you can keep, and so is the chain
 
