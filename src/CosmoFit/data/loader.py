@@ -49,6 +49,12 @@ CC_FILES = {
 
         "data": "CC_32_Favale2023_data.txt",
 
+        # Moresco et al. (2020) systematic error budget, in percent of
+        # H(z); the off-diagonal covariance is built from it -- see
+        # `_cc_covariance`. The distributed correlation matrix is kept
+        # next to it as the check on that construction (tests only).
+        "systematics": "data_MM20.dat",
+
         "correlation": "CC_32_Favale2023_Moresco2020_correlation.txt",
 
         "reference": "Favale, Gomez-Valent & Migliaccio (2023), MNRAS 523, 3406, arXiv:2301.09591",
@@ -1392,11 +1398,87 @@ def available_datasets() -> dict[str, list[str]]:
 # Cosmic Chronometers
 # ============================================================
 
+def _cc_covariance(
+    z: np.ndarray,
+    H: np.ndarray,
+    sigma: np.ndarray,
+    systematics: np.ndarray,
+) -> np.ndarray:
+    r"""
+    Covariance of the cosmic chronometer H(z) measurements.
+
+    The tabulated errors ``sigma`` are taken as each measurement's
+    *total* error and stay on the diagonal unchanged. What they cannot
+    carry is the correlation: the method's systematics -- the initial
+    mass function and the stellar population synthesis model, from the
+    budget of Moresco et al. (2020) -- are the same assumption at every
+    redshift, so they are fully correlated between measurements::
+
+        C_ii = sigma_i^2
+        C_ij = sum_k s_k(z_i) s_k(z_j)       (i != j)
+        s_k(z) = H(z) f_k(z)
+
+    with ``f_k`` the fractional error of component ``k`` (``IMF`` and
+    ``mod_ooo``), interpolated in the table and held at its end values
+    beyond it.
+
+    Why the diagonal is not ``sigma^2 + s^2``
+    -----------------------------------------
+    That is the other reading, and it is what Moresco's own notebook
+    does with *his* table, whose errors are statistical only. For the
+    15 Moresco points in the Favale et al. (2023) compilation the
+    tabulated errors are already close to the statistical and SPS
+    errors in quadrature (6.2 against sqrt(4.3^2 + 4.2^2) = 6.1 at
+    z = 0.1791, median ratio 1.02), so adding ``s^2`` again would count
+    the systematic twice. Favale et al. do not release their covariance
+    -- the correlation file bundled with the data is not an official
+    product -- so the diagonal cannot be settled from the release
+    itself; this keeps it at the published errors.
+
+    The off-diagonal is not in question either way. The bundled
+    correlation's off-diagonal factorizes as ``a_i a_j``, and ``s``
+    from this budget reproduces it under the construction its author
+    used. Turning that correlation back into a covariance with
+    ``outer(sigma, sigma)``, as this library did, shrank every
+    off-diagonal term below ``s_i s_j`` -- by the factor
+    ``sigma_i sigma_j / sqrt((sigma_i^2 + s_i^2)(sigma_j^2 + s_j^2))``
+    -- which is wrong under both readings.
+
+    References
+    ----------
+    Moresco et al. (2020), ApJ 898, 82 (2020ApJ...898...82M);
+    https://gitlab.com/mmoresco/CCcovariance
+    """
+
+    z_table = systematics[:, 0]
+
+    correlated = np.zeros((len(z), len(z)))
+
+    for column in (1, 4):                       # IMF, mod_ooo
+
+        fractional = np.interp(z, z_table, systematics[:, column]) / 100.0
+
+        error = H * fractional
+
+        correlated += np.outer(error, error)
+
+    covariance = correlated - np.diag(np.diag(correlated))
+
+    covariance += np.diag(sigma ** 2)
+
+    return covariance
+
+# ------------------------------------------------------------
+
 def load_cc(
     version: str = "favale2023",
 ) -> CCDataset:
     """
     Load a Cosmic Chronometer dataset.
+
+    The covariance keeps the tabulated errors on its diagonal and adds
+    the correlation the method's systematics induce between
+    measurements -- see :func:`_cc_covariance`.
 
     Parameters
     ----------
@@ -1436,37 +1518,27 @@ def load_cc(
 
     sigma = data[:, 2]
 
-    covariance = None
+    systematics = _load_txt(
 
-    if "correlation" in entry:
+        dataset_path / entry["systematics"],
 
-        corr_path = (
+    )
 
-            dataset_path
+    covariance = make_covariance(
 
-            / entry["correlation"]
+        cov=_cc_covariance(
 
-        )
+            z,
 
-        if corr_path.exists():
+            H,
 
-            correlation = _load_txt(
+            sigma,
 
-                corr_path,
+            systematics,
 
-            )
+        ),
 
-            covariance = make_covariance(
-
-                cov=correlation * np.outer(
-
-                    sigma,
-
-                    sigma,
-
-                ),
-
-            )
+    )
 
     return CCDataset(
 
