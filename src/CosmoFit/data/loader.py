@@ -836,11 +836,20 @@ PRIOR_FILES = {
 
         "folder": "tau",
 
+        # The low-l-only constraint first, so it is the default: it
+        # is what the "tau" dataset exists for -- breaking plik_lite's
+        # tau-A_s degeneracy -- and the only one of the two that can
+        # sit next to plik_lite without counting its spectra twice.
         "versions": {
+
+            "planck2018_lowe": {
+                "data": "tau_planck2018_lowe_only.txt",
+                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209 (lowE alone)",
+            },
 
             "planck2018": {
                 "data": "tau_planck2018_lowe.txt",
-                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209",
+                "reference": "Planck Collaboration (2020), A&A 641, A6, arXiv:1807.06209 (TT,TE,EE+lowE)",
             },
 
         },

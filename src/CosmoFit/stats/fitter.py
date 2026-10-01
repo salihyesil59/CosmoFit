@@ -595,6 +595,49 @@ def _warn_calibrated_twice(likelihoods) -> None:
         )
 
 
+def _warn_tau_counted_twice(likelihoods) -> None:
+    """
+    Warn if ``plik_lite`` meets the TT,TE,EE+lowE ``tau``.
+
+    Version-dependent, so not a :data:`CONFLICTING_DATASETS` pair:
+    the default ``"tau"`` (``0.0506 +- 0.0086``, lowE alone) is
+    exactly the companion ``plik_lite`` needs, while the familiar
+    ``0.0544 +- 0.0073`` is Planck's full posterior and already
+    contains the high-l spectra ``plik_lite`` adds again.
+    """
+
+    import warnings
+
+    lite = any(isinstance(lk, PlanckLiteLikelihood) for lk in likelihoods)
+
+    full = any(
+        isinstance(lk, TauLikelihood) and lk.version == "planck2018"
+        for lk in likelihoods
+    )
+
+    if lite and full:
+
+        warnings.warn(
+
+            "The 'tau' dataset's 'planck2018' version (0.0544 +- "
+
+            "0.0073) is Planck's TT,TE,EE+lowE posterior: it already "
+
+            "contains the high-l spectra 'planck_lite' fits, so the "
+
+            "pair counts them twice. Use the default "
+
+            "'planck2018_lowe' version (0.0506 +- 0.0086, low-l EE "
+
+            "alone).",
+
+            UserWarning,
+
+            stacklevel=3,
+
+        )
+
+
 def dataset_label(names) -> str:
     """
     A fit's dataset combination as one short, readable string:
@@ -1020,6 +1063,8 @@ class Fitter:
             self.likelihoods.append(cls(self.cosmology, **kwargs))
 
         _warn_calibrated_twice(self.likelihoods)
+
+        _warn_tau_counted_twice(self.likelihoods)
 
         self.joint = JointLikelihood(*self.likelihoods)
 

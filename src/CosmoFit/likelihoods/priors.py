@@ -282,7 +282,16 @@ class OmegaBLikelihood(GaussianPriorLikelihood):
 class TauLikelihood(GaussianPriorLikelihood):
     """
     The Planck 2018 large-scale-polarization constraint on the
-    reionization optical depth, ``tau = 0.0544 +- 0.0073``.
+    reionization optical depth.
+
+    Versions: ``"planck2018_lowe"`` (default), ``tau = 0.0506 +-
+    0.0086`` from the low-l EE likelihood alone; and
+    ``"planck2018"``, the familiar ``0.0544 +- 0.0073``, which is the
+    TT,TE,EE+lowE *posterior* and so already contains the high-l
+    spectra. Next to ``"planck_lite"`` only the first is right -- the
+    second counts plik's spectra twice, and :class:`~stats.fitter.Fitter`
+    warns. The second is the shorthand to use where no CMB spectra
+    are in the fit.
 
     Only meaningful alongside
     :class:`~likelihoods.planck_lite.PlanckLiteLikelihood`, which
@@ -294,6 +303,6 @@ class TauLikelihood(GaussianPriorLikelihood):
     it, ``sigma8`` and anything derived from it are unconstrained.
     """
 
-    def __init__(self, cosmology, version: str = "planck2018"):
+    def __init__(self, cosmology, version: str = "planck2018_lowe"):
 
         super().__init__(cosmology, dataset="tau", version=version)
