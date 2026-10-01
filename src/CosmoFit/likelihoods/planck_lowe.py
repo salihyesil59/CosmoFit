@@ -25,10 +25,11 @@ No mean, no covariance, no assumption of symmetry.
 
 Relation to the ``"tau"`` dataset
 ---------------------------------
-CosmoFit's ``"tau"`` dataset is the familiar Gaussian shorthand,
-``tau = 0.0544 +- 0.0073``, which is what most dark-energy papers
-use and what this library used before this module existed. It is a
-compression *of this*, and the two must not both be in one fit --
+CosmoFit's ``"tau"`` dataset is the Gaussian shorthand. Its default
+version, ``tau = 0.0506 +- 0.0086``, is a compression *of this*
+table; the other, the familiar ``0.0544 +- 0.0073`` most dark-energy
+papers use, is this table combined with the high-l spectra. Either
+way the two must not both be in one fit --
 that would be Planck's low-l polarization counted twice, once in
 full and once in summary. :class:`~stats.fitter.Fitter` refuses the
 combination.

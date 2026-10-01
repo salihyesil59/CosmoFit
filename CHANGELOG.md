@@ -16,6 +16,34 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The tau prior recommended for plik_lite already contained plik
+
+The `"tau"` dataset shipped one number, `0.0544 +- 0.0073`. It was
+described as Planck's low-l polarization constraint and recommended
+as `"planck_lite"`'s companion, in its docstring, in plik_lite's, in
+the README and in the GUI's "Full CMB" preset.
+
+That number is not the low-l constraint. It is the TT,TE,EE+lowE
+*posterior*, so it already carries the high-l spectra that
+plik_lite adds again. The repository had the proof in its own test
+suite: `test_planck_lowe` profiles plik_lite together with the low-l
+EE table and reproduces exactly `0.0544 +- 0.0073`. The pairing
+counted those spectra twice, on the parameter where plik_lite on its
+own is weakest.
+
+- **New default:** the `"tau"` dataset now defaults to
+  `"planck2018_lowe"`, which is **`0.0506 +- 0.0086`** from low-l EE
+  alone.
+- **Old number kept:** the familiar value stays available as
+  `"planck2018"`, for fits with no CMB spectra in them.
+- **Warning:** `Fitter` warns when that version meets `"planck_lite"`.
+  It is a version-dependent rule, so it is not a pair in
+  `CONFLICTING_DATASETS`.
+
+Fits that used `"tau"` with `"planck_lite"` change. That change is
+the point of the fix: `tau` and everything degenerate with it
+(`ln1e10As`, `sigma8`) were constrained too tightly before.
+
 ### A configuration is a thing you can keep, and so is the chain
 
 Two more gaps between what the app produced and what you could

@@ -808,7 +808,8 @@ DATASET_INFO = {
         observable="τ (reionization optical depth)",
         n="1 number", z="z ≈ 8",
         what=(
-            "Planck's large-scale polarization constraint. Only "
+            "Planck's large-scale polarization constraint, "
+            "τ = 0.0506 ± 0.0086 from low-ℓ EE alone. Only "
             "meaningful alongside the full CMB spectra, which cover "
             "ℓ ≥ 30 where τ is degenerate with the primordial "
             "amplitude. Without it, ln10¹⁰A_s is unconstrained."
