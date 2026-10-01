@@ -653,7 +653,7 @@ DATASET_INFO = {
 
     "pantheon": dict(
         observable="corrected apparent magnitude m_B",
-        n="1590 SNe", z="0.001 – 2.26",
+        n="1590 SNe", z="0.01 – 2.26",
         what=(
             "The largest SN Ia compilation here. The absolute "
             "magnitude M_B is analytically marginalized, so this "

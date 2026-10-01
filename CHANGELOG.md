@@ -16,6 +16,52 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Pantheon+ was not the published sample, and its Cepheids did nothing
+
+Two problems with one loader. Both were found in an audit of the
+likelihoods against their releases, not from a symptom: each one
+produced a perfectly ordinary posterior.
+
+**The Hubble-flow cut was missing.** Every published Pantheon+ fit
+(Brout et al. 2022) uses the 1590 light curves with `z_HD > 0.01`.
+Below that, peculiar velocities make up a large part of the
+redshift. The loader kept all 1624 non-calibrators instead,
+including 44 with `0.001 < z_HD < 0.01`. It also dropped the 10
+calibrator light curves above the cut. Those are ordinary
+Hubble-flow supernovae in an SN-only fit. The app's dataset note
+already said "1590 SNe", so the number that was documented was the
+right one. It was just not what got loaded.
+
+**`include_cepheid=True` put the calibrators on the Hubble
+diagram.** Their predicted magnitudes came from the cosmological
+`mu(z)` at redshifts of a few thousandths, rather than from their
+Cepheid distances (`CEPH_DIST`). They were also combined with the
+default analytic `M_B` marginalization, which removes the absolute
+scale that calibrators exist to fix. The one configuration meant to
+measure H0 could not. Now:
+
+- with Cepheids, calibrators are predicted as `CEPH_DIST + M_B`
+  (Brout et al. 2022, Eq. 14);
+- the sample is the 1657-row Pantheon+SH0ES selection;
+- `marginalize_MB` defaults to `False`, and asking for `True` raises.
+
+Profiling `(H0, M_B)` at `Omega_m = 0.334` now gives
+**H0 = 73.52 ± 1.0** from this one dataset. Brout et al. quote
+73.5 ± 1.1.
+
+Combining that configuration with a SH0ES `h0` prior counts the
+Cepheid hosts twice, and nothing caught it. `Fitter` now warns. It
+does not warn for TDCOSMO's `H0`, which is independent of the
+ladder. This could not be one more name pair in
+`CONFLICTING_DATASETS`, because whether `"pantheon"` and `"h0"`
+overlap depends on their options.
+
+Nine tests, eight of which fail on the previous loader. One of them
+is the H0 measurement above.
+
+Notebook outputs that include Pantheon+ predate this and were made
+with the 1624-row sample.
+
 ### A configuration is a thing you can keep, and so is the chain
 
 Two more gaps between what the app produced and what you could

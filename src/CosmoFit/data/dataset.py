@@ -268,6 +268,11 @@ class PantheonDataset:
         D_L = (1 + z_hel) * D_M(z_hd) should use -- *not* z_hd or
         z_cmb (Brout et al. 2022, Pantheon+SH0ES; see also the
         official analysis code's ``dl_at_zhel_zhd`` convention).
+
+    For the Cepheid-calibrated variant, ``cepheid`` flags the
+    calibrator light curves and ``ceph_dist`` carries every row's
+    Cepheid distance modulus (meaningful only where ``cepheid`` is
+    1; the release fills the others with -9).
     """
 
     z_hd: np.ndarray
@@ -281,6 +286,8 @@ class PantheonDataset:
     covariance: "CovarianceBase"
 
     cepheid: Optional[np.ndarray] = None
+
+    ceph_dist: Optional[np.ndarray] = None
 
     reference: str = ""
 
@@ -339,6 +346,20 @@ class PantheonDataset:
             raise ValueError(
 
                 "Cepheid mask has wrong length.",
+
+            )
+
+        if (
+
+            self.ceph_dist is not None
+
+            and len(self.ceph_dist) != n
+
+        ):
+
+            raise ValueError(
+
+                "Cepheid distance moduli have wrong length.",
 
             )
 

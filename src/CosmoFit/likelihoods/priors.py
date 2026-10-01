@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from CosmoFit.data.loader import load_gaussian_prior
+from CosmoFit.data.loader import _PRIOR_REGISTRIES, load_gaussian_prior
 
 from .base import BaseLikelihood
 
@@ -141,6 +141,14 @@ class GaussianPriorLikelihood(BaseLikelihood):
             )
 
         self.dataset_name = dataset
+
+        #: The version actually loaded -- the registry's first one
+        #: when none was asked for, which is what `load_gaussian_prior`
+        #: resolves `None` to.
+        self.version = (
+            version if version is not None
+            else next(iter(_PRIOR_REGISTRIES[dataset]))
+        )
 
         self.quantity = data.quantity
 

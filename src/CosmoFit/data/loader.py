@@ -1158,31 +1158,45 @@ def _load_pantheon_covariance(
 
 # ------------------------------------------------------------
 
+#: Lower redshift limit of the Pantheon+ Hubble-flow sample.
+#:
+#: Below z = 0.01 a supernova's redshift is dominated by its
+#: peculiar velocity rather than by the expansion, and Brout et al.
+#: (2022) cut those light curves from every cosmological fit: 1590
+#: of the 1701 survive. This loader used to keep all 1624
+#: non-calibrators instead, including 44 at 0.001 < z_HD < 0.01, and
+#: to drop the 10 calibrator light curves that sit above the cut --
+#: a sample nobody had published a fit to.
+PANTHEON_Z_MIN = 0.01
+
+
 def _build_pantheon_mask(
+    z_hd: np.ndarray,
     is_calibrator: np.ndarray,
     include_cepheid: bool,
+    z_min: float = PANTHEON_Z_MIN,
 ) -> np.ndarray:
     """
-    Build the Pantheon sample mask.
+    Build the Pantheon+ sample mask.
+
+    Without Cepheids this is the Hubble-flow cut alone,
+    ``z_HD > z_min``. A calibrator above the cut is an ordinary
+    Hubble-flow supernova in that fit and stays in; the ones below
+    it go with every other low-z light curve.
+
+    With Cepheids, every calibrator is added back regardless of
+    redshift, since their distances come from the Cepheids rather
+    than from the redshift. This is the 1657-row Pantheon+SH0ES
+    sample.
     """
+
+    mask = z_hd > z_min
 
     if include_cepheid:
 
-        return np.ones(
+        mask = mask | (is_calibrator == 1)
 
-            is_calibrator.size,
-
-            dtype=bool,
-
-        )
-
-    return (
-
-        is_calibrator
-
-        == 0
-
-    )
+    return mask
 
 # ------------------------------------------------------------
 
@@ -1847,6 +1861,7 @@ def load_bao_lowz(
 def load_pantheon(
     version: str = "pantheon+sh0es",
     include_cepheid: bool = False,
+    z_min: float = PANTHEON_Z_MIN,
 ) -> PantheonDataset:
     """
     Load a Pantheon+ / Pantheon+SH0ES supernova dataset.
@@ -1857,7 +1872,15 @@ def load_pantheon(
         Dataset version.
 
     include_cepheid : bool, optional
-        If True, include Cepheid calibrator supernovae.
+        If True, add the Cepheid-calibrator supernovae below
+        ``z_min`` back in, together with their Cepheid distance
+        moduli (``CEPH_DIST``) -- the Pantheon+SH0ES sample, 1657
+        light curves. If False (default), the Hubble-flow sample
+        alone, 1590 light curves.
+
+    z_min : float, optional
+        Hubble-flow cut on ``z_HD``. Default 0.01, as in every
+        published Pantheon+ fit.
 
     Returns
     -------
@@ -1906,11 +1929,17 @@ def load_pantheon(
 
     is_calibrator = table["IS_CALIBRATOR"].astype(int)
 
+    ceph_dist = table["CEPH_DIST"].astype(float)
+
     mask = _build_pantheon_mask(
+
+        z_hd,
 
         is_calibrator,
 
         include_cepheid,
+
+        z_min,
 
     )
 
@@ -1923,6 +1952,8 @@ def load_pantheon(
     m_b_corr = m_b_corr[mask]
 
     is_calibrator = is_calibrator[mask]
+
+    ceph_dist = ceph_dist[mask]
 
     covariance = covariance[
 
@@ -1973,6 +2004,8 @@ def load_pantheon(
         covariance=covariance,
 
         cepheid=is_calibrator,
+
+        ceph_dist=ceph_dist,
 
         reference=entry["reference"],
 
