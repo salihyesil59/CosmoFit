@@ -190,6 +190,38 @@ different w0-wa results.
 The original 2024 release is still published (tag 1.3 of the data
 repository). Shipping it as a second version is left for later: it
 adds about 6 MB and uses a different covariance format.
+### f(R,T)'s H0 was not the Hubble rate today
+
+`FRTLinear` sampled `Omega_L` as a parameter independent of
+`Omega_m`. Its docstring said this was how the f(R,T) literature
+fits the model, and the closure test excluded it by name. That left
+
+    E(0)^2 = Omega_k + (1 + 3 beta) Omega_m + (1 + 4 beta) Omega_L
+
+as whatever the sampler made it, so the parameter called `H0` was not
+H(z=0). Every comparison that reads `H0` as the Hubble constant then
+compared against the wrong number:
+
+- an `"h0"` prior;
+- the SN absolute magnitude;
+- the CMB shift parameter `R = sqrt(Omega_m) H0 D_M / c`;
+- the `E_cmb` renormalization.
+
+Fits that report independent `Omega_m` and `Omega_L` posteriors are
+fitting a spatial curvature they do not name. This model has an
+explicit `Omega_k`, so it can be named.
+
+`Omega_L` is now derived from `E(0) = 1`:
+`(1 - Omega_k - (1 + 3 beta) Omega_m) / (1 + 4 beta)`. It is declared
+in `DERIVED_PARAMS`, so freeing it warns like ADE's `Omega_m`. The
+closure exclusion is gone from the tests, and a new test checks
+`E(0) = 1` and `H(0) = H0` at `beta = -0.1, 0.05, 0.15`, flat and
+curved. The default `beta = 0` is GR, where the old code happened to
+close.
+
+**Breaking:** `Omega_L` is no longer a parameter of `FRTLinear`.
+Drop it from `free_params` and `initial`. To recover the old freedom,
+free `Omega_k`.
 
 ### A configuration is a thing you can keep, and so is the chain
 
