@@ -167,6 +167,29 @@ own is weakest.
 Fits that used `"tau"` with `"planck_lite"` change. That change is
 the point of the fix: `tau` and everything degenerate with it
 (`ln1e10As`, `sigma8`) were constrained too tightly before.
+### DES-SN5YR is the Dovekie recalibration, and is now cited as one
+
+The bundled `DES-SN5YR_HD.csv` is byte-identical to
+`4_DISTANCES_COVMAT/DES-Dovekie_HD.csv` in des-science/DES-SN5YR.
+That is the reanalysis of Popovic et al. (2026, arXiv:2511.07517):
+the same supernovae, recalibrated with the Dovekie photometric
+calibration, giving 1820 supernovae after selection.
+
+Every citation in the library named the release this one replaced:
+the loader's `reference`, the likelihood docstring and
+REFERENCES.md cited Vincenzi et al. / DES Collaboration (2024),
+which has 1829 supernovae. The app's dataset note said "1829 SNe".
+Only the likelihood docstring's mention of
+`DES-Dovekie-SN_Likelihood.py` gave it away.
+
+The data, covariance and likelihood were already right. The fix
+is to what a fit using them should be quoted against: the two
+releases give different distances to the same objects, and so
+different w0-wa results.
+
+The original 2024 release is still published (tag 1.3 of the data
+repository). Shipping it as a second version is left for later: it
+adds about 6 MB and uses a different covariance format.
 
 ### A configuration is a thing you can keep, and so is the chain
 

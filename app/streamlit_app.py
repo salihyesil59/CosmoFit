@@ -665,9 +665,11 @@ DATASET_INFO = {
 
     "des_sn5yr": dict(
         observable="distance modulus μ",
-        n="1829 SNe", z="0.025 – 1.13",
+        n="1820 SNe", z="0.025 – 1.14",
         what=(
-            "Dark Energy Survey 5-year sample. Of the three SN "
+            "Dark Energy Survey 5-year sample, in its DES-Dovekie "
+            "recalibration (Popovic et al. 2026), which supersedes "
+            "the original 2024 release. Of the three SN "
             "compilations this one pulls hardest away from a "
             "cosmological constant -- which is exactly why it is worth "
             "running all three separately."
