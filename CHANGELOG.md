@@ -16,6 +16,26 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A likelihood-ratio test reported less significance than a tension
+
+The library had two definitions of "n sigma":
+
+- `stats.tension` and `stats.cpl_diagnostics` used the two-tailed
+  Gaussian equivalent. That is the convention papers quote, and for
+  one degree of freedom it is exactly `sqrt(delta_chi2)`.
+- `likelihood_ratio_test` used the one-tailed `norm.isf(p)`. So
+  `delta_chi2 = 4` for one extra parameter came out as **1.69 sigma
+  instead of 2.0**, and 9 came out as 2.78 instead of 3.
+
+The same evidence therefore read weaker in a model comparison than
+in a tension. That matters for exactly the question this library is
+used to ask: how strongly do the data prefer CPL over LCDM.
+
+There is now one conversion, `stats.significance.p_to_sigma`, and
+every caller uses it. The test that pinned the old value (2.0486 for
+`delta_chi2 = 5.39`) now pins `sqrt(5.39) = 2.32`. LRT significances
+shown in notebook outputs and the GUI's comparison tab predate this.
+
 ### A configuration is a thing you can keep, and so is the chain
 
 Two more gaps between what the app produced and what you could

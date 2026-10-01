@@ -87,7 +87,52 @@ def test_a_positive_comparison_is_untouched():
     assert not caught
 
     assert result["delta_chi2"] == pytest.approx(5.39)
-    assert result["sigma"] == pytest.approx(2.0486, abs=1e-3)
+
+    # Two-tailed: sqrt(5.39) for one extra parameter. This was pinned
+    # at the one-tailed 2.0486 until the conventions were unified.
+    assert result["sigma"] == pytest.approx(np.sqrt(5.39), abs=1e-6)
+
+
+@pytest.mark.parametrize("delta_chi2, expected", [(1.0, 1.0), (4.0, 2.0), (9.0, 3.0)])
+def test_one_extra_parameter_gives_root_delta_chi2(delta_chi2, expected):
+    """
+    The convention every "n sigma" in a cosmology paper uses, and the
+    one :mod:`stats.tension` already used: delta_chi2 = 4 for one extra
+    parameter is 2 sigma, not the one-tailed 1.69.
+    """
+
+    result = likelihood_ratio_test(
+        chi2_null=100.0 + delta_chi2, k_null=2, chi2_alt=100.0, k_alt=3,
+    )
+
+    assert result["sigma"] == pytest.approx(expected, abs=1e-9)
+
+
+def test_model_comparison_and_tension_agree_on_sigma():
+
+    from scipy import stats
+
+    from CosmoFit.stats import cpl_diagnostics, tension
+    from CosmoFit.stats.significance import p_to_sigma
+
+    assert tension._sigma_from_p is p_to_sigma
+
+    p_value = stats.chi2.sf(6.17, df=2)
+
+    lrt = likelihood_ratio_test(
+        chi2_null=106.17, k_null=2, chi2_alt=100.0, k_alt=4,
+    )
+
+    assert lrt["sigma"] == pytest.approx(p_to_sigma(p_value), rel=1e-12)
+
+    # cpl_diagnostics' Mahalanobis significance goes through the same
+    # helper; a 2-parameter Gaussian at distance^2 = 6.17 is ~2 sigma.
+    rng = np.random.default_rng(1)
+    samples = rng.normal(size=(200000, 2))
+    result = cpl_diagnostics.mahalanobis_from_lcdm(
+        samples[:, 0], samples[:, 1], lcdm_point=(np.sqrt(6.17), 0.0),
+    )
+    assert result["sigma"] == pytest.approx(2.0, abs=0.03)
 
 
 def test_convergence_noise_at_the_nested_limit_is_not_warned_about():

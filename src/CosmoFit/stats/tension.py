@@ -53,18 +53,11 @@ import numpy as np
 
 from scipy import stats
 
+from .significance import p_to_sigma
 
-def _sigma_from_p(p_value: float) -> float:
-    """
-    Two-tailed p-value to an equivalent number of Gaussian sigmas.
 
-    Clipped at zero: a p-value above 0.5 means the two agree better
-    than chance, which is not a negative tension.
-    """
-
-    p_value = float(np.clip(p_value, 1.0e-300, 1.0))
-
-    return float(max(stats.norm.isf(0.5 * p_value), 0.0))
+#: The library-wide p -> sigma convention; see :mod:`stats.significance`.
+_sigma_from_p = p_to_sigma
 
 
 def gaussian_tension(a, sigma_a, b, sigma_b) -> dict:
