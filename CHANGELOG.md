@@ -222,6 +222,57 @@ close.
 **Breaking:** `Omega_L` is no longer a parameter of `FRTLinear`.
 Drop it from `free_params` and `initial`. To recover the old freedom,
 free `Omega_k`.
+### A computed r_d now sees each model's own early universe
+
+`compute_rd=True` integrated `r_d = int c_s/H dz` with `H` built from
+photons, neutrinos and `Omega_m` alone. The docstring stated why:
+dark energy is negligible before recombination. That holds for most
+models in the library. It does not hold for several others, which
+each got LCDM's `r_d` with no warning:
+
+- **Running vacuum** dilutes matter as `(1+z)^{3(1-nu)}`, so at
+  `nu = 1e-3` the early matter density is 2-3% low.
+- **Interacting dark energy** swaps part of the matter budget into
+  the dark-energy scaling.
+- **Ricci dark energy** carries a matter-like term 29% the size of
+  matter at `gamma = 0.45`.
+- **A Chaplygin gas** behaves as dust early on, but that dust is not
+  in `Omega_m`.
+- **f(R,T)** multiplies matter by `1 + 3 beta`.
+- **CPL** and its relatives with `w(z -> inf) >= 0` are early dark
+  energies.
+
+The fix takes the departure from each model's own `E(z)`:
+
+    delta(z) = E(z)^2 / [Omega_m (1+z)^3 + Omega_k (1+z)^2] - 1
+
+That departure is added to `H` inside the integral. It is evaluated
+up to z = 1e5 and held constant above that, where radiation
+dominates and an ODE-based model's `E(z)` may not be defined. The
+`z_drag` fit is evaluated at the cold-matter density that gives the
+model's own expansion rate there. This is exact for an extra
+component that dilutes like matter, and an approximation otherwise:
+it carries the expansion, not any change to recombination itself.
+
+It only switches on where `|delta| > 1e-7` at the probe redshifts.
+LCDM's own cosmological constant is about 2e-9 there, so LCDM, every
+w(z) model in the usual range, and the CAMB validation of the
+standard integral are untouched. Because the departure depends on
+parameters the old cache key deliberately left out, it is now part
+of the key. Previously, changing `nu` returned the cached `r_d`.
+
+At default parameters: RDE 147.06 -> 137.34 Mpc, the Chaplygin gas
+-> 127.81, IDE at `xi = 0.05` -> 151.61, running vacuum at
+`nu = 1e-3` +0.57%, HDE -0.002% (its early dark energy is real but
+small).
+
+The test is a model that is LCDM plus a component that dilutes
+exactly like matter. Its `r_d` must equal LCDM's at
+`Omega_m (1 + epsilon)`. It does, to 1e-6, and it failed before at
+any `epsilon`.
+
+The compressed Planck priors' `z_*` fitting formula still assumes a
+standard early universe. That is a separate issue.
 
 ### A configuration is a thing you can keep, and so is the chain
 

@@ -29,8 +29,13 @@ This module computes it.
 The integral runs entirely through the radiation- and
 matter-dominated eras, which has a consequence worth stating plainly:
 **``r_d`` does not depend on H0, on curvature, or on the dark-energy
-model at all.** It is a function of ``omega_b``, ``omega_cb``,
-``N_eff`` and ``m_nu`` and nothing else. Verified directly against
+model** -- for any model whose dark sector is negligible before
+recombination, which is most of them. It is then a function of
+``omega_b``, ``omega_cb``, ``N_eff`` and ``m_nu`` and nothing else.
+A model that does change the early universe (running vacuum,
+interacting dark energy, Ricci dark energy, a Chaplygin gas, f(R,T),
+an early dark energy) has that change read off its own ``E(z)`` and
+added to ``H`` -- see :meth:`SoundHorizon.early_deviation`. Verified directly against
 CAMB, which returns the same ``rdrag`` to 1e-7 for ``H0`` from 60 to
 75 and to 2e-5 for ``Omega_k = 0.05``. So this works identically for
 every model in the library, including ones CAMB could never be given.
@@ -183,6 +188,27 @@ K_B_EV = 8.617333262e-5
 #: ``N_eff`` at fixed mass (verified against CAMB across
 #: ``N_eff`` = 2.0 to 5.0: identical to 9 digits).
 NEFF_STANDARD = 3.044
+
+#: How far a model's own E(z)^2 may depart from matter plus curvature
+#: before ``r_d`` is computed with it, as a fraction of that standard
+#: value. Below it the early universe is LCDM's to within numerical
+#: noise -- LCDM's own cosmological constant is ~2e-9 of the matter
+#: term at the drag epoch -- and the validated standard integral is
+#: used unchanged.
+EARLY_DEVIATION_FLOOR = 1.0e-7
+
+#: Redshifts at which that departure is probed: the drag epoch and up
+#: to deep radiation domination, so a component that grows relative
+#: to matter (an early dark energy with w > 0) is seen even when it is
+#: still small at z_drag.
+_EARLY_PROBES = (1.0e3, 3.0e3, 1.0e4, 3.0e4, 1.0e5)
+
+#: Above this redshift the departure is held at its value here rather
+#: than evaluated. Radiation dominates by then, so the matter-sector
+#: term it multiplies is a shrinking fraction of H^2; and not every
+#: model's E(z) is defined that far up (those integrated forward from
+#: a finite z_init are not).
+Z_EARLY_CAP = 1.0e5
 
 #: Effective relativistic degrees of freedom carried by each massive
 #: neutrino species, ``NEFF_STANDARD / 3``.
@@ -379,6 +405,11 @@ class SoundHorizon:
         self._cache_key = None
         self._cache_value = None
 
+        #: The model's own early-time contribution to ``(H/100)^2``,
+        #: as a function of ``a``, while :meth:`rd_computed` needs it;
+        #: ``None`` -- the standard early universe -- otherwise.
+        self._early = None
+
         # `omega_nu` depends on `m_nu` alone, and is read several
         # times per sound-horizon evaluation -- through `omega_cb`,
         # which is a property and so recomputes on every access.
@@ -545,16 +576,19 @@ class SoundHorizon:
         ``a = 1/1060`` the matter term is ``~1.7e8`` and a
         cosmological constant contributes ``~0.7``; including it
         would change ``r_d`` in the twelfth significant figure.
-        Omitting it is also what makes this work for *every* model
-        in the library rather than only the ones with a tractable
-        early-time ``E(z)``.
+
+        That holds for a dark sector that is negligible this early,
+        and not otherwise. While :meth:`rd_computed` has found a
+        model whose own ``E(z)`` departs from matter plus curvature
+        here, that departure is added (``_early``); the standard
+        expression is unchanged for every other model.
         """
 
         a = np.asarray(a, dtype=float)
 
         _, _, inverse_3, inverse_4 = reciprocal_powers(a)
 
-        return np.sqrt(
+        total = (
 
             self.omega_gamma * inverse_4
 
@@ -563,6 +597,12 @@ class SoundHorizon:
             + self.omega_cb * inverse_3
 
         )
+
+        if self._early is not None:
+
+            total = total + self._early(a)
+
+        return np.sqrt(total)
 
     # ---------------------------------------------------------
 
@@ -604,8 +644,15 @@ class SoundHorizon:
         reasoning.
         """
 
+        return self._z_drag_fit(self._omega_cb_drag())
+
+    def _z_drag_fit(self, omega_cb: float) -> float:
+        """
+        The :data:`_ZDRAG_COEF` fit, at a given cold-matter density.
+        """
+
         wb = require_positive(self.omega_b, "omega_b")
-        wcb = require_positive(self.omega_cb, "omega_cb")
+        wcb = require_positive(omega_cb, "omega_cb")
 
         lb = np.log(wb)
         lm = np.log(wcb)
@@ -769,6 +816,154 @@ class SoundHorizon:
         )
 
     # ---------------------------------------------------------
+    # A model's own early universe
+    # ---------------------------------------------------------
+
+    def early_deviation(self, z) -> np.ndarray:
+        r"""
+        How far this model's expansion departs from matter plus
+        curvature at redshift ``z``:
+
+            delta(z) = E(z)^2 / [Omega_m (1+z)^3 + Omega_k (1+z)^2] - 1
+
+        Zero, to ~1e-9, for every model whose dark energy is
+        negligible before recombination -- the assumption the
+        standard integral makes. Not zero for a model that changes
+        the early universe: running vacuum (matter dilutes as
+        ``(1+z)^{3(1-nu)}``), interacting dark energy, Ricci dark
+        energy's extra matter-like term, a Chaplygin gas's dust phase,
+        f(R,T)'s ``(1+3 beta)``, or an early dark energy. Non-finite
+        where the model's ``E(z)`` is not defined.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        zp1 = 1.0 + z
+
+        standard = (
+
+            self.cosmo.Omega_m * zp1 ** 3
+
+            + self.cosmo.Omega_k * zp1 ** 2
+
+        )
+
+        try:
+
+            with np.errstate(all="ignore"):
+
+                E = np.asarray(self.cosmo.E(z), dtype=float)
+
+        except (ValueError, FloatingPointError, ArithmeticError):
+
+            return np.full_like(z, np.nan)
+
+        with np.errstate(all="ignore"):
+
+            return E * E / standard - 1.0
+
+    def _early_probe(self):
+        """
+        The departure at :data:`_EARLY_PROBES`, or ``None`` when it
+        is below :data:`EARLY_DEVIATION_FLOOR` everywhere it is
+        defined -- i.e. when the standard early universe applies.
+        """
+
+        delta = np.array(
+            [float(self.early_deviation(z)) for z in _EARLY_PROBES]
+        )
+
+        finite = np.isfinite(delta)
+
+        if not np.any(finite):
+            return None
+
+        if np.max(np.abs(delta[finite])) < EARLY_DEVIATION_FLOOR:
+            return None
+
+        return tuple(float(d) for d in delta)
+
+    def _make_early(self):
+        r"""
+        The model's extra early-time ``(H/100)^2`` as a function of
+        ``a``,
+
+            h^2 delta(z) [Omega_m (1+z)^3 + Omega_k (1+z)^2],
+
+        with ``delta`` evaluated up to :data:`Z_EARLY_CAP` and held
+        beyond it. Where the model's ``E(z)`` is undefined inside
+        that range, the value from the nearest redshift where it is
+        defined is used.
+        """
+
+        h2 = self.h ** 2
+        Om = float(self.cosmo.Omega_m)
+        Ok = float(self.cosmo.Omega_k)
+
+        def early(a):
+
+            a = np.asarray(a, dtype=float)
+
+            z = np.minimum(1.0 / a - 1.0, Z_EARLY_CAP)
+
+            delta = self.early_deviation(z)
+
+            bad = ~np.isfinite(delta)
+
+            if np.any(bad):
+
+                if np.all(bad):
+
+                    raise ValueError(
+                        "The model's E(z) is not defined anywhere "
+                        "the sound horizon integrates over, so r_d "
+                        "cannot account for its early universe."
+                    )
+
+                good = np.flatnonzero(~bad)
+
+                # Nearest defined neighbour in redshift.
+                nearest = good[
+                    np.abs(z[good][None, :] - z[bad][:, None]).argmin(axis=1)
+                ]
+
+                delta = delta.copy()
+                delta[bad] = delta[nearest]
+
+            zp1 = 1.0 / a
+
+            return h2 * delta * (Om * zp1 ** 3 + Ok * zp1 ** 2)
+
+        return early
+
+    def _omega_cb_drag(self) -> float:
+        r"""
+        The cold-matter density the ``z_drag`` fit is evaluated at.
+
+        ``omega_cb`` for the standard early universe. With a model's
+        own early expansion in effect, ``omega_cb + delta(z_drag)
+        omega_m`` instead. The fit was calibrated in LCDM, where
+        ``omega_cb`` reaches the drag epoch mainly through the
+        expansion rate it sets there, and this is the density that
+        gives the model's own rate. An approximation -- it carries the
+        expansion, not any change to recombination itself -- that is
+        exact in that sense for an extra component diluting like
+        matter.
+        """
+
+        if self._early is None:
+            return self.omega_cb
+
+        z_standard = self._z_drag_fit(self.omega_cb)
+
+        delta = float(self.early_deviation(z_standard))
+
+        if not np.isfinite(delta):
+            return self.omega_cb
+
+        return self.omega_cb + delta * self.cosmo.Omega_m * self.h ** 2
+
+    # ---------------------------------------------------------
     # The public value
     # ---------------------------------------------------------
 
@@ -809,9 +1004,31 @@ class SoundHorizon:
 
         key = self._key()
 
+        # The standard integral omits dark energy, which is right for
+        # every model whose dark energy is negligible before
+        # recombination and silently wrong for one that is not -- r_d
+        # used to be the same for running vacuum at any nu, for f(R,T)
+        # at any beta, and for a Chaplygin gas whose dust phase was
+        # not in Omega_m at all. Where the model's own E(z) departs
+        # from matter plus curvature, the departure goes into H, and
+        # into the cache key, since it depends on parameters `_key`
+        # deliberately leaves out.
+        probe = self._early_probe()
+
+        if probe is not None:
+            key = key + probe
+
         if key != self._cache_key:
 
-            self._cache_value = self.sound_horizon()
+            self._early = None if probe is None else self._make_early()
+
+            try:
+
+                self._cache_value = self.sound_horizon()
+
+            finally:
+
+                self._early = None
 
             self._cache_key = key
 

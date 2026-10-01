@@ -314,11 +314,12 @@ def test_rd_is_independent_of_H0_at_fixed_physical_densities(H0):
 def test_rd_is_independent_of_curvature_and_dark_energy():
     """
     The integral runs from the drag epoch upward, where dark energy
-    and curvature are utterly negligible -- so ``r_d`` must be the
-    same for LCDM, an open universe, and a strongly evolving CPL.
+    and curvature are utterly negligible for these -- so ``r_d`` must
+    be the same for LCDM, an open universe, and a strongly evolving
+    CPL, and the standard integral must be used for all three.
 
-    That is what makes this usable for *every* model in the library,
-    including ones no Boltzmann code could be given.
+    A model whose dark sector is *not* negligible there gets its own
+    early expansion instead; see the tests below.
     """
 
     baseline = build(
@@ -343,6 +344,107 @@ def test_rd_is_independent_of_curvature_and_dark_energy():
 
     assert curved == pytest.approx(baseline, rel=1e-10)
     assert evolving == pytest.approx(baseline, rel=1e-10)
+
+
+# ============================================================
+# Models that change the early universe
+# ============================================================
+
+def _extra_matter_model(epsilon):
+    """
+    LCDM plus a component diluting exactly like matter, carrying a
+    fraction ``epsilon`` of the matter density -- a model whose early
+    universe is LCDM's at ``Omega_m (1 + epsilon)``, but whose
+    ``Omega_m`` does not say so.
+    """
+
+    from CosmoFit.cosmology.custom import define_model
+
+    def E(p, z):
+
+        matter = (1.0 + epsilon) * p["Omega_m"]
+
+        return np.sqrt(matter * (1.0 + z) ** 3 + 1.0 - matter)
+
+    return define_model(f"ExtraMatter{epsilon}", E=E)
+
+
+@pytest.mark.parametrize("epsilon", [0.05, 0.3])
+def test_rd_sees_a_model_s_own_early_expansion(epsilon):
+    """
+    The standard integral builds H from the photons, neutrinos and
+    ``Omega_m`` alone, so it used to return the same r_d for this
+    model at every epsilon. Its early universe is exactly LCDM's at
+    ``Omega_m (1 + epsilon)``, and r_d must be that model's.
+
+    Massless neutrinos, so ``Omega_m`` is purely cold matter and the
+    two descriptions are the same physics.
+    """
+
+    h = 0.6736
+    omega_cb = PLANCK_OMEGA_CB
+
+    model = build(
+        PLANCK_OMEGA_B, omega_cb, m_nu=0.0, h=h,
+        model=_extra_matter_model(epsilon),
+    )
+
+    equivalent = build(
+        PLANCK_OMEGA_B, omega_cb * (1.0 + epsilon), m_nu=0.0, h=h,
+    )
+
+    assert model.sound_horizon.rd_computed() == pytest.approx(
+        equivalent.sound_horizon.rd_computed(), rel=1e-6,
+    )
+
+
+def test_running_vacuum_rd_depends_on_nu():
+    """
+    Matter dilutes as ``(1+z)^{3(1-nu)}`` in running vacuum, so the
+    early universe -- and r_d -- move with ``nu``. They did not.
+    """
+
+    from CosmoFit.cosmology.models.rvm import RunningVacuum
+
+    cosmology = build(
+        PLANCK_OMEGA_B, PLANCK_OMEGA_CB, model=RunningVacuum, nu=0.0,
+    )
+
+    sound_horizon = cosmology.sound_horizon
+
+    at_zero = sound_horizon.rd_computed()
+
+    lcdm = build(PLANCK_OMEGA_B, PLANCK_OMEGA_CB).sound_horizon.rd_computed()
+
+    assert at_zero == pytest.approx(lcdm, rel=1e-10)
+
+    # Same densities, so the cache key of old would have returned the
+    # stale value here.
+    cosmology.params.update(nu=1.0e-3)
+
+    shifted = sound_horizon.rd_computed()
+
+    assert shifted / at_zero - 1.0 > 2.0e-3
+
+
+def test_holographic_dark_energy_still_integrates():
+    """
+    HDE's E(z) comes from an interpolated ODE solution, the kind of
+    model whose E(z) is not guaranteed far above the drag epoch. Its
+    early dark energy is real but small (~1e-4 of matter at z = 1000),
+    so r_d moves by a few parts in 1e5 and must stay finite.
+    """
+
+    from CosmoFit import HDE
+
+    rd = build(
+        PLANCK_OMEGA_B, PLANCK_OMEGA_CB, model=HDE,
+    ).sound_horizon.rd_computed()
+
+    lcdm = build(PLANCK_OMEGA_B, PLANCK_OMEGA_CB).sound_horizon.rd_computed()
+
+    assert np.isfinite(rd)
+    assert rd == pytest.approx(lcdm, rel=1e-4)
 
 
 def test_integral_is_converged():
