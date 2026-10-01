@@ -682,29 +682,23 @@ class StoredSampler:
             for i, name in enumerate(self.free_params)
         }
 
-    def summary(self, burnin: int | None = None) -> dict:
+    def summary(
+        self,
+        burnin: int | None = None,
+        interval: str = "equal-tailed",
+    ) -> dict:
         """
-        Posterior median +/- 68% interval per parameter, in the
+        Posterior median and 68% interval per parameter, in the
         same shape as ``Fitter.summary()`` -- available here
         without constructing a ``Fitter`` at all, i.e. without
         reading a single dataset.
         """
 
+        from .diagnostics import posterior_summary
+
         flat = self.flat_samples(burnin=burnin)
 
-        result = {}
-
-        for i, name in enumerate(self.free_params):
-
-            q16, q50, q84 = np.percentile(flat[:, i], [16, 50, 84])
-
-            result[name] = {
-                "median": float(q50),
-                "plus": float(q84 - q50),
-                "minus": float(q50 - q16),
-            }
-
-        return result
+        return posterior_summary(flat, self.free_params, interval)
 
     # ------------------------------------------------------------
 

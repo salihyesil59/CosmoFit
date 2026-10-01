@@ -12,6 +12,12 @@ Priors and the posterior
 .. automodule:: CosmoFit.stats.posterior
    :members:
 
+Chain diagnostics and intervals
+-------------------------------
+
+.. automodule:: CosmoFit.stats.diagnostics
+   :members:
+
 Model comparison
 ----------------
 

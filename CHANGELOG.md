@@ -16,6 +16,40 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A summary now says when the chain behind it has not converged
+
+`summary()` reported the 16/50/84 percentiles of whatever chain it
+was given. The burn-in was a fixed 1000 steps unless set by hand.
+`convergence()` existed, but nothing called it: its own docstring
+said so, and asked the reader to remember. Numbers from a chain far
+shorter than its autocorrelation time look exactly like numbers from
+a converged one.
+
+- **`summary()` checks.** It warns when the chain has not converged.
+  `check=False` silences it.
+- **`convergence()` reports more.** It now gives the mean acceptance
+  fraction and a split Gelman-Rubin `R - 1` between groups of walkers.
+  `converged` needs both `n >= 50 tau` and `R - 1 < 0.05`. Groups of
+  one ensemble's walkers are not independent chains, so this is a
+  weaker test than `R - 1` across independent runs, which
+  `stats.diagnostics.split_rhat` computes. It still catches walkers
+  that never mixed.
+- **`run_mcmc(burnin="auto")`** measures the burn-in after the run:
+  three autocorrelation times of the slowest parameter, at most half
+  the chain.
+- **`summary(interval="hpd")`** gives the shortest 68% interval.
+  Every entry now also carries its `low`/`high` ends.
+- **`fit.limit(name, 0.95)`** gives a one-sided limit: the way to
+  quote a parameter the data bound from one side only.
+- **Contours.** `plots.corner()` drew `corner`'s default contours,
+  which enclose 39%, 68% and 86% of the 2D probability. Its innermost
+  contour looked like the 68% one in `w0_wa_plane` and in every paper
+  while enclosing 39%. It now draws 68% and 95%.
+
+Fourteen tests. They cover split R-hat against a drifting chain and
+against walkers stuck in another mode, HPD against an exponential
+posterior, and the warning on a 120-step chain.
+
 ### Pantheon+ was not the published sample, and its Cepheids did nothing
 
 Two problems with one loader. Both were found in an audit of the

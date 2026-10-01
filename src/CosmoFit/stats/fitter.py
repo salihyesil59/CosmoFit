@@ -90,6 +90,12 @@ from CosmoFit.likelihoods.joint import JointLikelihood
 from CosmoFit.plots import FitPlotter
 
 from .priors import UniformPrior
+from .diagnostics import (
+    auto_burnin,
+    one_sided_limit,
+    posterior_summary,
+    walker_group_rhat,
+)
 from .posterior import LogPosterior
 from .sampler import EnsembleSampler
 from .results import FitResult, BestFitResult, MCMCResult
@@ -1153,7 +1159,7 @@ class Fitter:
         self,
         nwalkers: int = 48,
         nsteps: int = 6000,
-        burnin: int = 1000,
+        burnin: int | str = 1000,
         initial_scatter: dict[str, float] | None = None,
         seed: int = 42,
         progress: bool = True,
@@ -1173,9 +1179,13 @@ class Fitter:
             Standard emcee settings. ``nwalkers`` should be at
             least ``2 * ndim``.
 
-        burnin : int
+        burnin : int or "auto"
             Number of initial steps discarded by
             :meth:`flat_samples` / :meth:`summary` by default.
+            ``"auto"`` measures it once the run is over: three
+            autocorrelation times of the slowest parameter
+            (:func:`~stats.diagnostics.auto_burnin`), never more than
+            half the chain. ``self.burnin`` then holds the number.
 
         initial_scatter : dict[str, float], optional
             Per-parameter Gaussian scatter used to initialize
@@ -1305,7 +1315,7 @@ class Fitter:
         if chain is not None and steps_to_run <= 0:
 
             self.sampler = chain.open()
-            self.burnin = burnin
+            self.burnin = self._resolve_burnin(burnin)
             self.chain = chain
 
             return self.sampler
@@ -1342,7 +1352,7 @@ class Fitter:
             )
 
         self.sampler = sampler
-        self.burnin = burnin
+        self.burnin = self._resolve_burnin(burnin)
         self.chain = chain
 
         if chain is not None:
@@ -1352,13 +1362,32 @@ class Fitter:
             chain.write_metadata(
                 self._chain_metadata(
                     previous=chain.metadata,
-                    burnin=burnin, seed=seed, nwalkers=nwalkers,
+                    burnin=self.burnin, seed=seed, nwalkers=nwalkers,
                 )
             )
 
         self._report_solver_failures("the chain")
 
         return sampler
+
+    # ------------------------------------------------------------
+
+    def _resolve_burnin(self, burnin) -> int:
+        """
+        ``burnin`` as a number of steps: itself, or measured from the
+        chain for ``"auto"``.
+        """
+
+        if isinstance(burnin, str):
+
+            if burnin != "auto":
+                raise ValueError(
+                    f"burnin must be an integer or 'auto', not {burnin!r}."
+                )
+
+            return auto_burnin(self.sampler)
+
+        return int(burnin)
 
     # ------------------------------------------------------------
 
@@ -1596,7 +1625,12 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def convergence(self, burnin: int | None = None, tol: int = 50) -> dict:
+    def convergence(
+        self,
+        burnin: int | None = None,
+        tol: int = 50,
+        rhat_tol: float = 0.05,
+    ) -> dict:
         """
         MCMC convergence diagnostics, based on the integrated
         autocorrelation time tau of each free parameter's chain
@@ -1632,9 +1666,19 @@ class Fitter:
             n_effective : dict[str, float]
                 Effective number of independent samples per
                 parameter (n_used * nwalkers / tau).
+            acceptance_fraction : float
+                Mean fraction of accepted proposals across walkers.
+                emcee's stretch move works best between about 0.2 and
+                0.5; far outside that the chain is not exploring.
+            rhat_minus_1 : dict[str, float]
+                Split Gelman-Rubin ``R - 1`` between four groups of
+                walkers (:func:`~stats.diagnostics.walker_group_rhat`).
+                A weaker test than ``R - 1`` across independent runs,
+                since an ensemble's walkers are not independent -- but
+                it catches walkers that never mixed.
             converged : bool
                 Whether every parameter satisfies
-                ``n_used >= tol * tau``.
+                ``n_used >= tol * tau`` *and* ``R - 1 < rhat_tol``.
         """
 
         if self.sampler is None:
@@ -1672,12 +1716,32 @@ class Fitter:
             for name, t in tau_dict.items()
         }
 
-        converged = all(n_used >= tol * t for t in tau_dict.values())
+        try:
+            rhat = walker_group_rhat(chain)
+        except ValueError:
+            # Too short a chain, or too few walkers, to split.
+            rhat = np.full(len(self.free_params), np.inf)
+
+        rhat_dict = {
+            name: float(r - 1.0) for name, r in zip(self.free_params, rhat)
+        }
+
+        converged = (
+            all(n_used >= tol * t for t in tau_dict.values())
+            and all(r < rhat_tol for r in rhat_dict.values())
+        )
+
+        acceptance = getattr(self.sampler, "acceptance_fraction", None)
 
         return {
             "tau": tau_dict,
             "n_used": int(n_used),
             "n_effective": n_effective,
+            "acceptance_fraction": (
+                float(np.mean(acceptance)) if acceptance is not None
+                else float("nan")
+            ),
+            "rhat_minus_1": rhat_dict,
             "converged": converged,
         }
 
@@ -1698,27 +1762,109 @@ class Fitter:
 
     # ------------------------------------------------------------
 
-    def summary(self, burnin: int | None = None) -> dict:
+    def summary(
+        self,
+        burnin: int | None = None,
+        interval: str = "equal-tailed",
+        check: bool = True,
+    ) -> dict:
         """
-        Posterior median +/- 68% interval for every free
-        parameter.
+        Posterior median and 68% interval for every free parameter.
+
+        Parameters
+        ----------
+        burnin : int, optional
+            Defaults to ``self.burnin``.
+
+        interval : {"equal-tailed", "hpd"}
+            The 16th-84th percentiles (default), or the shortest 68%
+            interval -- the one to use for a posterior piled against a
+            prior bound. See :func:`~stats.diagnostics.posterior_summary`.
+
+        check : bool
+            Warn if :meth:`convergence` says the chain has not
+            converged. Numbers from an unconverged chain look exactly
+            like numbers from a converged one, which is why this is on
+            by default rather than left to the caller.
+
+        Returns
+        -------
+        dict
+            ``{name: {"median", "plus", "minus", "low", "high"}}``.
         """
 
         flat = self.flat_samples(burnin=burnin)
 
-        result = {}
+        result = posterior_summary(flat, self.free_params, interval)
 
-        for i, name in enumerate(self.free_params):
-
-            q16, q50, q84 = np.percentile(flat[:, i], [16, 50, 84])
-
-            result[name] = {
-                "median": float(q50),
-                "plus": float(q84 - q50),
-                "minus": float(q50 - q16),
-            }
+        if check:
+            self._warn_if_unconverged(burnin)
 
         return result
+
+    # ------------------------------------------------------------
+
+    def limit(
+        self,
+        name: str,
+        level: float = 0.95,
+        side: str = "upper",
+        burnin: int | None = None,
+    ) -> float:
+        """
+        One-sided credible limit on a free parameter: the value below
+        (``side="upper"``) or above (``"lower"``) which ``level`` of
+        the posterior lies.
+
+        The way to quote a parameter the data only bound from one side
+        -- ``m_nu < 0.07 eV (95%)`` rather than a median with error
+        bars reaching below zero.
+        """
+
+        if name not in self.free_params:
+            raise ValueError(
+                f"{name!r} is not a free parameter of this fit."
+            )
+
+        column = self.flat_samples(burnin=burnin)[
+            :, self.free_params.index(name)
+        ]
+
+        return one_sided_limit(column, level=level, side=side)
+
+    # ------------------------------------------------------------
+
+    def _warn_if_unconverged(self, burnin) -> None:
+
+        diagnostics = self.convergence(burnin=burnin)
+
+        if diagnostics["converged"]:
+            return
+
+        slow = max(diagnostics["tau"], key=diagnostics["tau"].get)
+
+        worst = max(
+            diagnostics["rhat_minus_1"],
+            key=diagnostics["rhat_minus_1"].get,
+        )
+
+        warnings.warn(
+
+            f"The chain has not converged: {diagnostics['n_used']} "
+            f"post-burn-in steps against an autocorrelation time of "
+            f"{diagnostics['tau'][slow]:.0f} for {slow!r} (50 tau "
+            f"wanted), and R - 1 = "
+            f"{diagnostics['rhat_minus_1'][worst]:.3f} for {worst!r} "
+            f"(< 0.05 wanted). Intervals from it are not yet "
+            f"reliable, however reasonable they look. Run longer "
+            f"(run_mcmc(nsteps=..., save=...) extends a saved chain), "
+            f"or see fit.convergence(). Pass check=False to silence.",
+
+            UserWarning,
+
+            stacklevel=3,
+
+        )
 
     # ============================================================
     # Saved chains
@@ -1811,7 +1957,9 @@ class Fitter:
             previous=previous,
             model_module=self.model_cls.__module__,
             initial=dict(self._initial_all),
-            burnin=int(burnin),
+            # "auto" is only known once the run is over; the metadata
+            # is re-stamped with the measured value then.
+            burnin=0 if isinstance(burnin, str) else int(burnin),
             seed=int(seed),
             nwalkers=int(nwalkers),
         )

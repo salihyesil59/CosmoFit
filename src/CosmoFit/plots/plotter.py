@@ -885,6 +885,12 @@ class FitPlotter:
             show_titles=True,
             title_fmt=_title_formats(flat),
             smooth=1.0,
+            # 68% and 95% of the 2D probability, the contours every
+            # cosmology paper (and `w0_wa_plane`) draws. `corner`'s own
+            # default is the "1, 1.5, 2 sigma in 2D" set -- 39%, 68%,
+            # 86% -- so its innermost contour enclosed 39% while
+            # looking like the 68% one in every other figure here.
+            levels=(0.68, 0.95),
         )
         kwargs.update(corner_kwargs)
 
