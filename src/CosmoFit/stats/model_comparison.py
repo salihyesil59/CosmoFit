@@ -12,7 +12,7 @@ import warnings
 
 import numpy as np
 from scipy import stats
-from scipy.stats import norm
+from .significance import p_to_sigma
 
 
 # ============================================================
@@ -122,13 +122,17 @@ def likelihood_ratio_test(
         )
 
     p_value = stats.chi2.sf(max(delta_chi2, 0.0), df=delta_k)
-    sigma = norm.isf(p_value)
+
+    # Two-tailed, as everywhere else in the library: for one extra
+    # parameter this is sqrt(delta_chi2). It was one-tailed here,
+    # which turned delta_chi2 = 4 into 1.69 sigma rather than 2.
+    sigma = p_to_sigma(p_value)
 
     return {
         "delta_chi2": float(delta_chi2),
         "delta_k": int(delta_k),
         "p_value": float(p_value),
-        "sigma": float(max(sigma, 0.0)),
+        "sigma": float(sigma),
     }
 
 
