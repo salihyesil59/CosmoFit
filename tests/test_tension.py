@@ -236,4 +236,77 @@ def test_suspiciousness_recovers_the_analytic_chi2(ndim, separation):
         separation ** 2 / 2.0, rel=0.08,
     )
 
-    assert result["d"] == ndim
+    # Every parameter is constrained by both datasets here, so the
+    # Bayesian model dimensionality is the parameter count -- now
+    # measured from the runs rather than assumed.
+    assert result["d_source"] == "bayesian model dimensionality"
+    assert result["d"] == pytest.approx(ndim, abs=0.25)
+
+
+# ============================================================
+# Bounds and degrees of freedom
+# ============================================================
+
+def test_sample_tension_reports_a_lower_bound_beyond_its_resolution():
+    """
+    Two posteriors 20 sigma apart: no random pair lands near zero,
+    so the density there is unresolved, not zero. This used to give
+    p = 0, clipped to 1e-300 and quoted as about 37 sigma.
+    """
+
+    rng = np.random.default_rng(0)
+
+    result = sample_tension(
+        rng.normal(0.0, 1.0, 20_000), rng.normal(20.0, 1.0, 20_000),
+        n_pairs=100_000,
+    )
+
+    assert result["lower_bound"] is True
+    assert result["p_value"] == pytest.approx(1.0e-5)
+    assert 4.0 < result["n_sigma"] < 5.0
+
+
+def test_sample_tension_within_resolution_is_not_a_bound():
+
+    rng = np.random.default_rng(1)
+
+    result = sample_tension(
+        rng.normal(0.0, 1.0, 20_000), rng.normal(2.0, 1.0, 20_000),
+    )
+
+    assert result["lower_bound"] is False
+
+
+def test_suspiciousness_counts_only_constrained_parameters():
+    """
+    A parameter only one dataset constrains adds to the parameter
+    count but not to ``d_A + d_B - d_AB``; counting it made a tension
+    look smaller.
+    """
+
+    from CosmoFit.stats.nested import NestedResult
+
+    def run(log_z, info, dim):
+
+        return NestedResult(
+            log_evidence=log_z, log_evidence_error=0.1,
+            samples=np.zeros((10, 3)), free_params=["a", "b", "c"],
+            prior_volume=1.0, n_live=100, n_evaluations=1000,
+            information=info, dimensionality=dim,
+        )
+
+    # A constrains a and b, B constrains a and c, together all three.
+    result = suspiciousness(
+        run(-10.0, 6.0, 3.0), run(-4.0, 3.0, 2.0), run(-4.0, 3.0, 2.0),
+    )
+
+    assert result["d"] == pytest.approx(1.0)
+    assert result["d_source"] == "bayesian model dimensionality"
+
+    fallback = suspiciousness(
+        run(-10.0, 6.0, float("nan")), run(-4.0, 3.0, 2.0),
+        run(-4.0, 3.0, 2.0),
+    )
+
+    assert fallback["d"] == 3
+    assert fallback["d_source"] == "parameter count"

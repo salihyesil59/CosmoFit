@@ -131,8 +131,16 @@ def sample_tension(samples_a, samples_b, n_pairs=200_000, seed=0,
     Returns
     -------
     dict
-        ``n_sigma``, ``p_value``, ``median_difference``, and the
-        difference samples themselves as ``difference``.
+        ``n_sigma``, ``p_value``, ``median_difference``, the
+        difference samples themselves as ``difference``, and
+        ``lower_bound``.
+
+        When zero lies beyond every sampled difference -- the two
+        posteriors are further apart than ``n_pairs`` draws can
+        resolve -- ``p_value`` is the upper bound ``1 / n_pairs`` and
+        ``n_sigma`` a lower bound on the tension, flagged by
+        ``lower_bound=True``. This used to report p = 0, clipped to
+        1e-300 and read as about 37 sigma.
     """
 
     a = np.asarray(samples_a, dtype=float).ravel()
@@ -167,11 +175,20 @@ def sample_tension(samples_a, samples_b, n_pairs=200_000, seed=0,
 
     p_value = 1.0 - excluded
 
+    # Zero never sampled: the density there is not zero, it is
+    # unresolved. All that can be said is that it is rarer than one
+    # draw in n_pairs.
+    lower_bound = bool(density_at_zero <= 0.0)
+
+    if lower_bound:
+        p_value = 1.0 / n_pairs
+
     return {
         "n_sigma": _sigma_from_p(p_value),
         "p_value": float(np.clip(p_value, 0.0, 1.0)),
         "median_difference": float(np.median(difference)),
         "difference": difference,
+        "lower_bound": lower_bound,
     }
 
 
@@ -254,17 +271,21 @@ def suspiciousness(joint, first, second) -> dict:
     -------
     dict
         ``ln_S``, ``ln_R``, ``ln_I``, ``d`` (the effective number of
-        constrained parameters), ``chi2``, ``p_value``, ``n_sigma``.
+        constrained parameters), ``d_source``, ``chi2``, ``p_value``,
+        ``n_sigma``.
 
     Notes
     -----
-    The degrees of freedom use ``d = d_A + d_B - d_AB`` with
-    ``d = 2 * (<ln L> - ln L_max)``-style Bayesian model
-    dimensionality; here it is approximated by the number of
-    parameters, which is exact when every one of them is
-    constrained by both datasets and an overestimate otherwise.
-    Pass runs over the same parameter set and this is the standard
-    result.
+    The degrees of freedom are ``d = d_A + d_B - d_AB``, each ``d``
+    the run's Bayesian model dimensionality ``2 Var_P[ln L]``
+    (Handley & Lemos 2019) -- the number of parameters the data
+    actually constrain. It used to be the number of free
+    parameters, which is right only when both datasets constrain
+    every one of them: a parameter only one dataset constrains (``rd``
+    in an SN-only run) overcounted ``d`` and made the tension look
+    smaller. The parameter count remains the fallback for runs that
+    do not carry a dimensionality, and ``d_source`` says which was
+    used.
     """
 
     ln_r = float(
@@ -277,7 +298,23 @@ def suspiciousness(joint, first, second) -> dict:
 
     ln_s = ln_r - ln_i
 
-    dof = len(joint.free_params)
+    dimensions = [
+        getattr(run, "dimensionality", float("nan"))
+        for run in (first, second, joint)
+    ]
+
+    if all(np.isfinite(dimensions)):
+
+        dof = float(dimensions[0] + dimensions[1] - dimensions[2])
+        d_source = "bayesian model dimensionality"
+
+    else:
+
+        dof = len(joint.free_params)
+        d_source = "parameter count"
+
+    # A chi-square needs at least a sliver of a degree of freedom.
+    dof = max(dof, 1.0e-3)
 
     chi2 = float(dof - 2.0 * ln_s)
 
@@ -288,6 +325,7 @@ def suspiciousness(joint, first, second) -> dict:
         "ln_R": ln_r,
         "ln_I": ln_i,
         "d": dof,
+        "d_source": d_source,
         "chi2": chi2,
         "p_value": p_value,
         "n_sigma": _sigma_from_p(p_value),

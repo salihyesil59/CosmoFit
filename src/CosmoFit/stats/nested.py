@@ -34,6 +34,13 @@ class NestedResult:
         reproducible number.
     n_live : int
     n_evaluations : int
+    information : float
+        Kullback-Leibler divergence from prior to posterior, in nats.
+    dimensionality : float
+        Bayesian model dimensionality, ``2 Var_P[ln L]`` (Handley &
+        Lemos 2019): the number of parameters the data actually
+        constrain, which is what :func:`stats.tension.suspiciousness`
+        needs for its degrees of freedom.
     """
 
     log_evidence: float
@@ -44,6 +51,7 @@ class NestedResult:
     n_live: int
     n_evaluations: int
     information: float = field(default=float("nan"))
+    dimensionality: float = field(default=float("nan"))
 
     def summary(self, percentiles=(2.5, 16, 50, 84, 97.5)) -> dict:
         """
@@ -167,8 +175,23 @@ def run_nested(
     results = sampler.results
 
     weights = np.exp(results.logwt - results.logz[-1])
+    weights = weights / weights.sum()
 
-    samples = resample_equal(results.samples, weights / weights.sum())
+    # Seeded, so the equal-weight samples -- not only ln Z -- come
+    # out the same on a rerun.
+    samples = resample_equal(
+        results.samples, weights, rstate=np.random.default_rng(seed),
+    )
+
+    # Bayesian model dimensionality, 2 Var_P[ln L]. Points at the
+    # -1e300 floor carry zero weight; they are dropped before
+    # squaring, where (1e300)^2 would overflow to inf and inf * 0
+    # to nan.
+    log_l = np.asarray(results.logl, dtype=float)
+    keep = (weights > 0.0) & (log_l > -1.0e299)
+    w = weights[keep] / weights[keep].sum()
+    mean = float(np.sum(w * log_l[keep]))
+    dimensionality = float(2.0 * np.sum(w * (log_l[keep] - mean) ** 2))
 
     return NestedResult(
         log_evidence=float(results.logz[-1]),
@@ -179,4 +202,5 @@ def run_nested(
         n_live=int(n_live),
         n_evaluations=int(results.ncall.sum()),
         information=float(results.information[-1]),
+        dimensionality=dimensionality,
     )

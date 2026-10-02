@@ -16,6 +16,28 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Tension statistics: honest bounds and real degrees of freedom
+
+**`suspiciousness` counted parameters, not constraints.** Its degrees
+of freedom were the number of free parameters. That is right only
+when both datasets constrain every parameter. A parameter only one of
+them constrains (`rd` in a supernova-only run) raised `d` and so
+lowered the quoted tension. Nested runs now carry their Bayesian
+model dimensionality, `2 Var_P[ln L]` (Handley & Lemos 2019), and
+`d = d_A + d_B - d_AB` uses it. `d_source` says when it fell back to
+the count. The end-to-end test against two Gaussians now measures
+`d` rather than assuming it, and gets the parameter count back.
+
+**`sample_tension` reported 37 sigma it could not see.** When two
+posteriors are further apart than any random pair of samples reaches,
+the difference distribution has no samples at zero. The code read
+that as `p = 0`, clipped it to 1e-300 and turned it into about
+37 sigma. It now reports the bound it actually has, `p < 1/n_pairs`,
+as a lower bound on the tension, flagged `lower_bound=True`.
+
+`run_nested` also seeds `resample_equal`, so its equal-weight
+posterior samples are reproducible along with `ln Z`.
+
 ### The Fisher matrix says when it cannot be trusted
 
 `fisher()` inverted whatever matrix the finite differences gave it,
