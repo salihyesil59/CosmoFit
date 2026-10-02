@@ -651,7 +651,9 @@ class CosmologyParameters(BaseParameters):
         prediction is divided by ``A_planck^2``. Planck's own
         constraint on it is 1.000 +- 0.0025; leaving it fixed at
         1 is what the reference ``plik_lite`` implementations do
-        and costs almost nothing, so that is the default.
+        and costs almost nothing, so that is the default. Freed, it
+        carries that Gaussian prior through ``planck_lite``'s own
+        chi2 (:data:`~likelihoods.planck_lite.A_PLANCK_PRIOR`).
     """
 
     H0: float

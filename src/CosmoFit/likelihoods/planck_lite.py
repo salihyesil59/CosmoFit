@@ -96,6 +96,13 @@ from CosmoFit.likelihoods.covariance import make_covariance
 from .base import BaseLikelihood
 
 
+#: Planck's calibration prior on ``A_planck``, as (mean, sigma): the
+#: one nuisance constraint plik_lite is released with (Planck 2018 V,
+#: and the ``A_planck`` prior of every public plik_lite
+#: implementation).
+A_PLANCK_PRIOR = (1.0, 0.0025)
+
+
 #: Which spectra each ``spectra=`` selection uses, in the order
 #: they appear in the released data vector.
 SPECTRA_SETS = {
@@ -428,11 +435,23 @@ class PlanckLiteLikelihood(BaseLikelihood):
         self,
     ) -> float:
         """
-        Chi-square statistic.
+        Chi-square statistic, including the ``A_planck`` calibration
+        prior.
+
+        The prior term is ``((A_planck - 1) / 0.0025)^2``: zero at the
+        default ``A_planck = 1``, so it changes nothing for a fit that
+        leaves it fixed. A fit that frees it used to get only the
+        uniform 0.9 to 1.1 box, forty times wider than Planck's own
+        constraint, and ``A_planck`` then traded freely against the
+        amplitude ``ln1e10As`` -- and everything derived from it.
         """
+
+        mean, sigma = A_PLANCK_PRIOR
+
+        calibration = ((float(self.cosmology.A_planck) - mean) / sigma) ** 2
 
         return self.covariance.chi2(
 
             self.residuals(),
 
-        )
+        ) + calibration

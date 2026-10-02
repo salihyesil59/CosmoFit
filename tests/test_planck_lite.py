@@ -456,3 +456,35 @@ def test_modified_gravity_models_are_refused():
         with pytest.raises(BoltzmannError):
 
             CAMBBackend(model)
+
+
+@requires_camb
+def test_a_planck_carries_its_calibration_prior():
+    """
+    Freeing ``A_planck`` used to leave it a uniform 0.9 to 1.1, forty
+    times wider than Planck's 1.000 +- 0.0025, to trade against the
+    amplitude. The prior is now part of the likelihood -- and zero at
+    the default A_planck = 1, so nothing that leaves it fixed changes.
+    """
+
+    from CosmoFit import LCDM, CosmologyParameters
+    from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
+
+    model = LCDM(
+        CosmologyParameters(
+            H0=67.36, Omega_m=0.3153, Omega_b=0.02237 / 0.6736 ** 2,
+            ln1e10As=3.045, n_s=0.9649, tau_reio=0.0544,
+        ),
+    )
+
+    likelihood = PlanckLiteLikelihood(model)
+
+    data_only = likelihood.covariance.chi2(likelihood.residuals())
+
+    assert likelihood.chi2() == pytest.approx(data_only, rel=1e-12)
+
+    model.params.update(A_planck=1.005)
+
+    data_only = likelihood.covariance.chi2(likelihood.residuals())
+
+    assert likelihood.chi2() - data_only == pytest.approx(4.0, rel=1e-9)

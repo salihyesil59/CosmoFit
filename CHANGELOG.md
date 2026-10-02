@@ -16,6 +16,19 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A_planck carries its calibration prior when freed
+
+Planck releases plik_lite with one nuisance constraint, the absolute
+calibration `A_planck = 1.0000 +/- 0.0025`. Freeing `A_planck` here
+gave it only the uniform 0.9 to 1.1 box, forty times wider than that
+constraint. `A_planck` divides every bandpower squared, so it then
+traded freely against `ln1e10As` and broadened the amplitude and
+everything derived from it.
+
+The prior is now part of `planck_lite`'s chi2, which is where public
+plik_lite implementations attach it. The added term is zero at the
+default `A_planck = 1`, so a fit that leaves it fixed is unchanged.
+
 ### A free rd next to the CMB, one more overlap, and one list of overlaps
 
 **A free `rd` beside the CMB or BBN now warns.** With `rd` free, BAO
