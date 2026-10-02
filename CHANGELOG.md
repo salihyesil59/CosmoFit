@@ -16,6 +16,24 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### f(Q) and f(T) no longer pair a flat expansion with curved distances
+
+`FQExponential` and `FTPowerLaw` solve Friedmann equations built on
+`Q = 6H^2` and `T = 6H^2`, which are identities of flat FLRW. Both
+docstrings said "flat only -- `Omega_k` is ignored". The model's
+`E(z)` did ignore it, but the distance calculator did not, and
+applied the `sinh`/`sin` of curvature to a flat expansion history.
+The closure test passed for both at `Omega_k = +/-0.05` because
+`E(0) = 1` holds whether or not curvature is in it. They now refuse
+`Omega_k != 0`, as HDE, ADE and RDE already did.
+
+Refusing inside the model is not enough when `Omega_k` is free. The
+start point (`Omega_k = 0`) passes, and then every curved proposal is
+rejected one at a time, so the posterior pins `Omega_k = 0` and
+nothing says why. A new `Cosmology.FLAT_ONLY` flag, set on all five
+flat-only models, makes `Fitter` refuse `Omega_k` as a free
+parameter up front.
+
 ### Fits used outside their calibration say so, and so does a blind N_eff
 
 **The `z_star` and `z_drag` fits extrapolated silently.** Both are

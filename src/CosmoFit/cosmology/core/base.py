@@ -71,6 +71,14 @@ class Cosmology:
     #: reports a posterior for each.
     derive_sigma8: bool = False
 
+    #: Whether this model is defined for a flat universe only. Such a
+    #: model refuses ``Omega_k != 0`` itself, and
+    #: :class:`~stats.fitter.Fitter` refuses ``Omega_k`` as a free
+    #: parameter up front -- otherwise every curved point would be
+    #: rejected one at a time and the posterior would pin
+    #: ``Omega_k = 0`` without saying why.
+    FLAT_ONLY: bool = False
+
     #: Parameter container class used to build `self.params`.
     #: Overridden automatically for subclasses that set
     #: `EXTRA_PARAMS`.

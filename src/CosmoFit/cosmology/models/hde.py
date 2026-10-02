@@ -112,6 +112,8 @@ class HDE(Cosmology):
     """
 
     MODEL_NAME = "HDE"
+
+    FLAT_ONLY = True
     MODEL_LABEL = "HDE"
 
     EXTRA_PARAMS = {

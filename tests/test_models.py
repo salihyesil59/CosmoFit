@@ -85,7 +85,7 @@ _CLOSURE_MODELS = [m for m in ALL_MODELS if m not in _NO_CLOSURE]
 #: It refuses ``Omega_k != 0`` outright; see
 #: `test_hde_refuses_curvature`, which checks that rather than
 #: leaving the limitation untested.
-_FLAT_ONLY = {"HDE", "ADE", "RDE"}
+_FLAT_ONLY = {"HDE", "ADE", "RDE", "FQExponential", "FTPowerLaw"}
 
 
 def _closure_cases():
@@ -537,3 +537,35 @@ def test_an_invalid_value_in_an_expression_model_is_just_a_nan():
 
     assert np.isfinite(values[0])
     assert np.all(np.isnan(values[1:]))
+
+
+# ============================================================
+# Flat-only models refuse curvature, and Fitter refuses it free
+# ============================================================
+
+@pytest.mark.parametrize("name", ["FQExponential", "FTPowerLaw"])
+def test_teleparallel_models_refuse_curvature(name):
+    """
+    Their Friedmann equations rest on Q = 6H^2 / T = 6H^2, flat-FLRW
+    identities, so E(z) carries no curvature -- while the distance
+    calculator applied Omega_k to it anyway.
+    """
+
+    with pytest.raises(ValueError, match="flat universe only"):
+        build(name, Omega_k=0.05)
+
+
+@pytest.mark.parametrize("name", sorted(_FLAT_ONLY))
+def test_fitter_refuses_free_curvature_for_flat_only_models(name):
+
+    model = getattr(C, name)
+
+    assert model.FLAT_ONLY
+
+    with pytest.raises(ValueError, match="flat universe only"):
+
+        C.Fitter(
+            model=model, datasets=["cc"],
+            free_params=["H0", "Omega_m", "Omega_k"],
+            initial={"H0": 67.4, "Omega_m": 0.315},
+        )

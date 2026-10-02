@@ -93,6 +93,8 @@ class FQExponential(Cosmology):
     """
 
     MODEL_NAME = "FQExponential"
+
+    FLAT_ONLY = True
     MODEL_LABEL = r"$f(Q)$ exponential"
 
     #: Newton iterations for solving E^2 -- the relation is smooth
@@ -157,6 +159,18 @@ class FQExponential(Cosmology):
         Dimensionless Hubble parameter (solves the transcendental
         Friedmann equation -- see the class docstring).
         """
+
+        # The Friedmann equation solved here rests on Q = 6 H^2, a
+        # flat-FLRW identity, so E(z) has no curvature term. The
+        # distance calculator would still have applied Omega_k to it
+        # -- a curved distance on a flat expansion history.
+        if abs(self.Omega_k) > 1.0e-12:
+
+            raise ValueError(
+                f"{type(self).__name__} is implemented for a flat "
+                f"universe only (its Friedmann equation uses Q = 6 H^2), "
+                f"but Omega_k = {self.Omega_k:.4g}."
+            )
 
         return np.sqrt(self._solve_E2(z))
 

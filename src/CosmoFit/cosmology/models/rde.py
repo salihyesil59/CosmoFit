@@ -72,6 +72,8 @@ class RDE(Cosmology):
     """
 
     MODEL_NAME = "RDE"
+
+    FLAT_ONLY = True
     MODEL_LABEL = "RDE"
 
     EXTRA_PARAMS = {

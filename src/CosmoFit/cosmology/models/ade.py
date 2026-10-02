@@ -83,6 +83,8 @@ class ADE(Cosmology):
     """
 
     MODEL_NAME = "ADE"
+
+    FLAT_ONLY = True
     MODEL_LABEL = "ADE"
 
     EXTRA_PARAMS = {

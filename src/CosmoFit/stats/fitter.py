@@ -1024,6 +1024,22 @@ class Fitter:
 
             )
 
+        if getattr(model, "FLAT_ONLY", False) and "Omega_k" in self.free_params:
+
+            raise ValueError(
+
+                f"{getattr(model, 'MODEL_NAME', None) or model.__name__} "
+
+                f"is defined for a flat universe only, so `Omega_k` "
+
+                f"cannot be a free parameter: every curved point would "
+
+                f"be rejected, and the posterior would pin Omega_k = 0 "
+
+                f"without saying why. Drop 'Omega_k' from free_params."
+
+            )
+
         if self.compute_rd and "rd" in self.free_params:
 
             raise ValueError(
