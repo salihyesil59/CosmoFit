@@ -103,6 +103,7 @@ from .chains import (
     ChainFile,
     DEFAULT_CHAIN_NAME,
     StoredSampler,
+    _package_version,
     build_metadata,
     compare_signatures,
     signature_id,
@@ -2165,6 +2166,33 @@ class Fitter:
                 f"save this fit to a different path, or pass "
                 f"`resume=False` to discard the stored chain and "
                 f"sample from scratch."
+            )
+
+        stored_version = meta.get("cosmofit_version")
+        current_version = _package_version()
+
+        if (
+            stored_version
+            and stored_version != "unknown"
+            and current_version != "unknown"
+            and stored_version != current_version
+        ):
+
+            # Not refused: most releases leave every likelihood alone,
+            # and a chain is expensive. But some change what a dataset
+            # computes (a sample cut, a covariance, a default version),
+            # and then continuing the chain merges two posteriors under
+            # one signature -- the one thing the signature check above
+            # cannot see.
+            warnings.warn(
+                f"The saved chain was written by CosmoFit "
+                f"{stored_version}; this is {current_version}. If a "
+                f"likelihood or model it uses changed in between (see "
+                f"CHANGELOG.md), continuing it merges samples from two "
+                f"posteriors. Check, or pass `resume=False` to start "
+                f"over ({chain.path}).",
+                UserWarning,
+                stacklevel=4,
             )
 
         shape = chain.shape

@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
-import numpy as np
-
 from .base import BaseLikelihood
 
 
@@ -186,18 +184,14 @@ class JointLikelihood:
         n_params: int,
     ) -> float:
         """
-        Akaike Information Criterion.
+        Akaike Information Criterion, :func:`stats.model_comparison.aic`.
         """
 
-        return (
+        # Imported here: `likelihoods` is loaded before `stats`, whose
+        # package imports this module back.
+        from CosmoFit.stats.model_comparison import aic
 
-            self.chi2()
-
-            +
-
-            2.0 * n_params
-
-        )
+        return aic(self.chi2(), n_params)
 
     # ---------------------------------------------------------
 
@@ -206,21 +200,10 @@ class JointLikelihood:
         n_params: int,
     ) -> float:
         """
-        Bayesian Information Criterion.
+        Bayesian Information Criterion, :func:`stats.model_comparison.bic`.
         """
 
-        return (
+        from CosmoFit.stats.model_comparison import bic
 
-            self.chi2()
+        return bic(self.chi2(), n_params, self.n_data)
 
-            +
-
-            n_params
-
-            * np.log(
-
-                self.n_data,
-
-            )
-
-        )

@@ -462,3 +462,31 @@ def test_a_chain_id_names_the_fit():
     assert identifier == _fitter().chain_id()
 
     assert identifier != _fitter(datasets=["cc", "desi"]).chain_id()
+
+
+def test_resuming_a_chain_from_another_version_warns(saved):
+    """
+    The signature says which posterior a chain belongs to, but not
+    which code computed it. A release that changes a likelihood (a
+    sample cut, a covariance) leaves the signature identical, and
+    continuing the chain then merges two posteriors. Not refused --
+    most releases change no likelihood -- but said.
+    """
+
+    from CosmoFit.stats.chains import ChainFile
+
+    _, path = saved
+
+    chain = ChainFile(str(path))
+    meta = dict(chain.metadata)
+    meta["cosmofit_version"] = "0.0.1"
+    chain.write_metadata(meta)
+
+    fitter = _fitter()
+
+    with pytest.warns(UserWarning, match="written by CosmoFit 0.0.1"):
+
+        fitter.run_mcmc(
+            nwalkers=NWALKERS, nsteps=NSTEPS + 5, burnin=10,
+            save=str(path), progress=False,
+        )

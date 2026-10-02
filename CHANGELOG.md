@@ -16,6 +16,24 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### One AIC/BIC, and a resumed chain that says which version wrote it
+
+**AIC and BIC were written out three times.** The copies were in
+`stats.model_comparison`, `stats.results.BestFitResult` and
+`likelihoods.joint.JointLikelihood`. All three agreed today, and
+nothing kept them agreeing. The other two now call the first.
+
+**Resuming a chain written by another version now warns.** A chain's
+signature (model, datasets, free parameters, priors, fixed values)
+says which posterior it belongs to, but not which code computed that
+posterior. A release that changes what a likelihood computes leaves
+the signature unchanged. This release does that several times: a
+sample cut, a covariance, a default prior version. Continuing such a
+chain merges samples from two posteriors. The chain records the
+version that wrote it, and resuming under a different one now warns.
+It does not refuse, because most releases change no likelihood and a
+chain is expensive.
+
 ### Three closed forms, checked against the equations they solve
 
 **IDE at its resonance.** At `w0 + xi = 0` the closed form's

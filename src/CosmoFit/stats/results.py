@@ -69,10 +69,16 @@ class BestFitResult:
     message: str
 
     def aic(self) -> float:
-        return self.chi2 + 2.0 * self.ndim
+
+        from .model_comparison import aic
+
+        return aic(self.chi2, self.ndim)
 
     def bic(self) -> float:
-        return self.chi2 + self.ndim * np.log(self.n_data)
+
+        from .model_comparison import bic
+
+        return bic(self.chi2, self.ndim, self.n_data)
 
     # ------------------------------------------------------------
 
