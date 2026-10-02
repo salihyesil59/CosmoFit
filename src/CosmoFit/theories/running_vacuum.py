@@ -47,3 +47,34 @@ class RunningVacuum(DarkSector):
             return 3.0 * c + ctx.Omega_k * np.exp(-2.0 * N) - 3.0 * ctx.p_rel(z)
 
         return solve_linear(-3.0 * (1.0 - nu), source)
+
+    @staticmethod
+    def _c(ctx, nu):
+        return (1.0 - nu) - ctx.Omega_cb - ctx.rho_rel0 - ctx.Omega_k
+
+    def clustering_matter(self, z, growth, nu):
+        """``rho_m = (1 - nu) E^2 - rho_rel - c - Omega_k a^-2``."""
+
+        ctx = growth.ctx
+
+        return (
+            (1.0 - nu) * growth.E2(z) - ctx.rho_rel(z)
+            - self._c(ctx, nu) - ctx.curvature(z)
+        )
+
+    def matter_exchange(self, z, growth, nu):
+        """
+        ``psi = [3 nu rho_m - nu (rho_rel' - 2 Omega_k a^-2)] / rho_m``,
+        ``rho_rel' = -3 (rho_rel + p_rel)`` -- ``3 nu`` when flat and
+        radiation-free.
+        """
+
+        ctx = growth.ctx
+
+        rho_m = self.clustering_matter(z, growth, nu)
+
+        rho_rel_prime = -3.0 * (ctx.rho_rel(z) + ctx.p_rel(z))
+
+        return (
+            3.0 * nu * rho_m - nu * (rho_rel_prime - 2.0 * ctx.curvature(z))
+        ) / rho_m

@@ -32,6 +32,7 @@ _BUILTIN = {
         "legacy_cosmology": "CosmoFit.core.legacy:LegacyCosmology",
         "background": "CosmoFit.theories.background:Background",
         "early_universe": "CosmoFit.theories.early:EarlyUniverse",
+        "growth": "CosmoFit.theories.growth:Growth",
     },
     "likelihood": {},
     "sampler": {

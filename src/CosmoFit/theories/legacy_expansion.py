@@ -16,6 +16,8 @@ the class's defaults::
 
 from __future__ import annotations
 
+import numpy as np
+
 from .dark_sector import DarkSector
 
 
@@ -76,17 +78,41 @@ class LegacyExpansion(DarkSector):
 
     def solve(self, ctx, **p):
 
-        model = self._instance(
-            H0=ctx.H0, Omega_m=ctx.Omega_cb, Omega_k=ctx.Omega_k, **p,
-        )
+        model = self._model(ctx, **p)
 
         def E2(z):
             return model.E(z) ** 2
 
         return E2
 
+    def _model(self, ctx, **p):
+        return self._instance(
+            H0=ctx.H0, Omega_m=ctx.Omega_cb, Omega_k=ctx.Omega_k, **p,
+        )
+
+    # The growth hooks are the wrapped model's own.
+
+    def clustering_matter(self, z, growth, **p):
+        return self._model(growth.ctx, **p).Omega_matter(z)
+
+    def matter_exchange(self, z, growth, **p):
+        return self._model(growth.ctx, **p).matter_exchange(z)
+
+    def mu(self, z, k, growth, **p):
+        a = 1.0 / (1.0 + np.asarray(z, dtype=float))
+
+        return self._model(growth.ctx, **p).mu(a, k=k)
+
     def jumps(self, **p):
-        return ()
+        """The wrapped model's own -- LsCDM's sign switch, for one."""
+
+        # The instance the last solve built, if it has these parameters:
+        # building another would evict it from the one-entry cache.
+        for key, model in self._cache.items():
+            if all(dict(key).get(name) == value for name, value in p.items()):
+                return tuple(model.background_jumps())
+
+        return tuple(self._instance(**p).background_jumps())
 
     def __repr__(self) -> str:
         return f"LegacyExpansion({self.model_cls.__name__})"

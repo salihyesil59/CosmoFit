@@ -32,7 +32,7 @@ import numpy as np
 from scipy.integrate import cumulative_simpson
 
 
-__all__ = ["DarkSector", "ExpansionContext", "solve_linear", "N_MIN"]
+__all__ = ["DarkSector", "ExpansionContext", "GrowthContext", "solve_linear", "N_MIN"]
 
 
 #: How far back (``ln a``) ODE-based sectors tabulate their solution:
@@ -120,8 +120,56 @@ class DarkSector:
 
         return ()
 
+    # ---------------------------------------------------------
+    # Growth of structure (see theories.growth)
+    # ---------------------------------------------------------
+
+    def clustering_matter(self, z, growth: "GrowthContext", **p):
+        """
+        Density of the matter that clusters, in units of today's
+        critical density. Cold matter by default: massive neutrinos
+        free-stream on the scales growth data measure.
+        """
+
+        return growth.ctx.rho_cb(z)
+
+    def matter_exchange(self, z, growth: "GrowthContext", **p):
+        """
+        ``psi = Q / (H rho_m)``, energy gained by clustering matter per
+        Hubble time -- ``None`` for conserved matter.
+        """
+
+        return None
+
+    def mu(self, z, k: float, growth: "GrowthContext", **p):
+        """
+        ``G_eff / G_N`` at wavenumber ``k`` [h/Mpc] -- ``None`` for
+        general relativity.
+        """
+
+        return None
+
     def __repr__(self) -> str:
         return f"{type(self).__name__}()"
+
+
+@dataclass
+class GrowthContext:
+    """
+    What a dark sector's growth hooks may read: the standard fluids,
+    the expansion, and its logarithmic slope.
+
+    Attributes
+    ----------
+    ctx : ExpansionContext
+    E2 : callable(z)
+    dlnH_dN : callable(z)
+        ``d ln H / d ln a``.
+    """
+
+    ctx: ExpansionContext
+    E2: Callable
+    dlnH_dN: Callable
 
 
 def solve_linear(k: float, source: Callable, y0: float = 1.0,

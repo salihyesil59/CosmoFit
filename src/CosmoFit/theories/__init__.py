@@ -10,6 +10,11 @@ Native theories of the 2.0 core.
     drag epoch and at recombination, from the background's own
     expansion.
 
+``growth``
+    :class:`~theories.growth.Growth` -- the linear growth factor, growth
+    rate and ``f sigma8``, on the background's expansion and through the
+    dark sector's growth hooks.
+
 Named in an input's ``theory`` block by these names.
 
 Dark sectors, by family:
@@ -28,9 +33,10 @@ Dark sectors, by family:
 """
 
 from .background import Background, neutrino_density, neutrino_pressure
-from .dark_energy import DARK_ENERGY, DarkEnergy, get_dark_energy
-from .dark_sector import DarkSector, ExpansionContext
+from .dark_energy import DARK_ENERGY, DarkEnergy, HuSawicki, get_dark_energy
+from .dark_sector import DarkSector, ExpansionContext, GrowthContext
 from .early import EarlyUniverse
+from .growth import Growth
 from .sectors import DARK_SECTORS, get_dark_sector
 
 __all__ = [
@@ -41,6 +47,9 @@ __all__ = [
     "DarkSector",
     "EarlyUniverse",
     "ExpansionContext",
+    "Growth",
+    "GrowthContext",
+    "HuSawicki",
     "get_dark_energy",
     "get_dark_sector",
     "neutrino_density",

@@ -16,6 +16,61 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 2c: growth of structure on the native background
+
+`CosmoFit.theories.Growth` solves the linear growth equation on the
+background's own expansion and provides `growth_factor`,
+`growth_rate`, `sigma8_z` and `fsigma8`, with `S8` as a derived
+parameter. What a model does to growth comes from three hooks on its
+dark sector:
+
+- `clustering_matter`: the matter that clusters. This is the cold
+  matter, plus whatever an interaction has moved into it.
+- `mu(z, k)`: the effective gravitational coupling. DGP, f(Q), f(T),
+  f(R,T) and Hu-Sawicki f(R) define it.
+- `matter_exchange`: the rate at which matter gains energy, for IDE
+  and the running vacuum. It enters the equation's friction and
+  source terms as well as `Omega_m(a)`.
+
+The defaults are cold matter, `mu = 1` and no exchange. f(R)
+Hu-Sawicki is now a sector, `hu_sawicki` (`f_R0`, `n_hs`). Its
+background is LCDM's, and its `mu(k)` reads the curvature off the
+trace of the standard fluids. Old-style models run through the
+`legacy` sector, which forwards each hook to the wrapped model's own
+`Omega_matter`, `mu` and `matter_exchange`.
+
+**Radiation changes where growth starts.** The old calculator set
+`D proportional to a` at `a = 1e-4`, which is the growing mode only
+when there is no radiation. The equation now starts at `a = 1e-5`
+from Meszaros's growing mode, `D proportional to 1 + 3y/2` with
+`y = rho_m / rho_rel`. That is the exact solution for matter plus
+radiation. A matter-and-radiation-only universe reproduces it through
+equality to 5e-8, which is the RK4's own error: it falls 16-fold when
+the step count is doubled.
+
+**Neutrinos no longer cluster.** On the scales growth data probe,
+massive neutrinos free-stream, so `Omega_m(a)` in the equation counts
+cold matter only. The old calculator included them. For LCDM with
+`m_nu = 0.06 eV`, this lowers `f` by about 0.3%. Radiation itself
+moves `f` by only 0.02-0.05% at `z < 2`.
+
+How each part was checked:
+
+- **Without radiation:** every model equals the old calculator to
+  1e-9 in `D` and `f`, curved or flat. IDE agrees to 2e-8, because its
+  exchange rate is differenced with a different step.
+- **Across a jump** (LsCDM): `D` is continuous, and `f` falls by
+  exactly `H_before / H_after`.
+- **IDE and the running vacuum:** the second-order equation agrees to
+  1e-7 with the first-order continuity and Euler equations, when the
+  exchange rate is taken from the matter density itself.
+
+**The `legacy` sector now passes on its model's jumps.** Before this
+change it reported none, so a wrapped LsCDM integrated its distance
+table straight across the sign switch, and growth missed the
+`H_before / H_after` matching. The comparison against the old
+calculator found it: `f` was 10% off below `z_dagger`.
+
 ### The 2.0 core, phase 2b: every model's expansion, with radiation
 
 The native background now takes any of the library's models, not

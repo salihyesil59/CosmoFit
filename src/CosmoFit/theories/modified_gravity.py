@@ -26,6 +26,8 @@ import numpy as np
 
 from scipy.special import lambertw
 
+from CosmoFit.cosmology.core.utils import coupling_from_derivative
+
 from .dark_sector import DarkSector
 
 
@@ -56,6 +58,23 @@ class DGP(DarkSector):
             return brane + ctx.curvature(z)
 
         return E2
+
+    def mu(self, z, k, growth):
+        """
+        ``mu = 1 + 1/(3 beta)``, ``beta = 1 - 2 H r_c [1 + Hdot/(3 H^2)]``,
+        ``2 H r_c = E / sqrt(Omega_rc)``.
+        """
+
+        ctx = growth.ctx
+
+        one_minus_k = 1.0 - ctx.Omega_k
+        Omega_rc = (one_minus_k - ctx.rho_std0) ** 2 / (4.0 * one_minus_k)
+
+        E = np.sqrt(growth.E2(z))
+
+        beta = 1.0 - E / np.sqrt(Omega_rc) * (1.0 + growth.dlnH_dN(z) / 3.0)
+
+        return 1.0 + 1.0 / (3.0 * beta)
 
 
 class Cardassian(DarkSector):
@@ -92,6 +111,21 @@ class FQExponential(DarkSector):
 
     name = "fq_exponential"
     flat_only = True
+
+    @staticmethod
+    def _lambda(ctx) -> float:
+        return float(np.real(0.5 + lambertw(-ctx.rho_std0 / (2.0 * np.sqrt(np.e)), k=0)))
+
+    def mu(self, z, k, growth):
+        """``mu = 1/f_Q``, ``f_Q = e^{lambda/E^2} (1 - lambda/E^2)``."""
+
+        lam = self._lambda(growth.ctx)
+
+        x = 1.0 / growth.E2(z)
+
+        return coupling_from_derivative(
+            np.exp(lam * x) * (1.0 - lam * x), model="FQExponential",
+        )
 
     #: Fixed Newton steps; the map is smooth and monotonic over the
     #: physical range, as in the old model.
@@ -136,6 +170,28 @@ class FTPowerLaw(DarkSector):
     newton_iterations = 30
     residual_tolerance = 1.0e-10
 
+    def mu(self, z, k, growth, n_ft):
+        """
+        ``mu = 1/f_T = 1/(1 + n A E^{2n-2})``, ``A = (rho_std(0) - 1)/(2n - 1)``;
+        the ``n = 1/2`` pole refused.
+        """
+
+        from CosmoFit.cosmology.core.errors import ModelConfigurationError
+
+        n = float(n_ft)
+
+        if abs(2.0 * n - 1.0) < 1e-3:
+            raise ModelConfigurationError(
+                f"FTPowerLaw: n_ft = {n!r} sits on the n = 1/2 pole of the "
+                f"effective gravitational coupling."
+            )
+
+        A = (growth.ctx.rho_std0 - 1.0) / (2.0 * n - 1.0)
+
+        return coupling_from_derivative(
+            1.0 + n * A * growth.E2(z) ** (n - 1.0), model="FTPowerLaw",
+        )
+
     def solve(self, ctx, n_ft):
 
         n = float(n_ft)
@@ -176,6 +232,11 @@ class FRTLinear(DarkSector):
 
     name = "frt_linear"
     params = ("beta",)
+
+    def mu(self, z, k, growth, beta):
+        """``mu = 1 + 3 beta``, the old model's stated simplification."""
+
+        return np.full_like(np.asarray(z, dtype=float), 1.0 + 3.0 * beta)
 
     def solve(self, ctx, beta):
 

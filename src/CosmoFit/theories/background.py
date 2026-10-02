@@ -216,6 +216,7 @@ class Background(Theory):
         return [
             "E", "H", "comoving_distance", "DM", "DH", "DV", "DA",
             "w", "Omega_de_z", "background_densities", "background_jumps",
+            "expansion",
         ]
 
     def get_derived_params(self) -> list[str]:
@@ -551,6 +552,22 @@ class Background(Theory):
         ctx = state["context"]
 
         return state["E2"](z) - ctx.rho_std(z) - ctx.curvature(z)
+
+    def get_expansion(self) -> dict:
+        """
+        The dark sector and what it was solved with -- for the growth
+        theory, whose hooks live on the sector.
+        """
+
+        state = self._state()
+
+        return {
+            "sector": self.sector,
+            "sector_params": dict(state["sector_params"]),
+            "context": state["context"],
+            "E2": state["E2"],
+            "jumps": tuple(state["jumps"]),
+        }
 
     def get_background_jumps(self) -> tuple:
         """Redshifts at which ``E(z)`` is discontinuous."""

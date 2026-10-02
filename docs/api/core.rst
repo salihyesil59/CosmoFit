@@ -95,3 +95,6 @@ Native theories
 
 .. automodule:: CosmoFit.theories.early
    :members:
+
+.. automodule:: CosmoFit.theories.growth
+   :members:

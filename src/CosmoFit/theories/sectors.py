@@ -36,7 +36,7 @@ _ALIASES = {
     "logarithmicde": "logarithmic", "log": "logarithmic",
     "lscdm": "lscdm", "ide": "ide", "runningvacuum": "rvm",
     "fqexponential": "fq_exponential", "ftpowerlaw": "ft_power_law",
-    "frtlinear": "frt_linear",
+    "frtlinear": "frt_linear", "frhusawicki": "hu_sawicki",
 }
 
 

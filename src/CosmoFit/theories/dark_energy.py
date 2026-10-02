@@ -296,6 +296,23 @@ class InteractingDarkEnergy(DarkEnergy):
             * _expm1_ratio(3.0 * (w0 + xi) * L)
         )
 
+    def clustering_matter(self, z, growth, w0, xi):
+        """Cold matter plus what the interaction has moved into it."""
+
+        Omega_de = self.dark_energy_today(growth.ctx)
+
+        return growth.ctx.rho_cb(z) + self.transfer(z, Omega_de, w0, xi)
+
+    def matter_exchange(self, z, growth, w0, xi):
+        """``psi = 3 xi rho_de / rho_m``."""
+
+        Omega_de = self.dark_energy_today(growth.ctx)
+
+        return (
+            3.0 * xi * Omega_de * self.density(z, w0, xi)
+            / self.clustering_matter(z, growth, w0, xi)
+        )
+
     def solve(self, ctx, w0, xi):
 
         Omega_de = self.dark_energy_today(ctx)
@@ -310,12 +327,52 @@ class InteractingDarkEnergy(DarkEnergy):
         return E2
 
 
+class HuSawicki(DarkEnergy):
+    """
+    f(R) gravity, Hu-Sawicki: the background is LCDM's by construction,
+    and the model lives in the growth of structure, through the linear
+    (unscreened) coupling
+
+        mu(a, k) = 1 + (1/3) Y^2 / (Y^2 + Mhat^2(a)),   Y = k c / (a H_100),
+        Mhat^2   = -u^{n+2} / ((n + 1) f_R0 u0^{n+1}),
+
+    ``u = R / H0^2 / 3``, read off the trace of the standard fluids plus
+    four times the cosmological constant -- the old model's
+    ``Omega_m a^-3 + 4 Omega_Lambda`` with radiation (traceless) adding
+    nothing. Parameters ``f_R0`` and ``n_hs``.
+    """
+
+    name = "hu_sawicki"
+    params = ("f_R0", "n_hs")
+
+    def mu(self, z, k, growth, f_R0, n_hs):
+
+        from CosmoFit.cosmology.core.constants import c
+
+        ctx = growth.ctx
+
+        z = np.asarray(z, dtype=float)
+
+        Omega_L = self.dark_energy_today(ctx)
+
+        def u(x):
+            return ctx.rho_std(x) - 3.0 * ctx.p_std(x) + 4.0 * Omega_L
+
+        Mhat2 = -(u(z) ** (n_hs + 2.0)) / (
+            (n_hs + 1.0) * f_R0 * u(0.0) ** (n_hs + 1.0)
+        )
+
+        Y2 = (k * (c / 100.0) * (1.0 + z)) ** 2
+
+        return 1.0 + (Y2 / 3.0) / (Y2 + Mhat2)
+
+
 #: Every dark-energy model by name, with the old class names as aliases.
 DARK_ENERGY = {
     cls.name: cls
     for cls in (
         DarkEnergy, WCDM, CPL, JBP, BA, Logarithmic, PEDE, GEDE,
-        SignSwitchingLambda, GCG, InteractingDarkEnergy,
+        SignSwitchingLambda, GCG, InteractingDarkEnergy, HuSawicki,
     )
 }
 
