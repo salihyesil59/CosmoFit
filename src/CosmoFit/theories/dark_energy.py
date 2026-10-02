@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from .dark_sector import DarkSector
+
 
 __all__ = ["DarkEnergy", "DARK_ENERGY", "get_dark_energy"]
 
@@ -24,15 +26,15 @@ __all__ = ["DarkEnergy", "DARK_ENERGY", "get_dark_energy"]
 _LN10 = np.log(10.0)
 
 
-class DarkEnergy:
+class DarkEnergy(DarkSector):
     """
-    A dark-energy density history.
+    A dark-energy density history, added to the standard fluids:
 
-    Attributes
-    ----------
-    name : str
-    params : tuple of str
-        Parameters it reads, all required.
+        E(z)^2 = rho_std(z) + Omega_k (1+z)^2 + Omega_de f(z),
+        Omega_de = 1 - Omega_k - rho_std(0)
+
+    ``name`` and ``params`` (required, read by :meth:`density` and
+    :meth:`w`) declare it.
     """
 
     name = "lambda"
@@ -42,6 +44,20 @@ class DarkEnergy:
         """``rho_de(z) / rho_de(0)``."""
 
         return np.ones_like(np.asarray(z, dtype=float))
+
+    def solve(self, ctx, **p):
+
+        Omega_de = 1.0 - ctx.Omega_k - ctx.rho_std0
+
+        def E2(z):
+            return ctx.rho_std(z) + ctx.curvature(z) + Omega_de * self.density(z, **p)
+
+        return E2
+
+    def dark_energy_today(self, ctx) -> float:
+        """``Omega_de``, the closure."""
+
+        return 1.0 - ctx.Omega_k - ctx.rho_std0
 
     def w(self, z, **p):
         """The equation of state."""
@@ -186,10 +202,121 @@ class GEDE(DarkEnergy):
         return -1.0 - Delta * (1.0 + np.tanh(self._v(z, Delta, z_t))) / (3.0 * _LN10)
 
 
+class SignSwitchingLambda(DarkEnergy):
+    """
+    Lambda_s CDM (Akarsu et al. 2021): a cosmological constant that is
+    negative above ``z_dagger`` and positive below, ``f = sgn(z_dagger - z)``,
+    with ``+1`` at ``z_dagger`` itself. ``E(z)`` jumps there; see
+    :meth:`jumps`.
+    """
+
+    name = "lscdm"
+    params = ("z_dagger",)
+
+    def density(self, z, z_dagger):
+        return np.where(np.asarray(z, dtype=float) <= z_dagger, 1.0, -1.0)
+
+    def w(self, z, z_dagger):
+        return np.full_like(np.asarray(z, dtype=float), -1.0)
+
+    def jumps(self, z_dagger):
+        return (float(z_dagger),)
+
+
+class GCG(DarkEnergy):
+    """
+    The generalized Chaplygin gas, ``p = -A / rho^alpha``:
+
+        f(z) = [A_gcg + (1 - A_gcg)(1+z)^{3(1+alpha_gcg)}]^{1/(1+alpha_gcg)}
+
+    Its parameters are ``A_gcg`` and ``alpha_gcg`` -- the old model's
+    ``A_s`` and ``alpha``, renamed so that ``A_s`` is free for the
+    primordial amplitude.
+    """
+
+    name = "gcg"
+    params = ("A_gcg", "alpha_gcg")
+
+    @staticmethod
+    def _g(z, A_gcg, alpha_gcg):
+
+        z = np.asarray(z, dtype=float)
+
+        return A_gcg + (1.0 - A_gcg) * (1.0 + z) ** (3.0 * (1.0 + alpha_gcg))
+
+    def density(self, z, A_gcg, alpha_gcg):
+        return self._g(z, A_gcg, alpha_gcg) ** (1.0 / (1.0 + alpha_gcg))
+
+    def w(self, z, A_gcg, alpha_gcg):
+        return -A_gcg / self._g(z, A_gcg, alpha_gcg)
+
+
+def _expm1_ratio(x):
+    """``expm1(x)/x``, equal to 1 at 0 and accurate near it."""
+
+    x = np.asarray(x, dtype=float)
+
+    small = np.abs(x) < 1.0e-8
+    safe = np.where(small, 1.0, x)
+
+    return np.where(small, 1.0 + 0.5 * x, np.expm1(safe) / safe)
+
+
+class InteractingDarkEnergy(DarkEnergy):
+    """
+    Interacting dark energy, ``Q = 3 xi H rho_de`` from dark energy into
+    cold matter, constant ``w0``:
+
+        E^2 = rho_std + Omega_k (1+z)^2 + T(z) + Omega_de (1+z)^{3(1+w0+xi)}
+
+    with ``T(z)`` the energy moved into matter, written so that it holds
+    through the resonance ``w0 + xi = 0`` (see the old model's
+    ``_transfer_term``, which this reproduces). The coupling feeds the
+    cold matter; photons and neutrinos are untouched.
+    """
+
+    name = "ide"
+    params = ("w0", "xi")
+
+    def density(self, z, w0, xi):
+        return (1.0 + np.asarray(z, dtype=float)) ** (3.0 * (1.0 + w0 + xi))
+
+    def w(self, z, w0, xi):
+        return np.full_like(np.asarray(z, dtype=float), w0)
+
+    def transfer(self, z, Omega_de, w0, xi):
+        """Energy moved into matter, ``T(z)``, in units of today's critical density."""
+
+        z = np.asarray(z, dtype=float)
+
+        L = np.log1p(z)
+
+        return (
+            -3.0 * xi * Omega_de * (1.0 + z) ** 3 * L
+            * _expm1_ratio(3.0 * (w0 + xi) * L)
+        )
+
+    def solve(self, ctx, w0, xi):
+
+        Omega_de = self.dark_energy_today(ctx)
+
+        def E2(z):
+            return (
+                ctx.rho_std(z) + ctx.curvature(z)
+                + self.transfer(z, Omega_de, w0, xi)
+                + Omega_de * self.density(z, w0, xi)
+            )
+
+        return E2
+
+
 #: Every dark-energy model by name, with the old class names as aliases.
 DARK_ENERGY = {
     cls.name: cls
-    for cls in (DarkEnergy, WCDM, CPL, JBP, BA, Logarithmic, PEDE, GEDE)
+    for cls in (
+        DarkEnergy, WCDM, CPL, JBP, BA, Logarithmic, PEDE, GEDE,
+        SignSwitchingLambda, GCG, InteractingDarkEnergy,
+    )
 }
 
 _ALIASES = {

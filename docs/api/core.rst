@@ -72,7 +72,25 @@ Native theories
 .. automodule:: CosmoFit.theories.background
    :members:
 
+.. automodule:: CosmoFit.theories.dark_sector
+   :members:
+
+.. automodule:: CosmoFit.theories.sectors
+   :members:
+
 .. automodule:: CosmoFit.theories.dark_energy
+   :members:
+
+.. automodule:: CosmoFit.theories.modified_gravity
+   :members:
+
+.. automodule:: CosmoFit.theories.holographic
+   :members:
+
+.. automodule:: CosmoFit.theories.running_vacuum
+   :members:
+
+.. automodule:: CosmoFit.theories.legacy_expansion
    :members:
 
 .. automodule:: CosmoFit.theories.early

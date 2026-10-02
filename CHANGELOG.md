@@ -16,6 +16,50 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 2b: every model's expansion, with radiation
+
+The native background now takes any of the library's models, not
+only the w(z) family. Each one is a *dark sector*: it receives the
+standard fluids (cold matter, photons, neutrinos, with density and
+pressure) and returns `E(z)^2`, so every model sees radiation without
+writing it out. Radiation was generalized into each model's own
+equations. With it switched off, every model is its old self again.
+
+| Model | How radiation enters | Checked against (with radiation) |
+|---|---|---|
+| LsCDM, GCG, IDE | added to the dark energy as before; IDE's transfer feeds cold matter only, in a form exact through the `w0 + xi = 0` resonance | `T' + 3T = 3 xi rho_de` |
+| DGP, Cardassian, f(Q), f(T) | the modified Friedmann equation acts on the total standard density | f(Q)'s equation to 1e-12; f(T) at `n_ft = 0`, Cardassian at `n = 0, q = 1` equal LCDM-with-radiation |
+| f(R,T) | each fluid counts as `rho + beta (3 rho - p)`, so radiation with `1 + 8 beta/3` | `beta = 0` equals LCDM |
+| HDE | `Omega' = Omega (1 - Omega)[1 + 2 sqrt(Omega)/c + 3 p/rho]` | its definition, `d ln rho_de / d ln a = -2 + 2 sqrt(Omega)/c`, to 1e-6 |
+| ADE | `Omega' = Omega (1 - Omega)[3 - 2 sqrt(Omega)/(n a) + 3 p/rho]`, from the radiation-era attractor `n^2 a^2` | `Omega = n^2 / (eta H)^2` with eta integrated from its own E(z), to 1e-8 |
+| RDE | `(gamma/2)(E^2)' + (2 gamma - 1) E^2 + rho = 0` | `rho_de = gamma (Hdot + 2 H^2)`, to 1e-6 |
+| Running vacuum | `y' = -3(1-nu) y + 3c + Omega_k a^-2 - 3 p_rel`, radiation entering as `(1+z)^4 / (1 + 3 nu)` | its continuity equations integrated directly, to 1e-8 |
+
+Each equation was derived from its model's energy density and the
+continuity equation, with `-2 H'/H = 3(1 + w_total)` carrying the
+fluids' pressure. With dust alone, each reduces to its old model's
+equation exactly.
+
+**One prediction changes.** ADE fixes `Omega_m` from `n` through its
+early-time attractor, and radiation changes that attractor. For
+`n = 2.8`, the prediction moves from `Omega_m = 0.280` to `0.270`.
+
+**LsCDM distances are now exact across the jump.** The old distance
+table smeared the jump in `E(z)` over one grid cell, an error of about
+1e-4 in every distance beyond `z_dagger`. The new table is split at
+the jump and agrees with a piecewise `quad` to 1e-11. Getting there
+exposed a rounding trap: `expm1(log1p(z))` can come back a hair below
+`z`, and then the side of the jump was taken wrongly.
+
+**Renamed for 2.0:** GCG's `A_s, alpha` become `A_gcg, alpha_gcg`, so
+that `A_s` is free for the primordial amplitude. f(T)'s `n` becomes
+`n_ft`.
+
+Models built from an action or with `define_model` run through a
+`legacy` sector, with radiation off only, until they too are native.
+f(R) Hu-Sawicki, whose background is LCDM's, joins with the growth
+theory.
+
 ### The 2.0 core, phase 2a: one expansion history, with radiation in it
 
 The old models each wrote out `E(z)^2 = Omega_m (1+z)^3 + Omega_k (1+z)^2

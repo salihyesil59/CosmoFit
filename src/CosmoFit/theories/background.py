@@ -46,6 +46,7 @@ import math
 import numpy as np
 
 from scipy.integrate import cumulative_simpson, simpson
+from scipy.interpolate import PPoly
 
 from CosmoFit.core.component import ComponentError, Theory
 from CosmoFit.cosmology.core.constants import Mpc, Omega_gamma_h2, c, km, year
@@ -58,10 +59,11 @@ from CosmoFit.cosmology.calculators.sound_horizon import (
 )
 from CosmoFit.cosmology.numerics.hermite import hermite_spline
 
-from .dark_energy import get_dark_energy
+from .dark_sector import ExpansionContext
+from .sectors import get_dark_sector
 
 
-__all__ = ["Background", "neutrino_density"]
+__all__ = ["Background", "neutrino_density", "neutrino_pressure"]
 
 
 #: Seconds in a gigayear.
@@ -97,6 +99,26 @@ def neutrino_density(a, N_eff: float, m_nu: float, omega_gamma: float = Omega_ga
         total = total + relativistic * EFF_PER_MASSIVE * neutrino_density_ratio(y).reshape(a.shape)
 
     return total
+
+
+def neutrino_pressure(a, N_eff: float, m_nu: float, omega_gamma: float = Omega_gamma_h2):
+    """
+    Total neutrino pressure, in the units of :func:`neutrino_density`,
+    from the continuity equation ``p = -rho - (1/3) d rho / d ln a`` --
+    a third of the density while relativistic, falling to zero as the
+    massive species slows down.
+    """
+
+    a = np.asarray(a, dtype=float)
+
+    step = 1.0e-5
+
+    slope = (
+        neutrino_density(a * math.exp(step), N_eff, m_nu, omega_gamma)
+        - neutrino_density(a * math.exp(-step), N_eff, m_nu, omega_gamma)
+    ) / (2.0 * step)
+
+    return -neutrino_density(a, N_eff, m_nu, omega_gamma) - slope / 3.0
 
 
 def _massive_today(m_nu: float, omega_gamma: float = Omega_gamma_h2) -> float:
@@ -138,14 +160,9 @@ class Background(Theory):
         if unknown:
             raise ComponentError(f"{self.name}: unknown option(s) {sorted(unknown)}.")
 
-        de = self.info.get("dark_energy", "lambda")
-
-        if isinstance(de, dict):
-            de = dict(de).get("name", "lambda")
-
         try:
-            self.dark_energy = get_dark_energy(de)
-        except ValueError as error:
+            self.sector = get_dark_sector(self.info.get("dark_energy", "lambda"))
+        except (ValueError, TypeError) as error:
             raise ComponentError(f"{self.name}: {error}") from None
 
         self.parameterization = self.info.get("parameterization", "fractional")
@@ -159,19 +176,34 @@ class Background(Theory):
         self.radiation = bool(self.info.get("radiation", True))
         self.zmax = float(self.info.get("zmax", 5.0))
 
-        if self.parameterization == "fractional":
-            self.matter_names = ("Omega_m", "Omega_b")
-        else:
-            self.matter_names = ("omega_cdm", "omega_b")
+        if self.radiation and not self.sector.radiation_ok:
+            raise ComponentError(
+                f"{self.name}: {self.sector!r} has no form with radiation; "
+                f"use radiation: false."
+            )
 
-        self.required = ("H0", *self.matter_names, *self.dark_energy.params)
-        self.optional = ("Omega_k", "N_eff", "m_nu")
+        if self.parameterization == "fractional":
+            matter, baryons = "Omega_m", "Omega_b"
+        else:
+            matter, baryons = "omega_cdm", "omega_b"
+
+        self.matter_name = None if self.sector.derives_matter else matter
+        self.baryon_name = baryons
+
+        self.required = tuple(
+            name for name in ("H0", self.matter_name, baryons, *self.sector.params)
+            if name is not None
+        )
+        self.optional = ("Omega_k", "N_eff", "m_nu", *self.sector.defaults)
 
     # ---------------------------------------------------------
 
     def get_default_params(self) -> dict:
 
-        return {"Omega_k": 0.0, "N_eff": NEFF_STANDARD, "m_nu": 0.06}
+        return {
+            "Omega_k": 0.0, "N_eff": NEFF_STANDARD, "m_nu": 0.06,
+            **self.sector.defaults,
+        }
 
     def accepts(self, name: str) -> bool:
         return name in self.required or name in self.optional
@@ -183,7 +215,7 @@ class Background(Theory):
 
         return [
             "E", "H", "comoving_distance", "DM", "DH", "DV", "DA",
-            "w", "Omega_de_z", "background_densities",
+            "w", "Omega_de_z", "background_densities", "background_jumps",
         ]
 
     def get_derived_params(self) -> list[str]:
@@ -193,7 +225,68 @@ class Background(Theory):
             "Omega_de", "Omega_nu", "Omega_r", "age",
         ]
 
+    def check_model(self, model) -> None:
+
+        if not self.sector.flat_only:
+            return
+
+        spec = model.parameters.specs.get("Omega_k")
+
+        if spec is not None and (spec.role != "fixed" or spec.value != 0.0):
+
+            state = spec.role if spec.role != "fixed" else f"fixed at {spec.value!r}"
+
+            raise ComponentError(
+                f"{self.name}: {self.sector!r} is defined for a flat universe "
+                f"only, so Omega_k must be fixed at 0 (it is {state})."
+            )
+
     # ---------------------------------------------------------
+
+    def _context(self, Omega_cb: float, h: float, N_eff: float, m_nu: float,
+                 Omega_k: float, H0: float) -> ExpansionContext:
+        """The standard fluids, for a given cold-matter density today."""
+
+        def rho_cb(z):
+            return Omega_cb * (1.0 + np.asarray(z, dtype=float)) ** 3
+
+        if not self.radiation:
+
+            def zero(z):
+                return np.zeros_like(np.asarray(z, dtype=float))
+
+            return ExpansionContext(
+                rho_std=rho_cb, p_std=zero, rho_cb=rho_cb, rho_rel=zero,
+                p_rel=zero, rho_std0=Omega_cb, rho_rel0=0.0,
+                Omega_cb=Omega_cb, Omega_k=Omega_k, radiation=False, H0=H0,
+            )
+
+        h2 = h * h
+        omega_gamma = Omega_gamma_h2
+
+        def rho_rel(z):
+
+            a = 1.0 / (1.0 + np.asarray(z, dtype=float))
+
+            return (omega_gamma / a ** 4 + neutrino_density(a, N_eff, m_nu, omega_gamma)) / h2
+
+        def p_rel(z):
+
+            a = 1.0 / (1.0 + np.asarray(z, dtype=float))
+
+            return (omega_gamma / (3.0 * a ** 4)
+                    + neutrino_pressure(a, N_eff, m_nu, omega_gamma)) / h2
+
+        def rho_std(z):
+            return rho_cb(z) + rho_rel(z)
+
+        rho_rel0 = float(rho_rel(0.0))
+
+        return ExpansionContext(
+            rho_std=rho_std, p_std=p_rel, rho_cb=rho_cb, rho_rel=rho_rel,
+            p_rel=p_rel, rho_std0=Omega_cb + rho_rel0, rho_rel0=rho_rel0,
+            Omega_cb=Omega_cb, Omega_k=Omega_k, radiation=True, H0=H0,
+        )
 
     def calculate(self, state: dict, want_derived: bool = True, **p):
 
@@ -203,76 +296,62 @@ class Background(Theory):
         N_eff = float(p.get("N_eff", NEFF_STANDARD))
         m_nu = float(p.get("m_nu", 0.06))
 
-        de_params = {name: float(p[name]) for name in self.dark_energy.params}
+        sector_params = {
+            name: float(p[name])
+            for name in (*self.sector.params, *self.sector.defaults)
+        }
 
         omega_gamma = Omega_gamma_h2
-        omega_nu_massive = _massive_today(m_nu, omega_gamma)
+        omega_nu_massive = _massive_today(m_nu, omega_gamma) if self.radiation else 0.0
 
         if self.parameterization == "fractional":
-
-            Omega_m = float(p["Omega_m"])
             omega_b = float(p["Omega_b"]) * h * h
-            omega_cb = Omega_m * h * h - omega_nu_massive
-
         else:
-
             omega_b = float(p["omega_b"])
-            omega_cb = omega_b + float(p["omega_cdm"])
-            Omega_m = (omega_cb + omega_nu_massive) / (h * h)
 
-        density = self.dark_energy.density
+        def make_context(Omega_cb):
+            return self._context(Omega_cb, h, N_eff, m_nu, Omega_k, H0)
 
-        if self.radiation:
+        if self.sector.derives_matter:
 
-            radiation_today = (
-                omega_gamma + float(neutrino_density(1.0, N_eff, m_nu, omega_gamma))
-                - omega_nu_massive
-            )
+            Omega_cb = self.sector.matter_density(make_context, **sector_params)
 
-            Omega_de = 1.0 - Omega_k - (
-                omega_gamma + float(neutrino_density(1.0, N_eff, m_nu, omega_gamma))
-                + omega_cb
-            ) / (h * h)
+            if not np.isfinite(Omega_cb) or Omega_cb <= 0.0:
+                return False
 
-            def E2(z):
+        elif self.parameterization == "fractional":
 
-                z = np.asarray(z, dtype=float)
-                a = 1.0 / (1.0 + z)
-
-                early = (
-                    omega_gamma / a ** 4
-                    + neutrino_density(a, N_eff, m_nu, omega_gamma)
-                    + omega_cb / a ** 3
-                ) / (h * h)
-
-                return early + Omega_k / a ** 2 + Omega_de * density(z, **de_params)
+            # Omega_m counts massive neutrinos as matter today; without
+            # radiation there is nothing to separate them from.
+            Omega_cb = float(p["Omega_m"]) - omega_nu_massive / (h * h)
 
         else:
 
-            radiation_today = 0.0
+            Omega_cb = (omega_b + float(p["omega_cdm"])) / (h * h)
 
-            Omega_de = 1.0 - Omega_m - Omega_k
+        ctx = make_context(Omega_cb)
 
-            def E2(z):
+        E2 = self.sector.solve(ctx, **sector_params)
 
-                z = np.asarray(z, dtype=float)
-
-                return (
-                    Omega_m * (1.0 + z) ** 3 + Omega_k * (1.0 + z) ** 2
-                    + Omega_de * density(z, **de_params)
-                )
+        if E2 is None:
+            return False
 
         def E(z):
 
             with np.errstate(invalid="ignore"):
                 return np.sqrt(E2(z))
 
+        omega_cb = Omega_cb * h * h
+        Omega_m = Omega_cb + omega_nu_massive / (h * h)
+
         state.update(
+            jumps=tuple(self.sector.jumps(**sector_params)),
             E=E,
+            E2=E2,
+            context=ctx,
             H0=H0,
             Omega_k=Omega_k,
-            de_params=de_params,
-            Omega_de=Omega_de,
+            sector_params=sector_params,
             densities={
                 "h": h, "omega_b": omega_b, "omega_cb": omega_cb,
                 "omega_gamma": omega_gamma, "omega_nu_massive": omega_nu_massive,
@@ -286,6 +365,8 @@ class Background(Theory):
 
         if want_derived:
 
+            massive = omega_nu_massive / (h * h)
+
             state["derived"] = {
                 "h": h,
                 "Omega_m": Omega_m,
@@ -293,9 +374,9 @@ class Background(Theory):
                 "omega_b": omega_b,
                 "omega_cdm": omega_cb - omega_b,
                 "omega_m": Omega_m * h * h,
-                "Omega_de": Omega_de,
-                "Omega_nu": omega_nu_massive / (h * h),
-                "Omega_r": radiation_today / (h * h),
+                "Omega_de": 1.0 - Omega_k - ctx.rho_std0,
+                "Omega_nu": massive,
+                "Omega_r": ctx.rho_rel0 - massive,
                 "age": self._age(E, h),
             }
 
@@ -310,25 +391,59 @@ class Background(Theory):
         uniform in ``u = ln(1+z)``, interpolated with a cubic Hermite
         spline whose slopes are the exact ``d chi/du = (1+z)/E``.
         Returns ``False`` where ``E^2 <= 0`` -- no expanding solution.
+
+        Where ``E(z)`` jumps (``state["jumps"]``), the grid is split there
+        and each piece integrated on its own, with ``E`` taken from the
+        correct side at the break. ``chi`` itself only kinks; a single
+        grid across the jump would smear it over one cell, an error of
+        order 1e-4 in every distance beyond it.
         """
 
         u_max = math.log1p(zmax)
 
-        n = 2 * int(400 * max(1.0, u_max)) + 1
+        jumps = sorted(z for z in state.get("jumps", ()) if 0.0 < z < zmax)
 
-        u = np.linspace(0.0, u_max, n)
-        z = np.expm1(u)
+        edges = [0.0, *(math.log1p(z) for z in jumps), u_max]
 
-        E = state["E"](z)
+        total = 2 * int(400 * max(1.0, u_max))
 
-        if not np.all(np.isfinite(E)) or np.any(E <= 0.0):
-            return False
+        xs, coefficients = [], []
 
-        slope = (1.0 + z) / E
+        offset = 0.0
 
-        chi = cumulative_simpson(slope, x=u, initial=0.0)
+        for index, (u0, u1) in enumerate(zip(edges[:-1], edges[1:])):
 
-        state["chi_table"] = hermite_spline(u, chi, slope, extrapolate=False)
+            n = 2 * max(8, int(total * (u1 - u0) / u_max / 2)) + 1
+
+            u = np.linspace(u0, u1, n)
+            z = np.expm1(u)
+
+            # The piece above a jump starts just past it -- from the jump
+            # itself, not from expm1(log1p(z)), which can round to a hair
+            # below it and land on the wrong side.
+            if index > 0:
+                z[0] = np.nextafter(jumps[index - 1], np.inf)
+
+            E = state["E"](z)
+
+            if not np.all(np.isfinite(E)) or np.any(E <= 0.0):
+                return False
+
+            slope = (1.0 + z) / E
+
+            chi = offset + cumulative_simpson(slope, x=u, initial=0.0)
+
+            piece = hermite_spline(u, chi, slope)
+
+            coefficients.append(piece.c)
+            xs.append(u if index == 0 else u[1:])
+
+            offset = float(chi[-1])
+
+        state["chi_table"] = PPoly.construct_fast(
+            np.concatenate(coefficients, axis=1), np.concatenate(xs),
+            extrapolate=False,
+        )
         state["table_zmax"] = zmax
 
         return True
@@ -412,14 +527,35 @@ class Background(Theory):
         return np.cbrt(z * self.get_DM(z) ** 2 * self.get_DH(z))
 
     def get_w(self, z):
-        return self.dark_energy.w(z, **self._state()["de_params"])
+        """
+        The dark energy's equation of state -- for sectors that have one
+        (a fluid on top of general relativity). A modified Friedmann
+        equation has no ``w``; its *effective* dark density is
+        :meth:`get_Omega_de_z`.
+        """
+
+        if not hasattr(self.sector, "w"):
+            raise ComponentError(f"{self.sector!r} has no equation of state.")
+
+        return self.sector.w(z, **self._state()["sector_params"])
 
     def get_Omega_de_z(self, z):
-        """``Omega_de rho_de(z)/rho_de(0)``, in units of today's critical density."""
+        """
+        Everything in ``E^2`` beyond the standard fluids and curvature,
+        in units of today's critical density: the dark energy's density,
+        or for a modified Friedmann equation the effective one a GR
+        analysis would attribute its expansion to.
+        """
 
         state = self._state()
+        ctx = state["context"]
 
-        return state["Omega_de"] * self.dark_energy.density(z, **state["de_params"])
+        return state["E2"](z) - ctx.rho_std(z) - ctx.curvature(z)
+
+    def get_background_jumps(self) -> tuple:
+        """Redshifts at which ``E(z)`` is discontinuous."""
+
+        return tuple(self.sector.jumps(**self._state()["sector_params"]))
 
     def get_background_densities(self) -> dict:
         return dict(self._state()["densities"])
