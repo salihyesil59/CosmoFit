@@ -16,6 +16,35 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### LsCDM's growth rate now jumps where its expansion rate does
+
+`E(z)` in LsCDM jumps at `z_dagger`, where the cosmological constant
+changes sign. The growth solver stepped over the jump on its fixed
+grid, and so kept `dD/dN` continuous across it. Continuity of
+`dD/dN` is the wrong matching condition. Rewriting the growth
+equation as
+
+    (1/H) d(H D')/dN + 2 D' - (3/2) Omega_m mu D = 0
+
+shows that the continuous quantity is `H dD/dN`, the velocity
+`d(delta)/dt`, which a finite jump in `H` cannot change in zero
+time. `D` carries across unchanged. `dD/dN`, and with it `f`, is
+multiplied by `H_before / H_after`, which is 0.90 at
+`z_dagger = 1.8`.
+
+Models can now declare discontinuities in `E(z)` through a new
+`Cosmology.background_jumps()` hook. LsCDM declares `z_dagger`. The
+growth solver integrates up to each jump, applies the matching,
+continues, and joins the pieces into one piecewise polynomial whose
+breakpoint is a real discontinuity in `f`. Smooth models report no
+jumps and take the unchanged path, numba included.
+
+The old result overestimated `f D` below the transition: by 1.3% at
+z = 0, 2.1% at 0.5, 3.4% at 1.0 and 5.3% at 1.5. That is the size
+of an RSD error bar, on the very growth data `lscdm_mcmc.ipynb`
+uses. The new solution agrees with an independent `solve_ivp`
+integration to 1e-8. Five tests, all of which failed before.
+
 ### Multi-core runs on Windows, and solver failures counted in workers
 
 **Windows could not use more than one core.** The worker pool

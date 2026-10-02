@@ -391,6 +391,21 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
+    def background_jumps(self) -> tuple[float, ...]:
+        """
+        Redshifts at which this model's ``E(z)`` is discontinuous.
+
+        Empty for every model whose expansion history is smooth,
+        which is all but one here. A model with a genuine jump (the
+        sign-switching ``LsCDM``) names it, so that calculations
+        crossing it can treat it exactly rather than smear it -- see
+        :class:`~cosmology.calculators.growth.GrowthCalculator`.
+        """
+
+        return ()
+
+    # ---------------------------------------------------------
+
     def E(self, z: Redshift) -> Array:
         raise NotImplementedError(
             f"{type(self).__name__} does not define E(z), the "

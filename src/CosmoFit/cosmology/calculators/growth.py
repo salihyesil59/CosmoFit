@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from scipy.interpolate import PPoly
+
 from CosmoFit.cosmology.numerics.hermite import hermite_spline
 from CosmoFit.cosmology.numerics import kernels
 
@@ -169,6 +171,12 @@ class GrowthCalculator:
 
         N_init = np.log(_A_INIT)
 
+        jumps = self._jumps(N_init)
+
+        if jumps:
+            self._solve_across(N_init, jumps)
+            return
+
         n = _N_STEPS
 
         h = -N_init / n
@@ -226,8 +234,117 @@ class GrowthCalculator:
 
     # --------------------------------------------------------
 
+    def _jumps(self, N_init) -> list[float]:
+        """
+        ``N = ln a`` of every jump in ``E(z)`` inside the integration
+        range, in order of integration.
+        """
+
+        jumps = getattr(self.cosmo, "background_jumps", lambda: ())()
+
+        nodes = sorted(
+            -np.log1p(float(z)) for z in jumps
+            if 0.0 < float(z) < 1.0 / _A_INIT - 1.0
+        )
+
+        return [N for N in nodes if N_init < N < 0.0]
+
+    # --------------------------------------------------------
+
+    def _solve_across(self, N_init, jumps) -> None:
+        r"""
+        The same RK4, in pieces, across jumps in ``E(z)``.
+
+        Where ``E`` jumps, ``dlnH/dN`` carries a delta function that no
+        grid can sample: a fixed grid simply steps over it, which keeps
+        ``dD/dN`` continuous. That is the wrong matching condition.
+        Writing the equation as
+
+            (1/H) d(H D')/dN + 2 D' - (3/2) Omega_m mu D = 0
+
+        shows what is continuous across a jump: ``H dD/dN`` -- i.e.
+        ``dδ/dt``. A finite jump in ``H`` cannot change a velocity in
+        zero time. So ``D`` carries straight across, and ``dD/dN``
+        (and with it ``f``) is rescaled by ``H_before / H_after``.
+
+        Each piece is integrated with the same fixed-step RK4 and
+        Hermite-interpolated on its own; the pieces are joined into one
+        piecewise polynomial whose breakpoint at the jump is a genuine
+        discontinuity in ``f``, not a smoothed one.
+        """
+
+        edges = [N_init, *jumps, 0.0]
+
+        total = -N_init
+
+        D_coefficients, P_coefficients, breakpoints = [], [], []
+
+        start = np.array([_A_INIT, _A_INIT])
+
+        # Coefficients just inside each piece, so a piece ending at a
+        # jump sees the value *before* it and the next piece the value
+        # after. `E` itself picks one side exactly at the jump.
+        inset = 1.0e-10
+
+        for i, (N0, N1) in enumerate(zip(edges[:-1], edges[1:])):
+
+            n = max(16, int(round(_N_STEPS * (N1 - N0) / total)))
+
+            h = (N1 - N0) / n
+
+            fine = N0 + 0.5 * h * np.arange(2 * n + 1)
+
+            evaluate = fine.copy()
+
+            if i > 0:
+                evaluate[0] += inset
+
+            if i < len(edges) - 2:
+                evaluate[-1] -= inset
+
+            friction, source = self._coefficients(evaluate)
+
+            f0, s0 = friction[0:-1:2], source[0:-1:2]
+            f1, s1 = friction[1::2], source[1::2]
+            f2, s2 = friction[2::2], source[2::2]
+
+            D, P = self._step_by_prefix_product(
+                f0, s0, f1, s1, f2, s2, h, n, start=start,
+            )
+
+            nodes = fine[::2]
+
+            second = -friction[::2] * P + source[::2] * D
+
+            D_coefficients.append(hermite_spline(nodes, D, P).c)
+            P_coefficients.append(hermite_spline(nodes, P, second).c)
+            breakpoints.append(nodes if i == 0 else nodes[1:])
+
+            if i < len(edges) - 2:
+
+                # Just before (higher z) and at/after the jump.
+                before = float(self.cosmo.E(np.expm1(-(N1 - inset))))
+                after = float(self.cosmo.E(np.expm1(-(N1 + inset))))
+
+
+                start = np.array([D[-1], P[-1] * before / after])
+
+        x = np.concatenate(breakpoints)
+
+        self._D_spline = PPoly.construct_fast(
+            np.concatenate(D_coefficients, axis=1), x,
+        )
+        self._P_spline = PPoly.construct_fast(
+            np.concatenate(P_coefficients, axis=1), x,
+        )
+
+        self._D0 = float(self._D_spline(0.0))
+        self._dirty = False
+
+    # --------------------------------------------------------
+
     @staticmethod
-    def _step_by_prefix_product(f0, s0, f1, s1, f2, s2, h, n):
+    def _step_by_prefix_product(f0, s0, f1, s1, f2, s2, h, n, start=None):
         """
         The same RK4, without a Python loop and without numba.
 
@@ -304,7 +421,8 @@ class GrowthCalculator:
 
             stride *= 2
 
-        start = np.array([_A_INIT, _A_INIT])
+        if start is None:
+            start = np.array([_A_INIT, _A_INIT])
 
         solution = np.empty((n + 1, 2))
 

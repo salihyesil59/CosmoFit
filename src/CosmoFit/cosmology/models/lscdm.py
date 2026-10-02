@@ -106,6 +106,15 @@ class LsCDM(Cosmology):
 
     # ---------------------------------------------------------
 
+    def background_jumps(self) -> tuple[float, ...]:
+        """
+        ``E`` jumps at ``z_dagger``; see the class docstring.
+        """
+
+        return (float(self.z_dagger),)
+
+    # ---------------------------------------------------------
+
     def Omega_de(self, z: Redshift) -> Array:
 
         return self.Omega_de0 * self._sign(z)
