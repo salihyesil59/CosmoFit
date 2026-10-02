@@ -16,6 +16,29 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Multi-core runs on Windows, and solver failures counted in workers
+
+**Windows could not use more than one core.** The worker pool
+requested the `fork` start method explicitly and refused when it was
+missing, so on Windows `n_processes=2` raised. Asking for
+`n_processes > 1` explicitly now falls back to `spawn` there.
+
+`"auto"` still uses `fork` only, and so stays single-process on
+Windows. `spawn` re-imports the main module in every worker, so a
+script needs an `if __name__ == "__main__":` guard around the run (a
+notebook does not). Only someone who asked for workers should meet
+that requirement. The test that a built-in model runs in a pool had
+been failing on every Windows machine for this reason. It passes
+now; CI never saw it because CI runs only on Linux.
+
+**Solver failures in workers were never reported.** Each pool worker
+builds its own `Fitter` and counts Boltzmann-solver failures in its
+own `LogPosterior`, which the parent never sees. A pooled run (which
+means exactly the long CAMB runs where solver failures happen)
+therefore always reported none. Workers now add their failures to a
+shared counter, and the parent folds that into `solver_failures` and
+the end-of-run report.
+
 ### A summary now says when the chain behind it has not converged
 
 `summary()` reported the 16/50/84 percentiles of whatever chain it

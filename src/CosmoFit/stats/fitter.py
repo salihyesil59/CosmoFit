@@ -724,9 +724,8 @@ def usable_cpu_count() -> int:
 
 def _fork_available() -> bool:
     """
-    Whether the 'fork' start method -- the only one this library's
-    worker plumbing supports (see ``Fitter._mcmc_pool``) -- exists
-    on this platform.
+    Whether the 'fork' start method -- the one ``n_processes="auto"``
+    will use (see ``Fitter._mcmc_pool``) -- exists on this platform.
     """
 
     import multiprocessing as mp
@@ -734,14 +733,23 @@ def _fork_available() -> bool:
     return "fork" in mp.get_all_start_methods()
 
 
-def _init_worker(recipe: dict) -> None:
+def _init_worker(recipe: dict, failures=None) -> None:
     """
     Pool ``initializer``: build this worker process's own `Fitter`
     once (stored in a process-global, not returned -- `Pool`
     initializers can't have a return value collected).
+
+    ``failures`` is a shared counter (``multiprocessing.Value``) the
+    worker adds its Boltzmann-solver failures to, so the parent can
+    report them. Each worker counts into its *own* `LogPosterior`,
+    which the parent never sees; without this, a pooled run -- which
+    is to say exactly the long CAMB runs where failures happen --
+    always reported none.
     """
 
-    global _worker_fitter
+    global _worker_fitter, _worker_failures
+
+    _worker_failures = failures
 
     try:
         import threadpoolctl
@@ -761,7 +769,24 @@ def _init_worker(recipe: dict) -> None:
 def _worker_log_prob(theta):
     """Pool worker target: evaluate this worker's own `Fitter`."""
 
-    return _worker_fitter.logpost(theta)
+    logpost = _worker_fitter.logpost
+
+    before = logpost.solver_failures
+
+    value = logpost(theta)
+
+    new = logpost.solver_failures - before
+
+    if new and _worker_failures is not None:
+
+        with _worker_failures.get_lock():
+            _worker_failures.value += new
+
+    return value
+
+
+#: This worker's shared failure counter; see `_init_worker`.
+_worker_failures = None
 
 
 # ============================================================
@@ -1237,8 +1262,12 @@ class Fitter:
             IPC costs something, and the likelihood's dominant cost
             (a covariance mat-vec) is memory-bandwidth-bound, so
             worker processes contend for the same memory bus.
-            Reliable on Linux/macOS; not available on Windows, which
-            has no 'fork' (``"auto"`` falls back to 1 there).
+            ``"auto"`` uses the 'fork' start method, and so stays at 1
+            on Windows, which has none. An explicit ``n_processes > 1``
+            works there too, through 'spawn': each worker then starts
+            a fresh interpreter, so a *script* doing this needs the
+            usual ``if __name__ == "__main__":`` guard around the run
+            (a notebook does not).
 
             Note that the chain itself does *not* depend on this:
             the proposal RNG lives in this process and is seeded from
@@ -1350,6 +1379,8 @@ class Fitter:
                 pool=pool,
                 backend=chain_backend,
             )
+
+        self._collect_worker_failures()
 
         self.sampler = sampler
         self.burnin = self._resolve_burnin(burnin)
@@ -1599,17 +1630,40 @@ class Fitter:
         # remains available as an explicit context on Linux/macOS
         # even where it's no longer the default -- just not on
         # Windows, where it was never available.
-        try:
-            ctx = mp.get_context("fork")
-        except ValueError as exc:
-            raise ValueError(
-                f"n_processes={n_processes} needs the 'fork' "
-                f"multiprocessing start method, which isn't available "
-                f"on this platform (e.g. Windows never has it). Use "
-                f"n_processes=1 here."
-            ) from exc
+        # Where 'fork' does not exist (Windows), an explicit request
+        # falls back to 'spawn' rather than refusing. "auto" never
+        # gets here on such a platform (see `_resolve_n_processes`),
+        # so the one caveat of 'spawn' -- a script needs a
+        # `__main__` guard -- only applies to someone who asked.
+        method = "fork" if _fork_available() else "spawn"
 
-        return ctx.Pool(n_processes, initializer=_init_worker, initargs=(recipe,))
+        ctx = mp.get_context(method)
+
+        self._worker_failures = ctx.Value("i", 0)
+
+        return ctx.Pool(
+            n_processes,
+            initializer=_init_worker,
+            initargs=(recipe, self._worker_failures),
+        )
+
+    # ------------------------------------------------------------
+
+    def _collect_worker_failures(self) -> None:
+        """
+        Fold the solver failures counted in pool workers into this
+        fitter's own count, so `_report_solver_failures` and
+        ``logpost.solver_failures`` include them.
+        """
+
+        counter = getattr(self, "_worker_failures", None)
+
+        if counter is None:
+            return
+
+        self.logpost._solver_failures += int(counter.value)
+
+        self._worker_failures = None
 
     # ------------------------------------------------------------
 

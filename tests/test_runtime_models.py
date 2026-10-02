@@ -189,3 +189,56 @@ def test_a_saved_chain_reloads_when_the_model_is_supplied(route, tmp_path):
         assert reloaded.summary()[name]["median"] == pytest.approx(
             expected[name]["median"], rel=1e-12,
         )
+
+
+# ============================================================
+# Solver failures counted in workers reach the parent
+# ============================================================
+
+def test_worker_solver_failures_reach_the_parent(monkeypatch):
+    """
+    Each pool worker counts Boltzmann failures in its own
+    `LogPosterior`, which the parent never sees -- so a pooled run,
+    exactly the long CAMB run where failures happen, always reported
+    none. The worker now adds them to a shared counter.
+    """
+
+    import multiprocessing as mp
+    import warnings
+
+    from CosmoFit.cosmology.boltzmann import BoltzmannError
+    from CosmoFit.stats import fitter as fitter_module
+
+    worker = Fitter(
+        model=LCDM, datasets=["cc"], free_params=["H0", "Omega_m"],
+        initial=INITIAL,
+    )
+
+    def fail():
+        raise BoltzmannError("solver failed")
+
+    monkeypatch.setattr(worker.joint, "chi2", fail)
+
+    counter = mp.Value("i", 0)
+
+    monkeypatch.setattr(fitter_module, "_worker_fitter", worker, raising=False)
+    monkeypatch.setattr(fitter_module, "_worker_failures", counter)
+
+    with warnings.catch_warnings():
+
+        warnings.simplefilter("ignore")
+
+        for _ in range(3):
+            assert fitter_module._worker_log_prob(worker.theta0) == -np.inf
+
+    assert counter.value == 3
+
+    parent = Fitter(
+        model=LCDM, datasets=["cc"], free_params=["H0", "Omega_m"],
+        initial=INITIAL,
+    )
+
+    parent._worker_failures = counter
+    parent._collect_worker_failures()
+
+    assert parent.logpost.solver_failures == 3
