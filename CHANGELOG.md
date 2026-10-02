@@ -16,6 +16,72 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 2a: one expansion history, with radiation in it
+
+The old models each wrote out `E(z)^2 = Omega_m (1+z)^3 + Omega_k (1+z)^2
++ Omega_de(z)`, with no photons and no neutrinos. The parts of the
+library that could not do without radiation each built their own: the
+CMB distance priors one way, the sound horizon another. That gave
+three expansion histories for one cosmology, agreeing only where
+radiation did not matter.
+
+`CosmoFit.theories.Background` is the one expansion history:
+
+    E(z)^2 = [omega_gamma a^-4 + omega_nu(a) + omega_cb a^-3] / h^2
+             + Omega_k a^-2 + Omega_de f(z)
+
+- **Contents:** photons come from `T_CMB`; the neutrinos carry their
+  exact Fermi-Dirac density; the dark energy is a
+  `theories.dark_energy` component that supplies only `f(z)` and
+  `w(z)`. The w(z) family is there: Lambda, wCDM, CPL, JBP, BA,
+  logarithmic, PEDE and GEDE. `Omega_de` closes the budget,
+  radiation included.
+- **Parameters:** `H0, Omega_m, Omega_b` (as before), or
+  `H0, omega_b, omega_cdm` with `parameterization: physical`.
+- **Derived:** `h`, `Omega_m`, `omega_cdm`, `Omega_de`, `Omega_nu`,
+  `Omega_r` and the age.
+
+`CosmoFit.theories.EarlyUniverse` computes `rdrag`, `zdrag`, `rstar`,
+`zstar` and `thetastar` by integrating the background's own `E(z)`. A
+model that changes the early universe therefore needs no patch: the
+correction added to the old sound horizon earlier in this release is
+simply what happens here.
+
+How they were checked:
+
+- **Radiation off (`radiation: false`):** each of the eight dark
+  energies, flat, open and closed, reproduces the old model classes:
+  `E(z)` exactly, `D_M` and `D_V` to 1e-9.
+- **Radiation on, against CAMB's own background:**
+
+  | Quantity | Agreement |
+  |---|---|
+  | `H(z)` and distances up to z = 1100 | 2e-7 |
+  | `rdrag`, `zdrag` | 2e-5 |
+  | `thetastar` | 1e-5 |
+
+  The age agrees to 1e-6 with CAMB's `H(z)` integrated exactly.
+  CAMB's own reported `age` sits 2e-5 below that integral, which is
+  its integration tolerance; ours matches `quad` and the analytic
+  LCDM age to 1e-12.
+- **The CAMB drag-epoch grid:** `rdrag` is held to the same 1e-4 the
+  old calculator is, across the grid it was calibrated on.
+
+**Fixed in the phase-1 core along the way:** a theory's cache was
+keyed on its own parameters alone. A theory with no parameters of its
+own, one that reads everything from another theory, therefore served
+its first state forever. The early-universe theory found it at once:
+`rdrag` came back up to 40% off across the CAMB grid. The cache key now
+includes the current states of the theories it reads. The phase-1
+test of a theory chain had evaluated one point only. The new test
+moves the upstream theory and checks both the recomputation and the
+reuse.
+
+The z_drag and z_star fits moved out of their classes into the
+functions `z_drag_fit` and `z_star_fit`, which both old and new code
+call. This is unchanged behaviour: the golden chi2 reference still
+holds to 1e-10.
+
 ### The 2.0 core, phase 1: theories, likelihoods and parameters from an input
 
 This is the first piece of the rewrite toward a component-based

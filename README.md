@@ -276,6 +276,7 @@ CosmoFit/
 │   ├── __init__.py    # unified public API: from CosmoFit import ...
 │   ├── core/          # 2.0 core: theories, likelihoods, parameters, priors, YAML inputs
 │   ├── samplers/      # 2.0 samplers: evaluate, minimize
+│   ├── theories/      # 2.0 theories: background (radiation, neutrinos), early universe
 │   ├── cosmology/     # models (LCDM, wCDM, CPL), parameters, distances, background
 │   ├── data/          # dataset loaders + bundled CC/DESI/Pantheon+/Planck data files
 │   ├── likelihoods/   # per-dataset chi2/likelihood classes + joint likelihood

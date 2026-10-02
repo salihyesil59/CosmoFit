@@ -156,7 +156,7 @@ class Model:
         merged = {}
 
         for component in self.components:
-            merged.update(type(component).params)
+            merged.update(component.get_default_params())
 
         merged.update(self.info["params"])
 
@@ -181,6 +181,19 @@ class Model:
 
             for component in takers:
                 self._inputs_of[component.name].append(name)
+
+        for component in self.components:
+
+            missing = [
+                p for p in component.get_required_params()
+                if p not in self._inputs_of[component.name]
+            ]
+
+            if missing:
+                raise ComponentError(
+                    f"{component.name} needs the parameter(s) {missing}; "
+                    f"give each a value or a prior in 'params'."
+                )
 
         if unused:
             raise ComponentError(
@@ -257,6 +270,11 @@ class Model:
                 deps.difference_update(ready)
 
         self.theory_order = order
+
+        #: For each theory, the theories it reads, in a fixed order.
+        self._upstream_of = {
+            name: sorted(depends_on[name]) for name in self.theories
+        }
 
         self.provider = Provider(providers)
 
@@ -337,7 +355,13 @@ class Model:
             inputs = {p: values[p] for p in self._inputs_of[name]}
 
             try:
-                ok = theory.compute(inputs, want_derived)
+                ok = theory.compute(
+                    inputs, want_derived,
+                    upstream=tuple(
+                        self.theories[u].current_key
+                        for u in self._upstream_of[name]
+                    ),
+                )
             except NotImplementedError:
                 raise
             except _REJECTIONS as error:

@@ -255,6 +255,38 @@ def test_theories_are_ordered_by_what_they_require():
     assert result.loglikes["sq"] == pytest.approx(0.0)
 
 
+def test_a_theory_recomputes_when_the_theory_it_reads_changes():
+    """
+    ``Square`` takes no parameters of its own -- it reads ``Line`` -- so
+    a cache keyed on its own inputs alone would serve the first state
+    forever. It must follow ``Line``, and still reuse a state when
+    ``Line`` comes back to a point it has seen.
+    """
+
+    info = toy_info()
+    info["theory"] = {"square": {"class": Square}, "line": {"class": Line}}
+    info["likelihood"]["sq"] = {"class": UsesSquare}
+
+    model = get_model(info)
+
+    square = model.theories["square"]
+
+    model.logposterior({"a": 2.0, "b": 1.0})
+    first = model.provider.get_square()
+
+    model.logposterior({"a": 3.0, "b": 1.0})
+    second = model.provider.get_square()
+
+    assert first == pytest.approx(25.0)
+    assert second == pytest.approx(49.0)
+    assert square.n_calculations == 2
+
+    model.logposterior({"a": 2.0, "b": 1.0})
+
+    assert model.provider.get_square() == pytest.approx(25.0)
+    assert square.n_calculations == 2
+
+
 def test_input_from_yaml():
 
     info = load_info(

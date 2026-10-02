@@ -114,6 +114,15 @@ class Component:
 
         return name in type(self).params
 
+    def get_default_params(self) -> dict:
+        """
+        Default declarations for parameters this component owns,
+        overridden by the input's ``params``. :attr:`params` unless a
+        component's defaults depend on its options.
+        """
+
+        return dict(type(self).params)
+
     def get_requirements(self) -> dict:
         """
         What this component needs from theories:
@@ -121,6 +130,14 @@ class Component:
         """
 
         return {}
+
+    def get_required_params(self) -> list[str]:
+        """
+        Input parameters this component cannot run without. Assembly
+        fails, naming them, if the input does not provide them.
+        """
+
+        return []
 
     def get_derived_params(self) -> list[str]:
         """Names of the derived parameters this component can output."""
@@ -147,6 +164,9 @@ class Theory(Component):
 
         self._cache: OrderedDict = OrderedDict()
         self.current_state: dict | None = None
+
+        #: Cache key of :attr:`current_state`; see :meth:`compute`.
+        self.current_key: tuple | None = None
         self.requested: dict = {}
 
         #: Calls of :meth:`calculate`, as opposed to cache hits.
@@ -181,14 +201,27 @@ class Theory(Component):
 
     # ---------------------------------------------------------
 
-    def compute(self, params: dict, want_derived: bool = True) -> bool:
+    def compute(
+        self,
+        params: dict,
+        want_derived: bool = True,
+        upstream: tuple = (),
+    ) -> bool:
         """
         Make :attr:`current_state` the state at ``params``, from the
         cache if it holds one. Returns ``False`` if :meth:`calculate`
         rejected the point.
+
+        ``upstream`` identifies the current states of the theories this
+        one reads (their :attr:`current_key`). It is part of the cache
+        key: a theory with no parameters of its own -- one that reads
+        everything from another -- must still recompute when what it
+        reads has changed.
         """
 
-        key = tuple(sorted(params.items()))
+        key = (tuple(sorted(params.items())), tuple(upstream))
+
+        self.current_key = key
 
         if key in self._cache:
 
@@ -214,7 +247,7 @@ class Theory(Component):
 
         return stored is not None
 
-    def get_result(self, name: str, **kwargs) -> Any:
+    def get_result(self, name: str, *args, **kwargs) -> Any:
         """
         A computed quantity from the current state. The default looks
         for a ``get_<name>`` method, then for ``state[name]``.
@@ -223,7 +256,7 @@ class Theory(Component):
         method = getattr(self, f"get_{name}", None)
 
         if method is not None:
-            return method(**kwargs)
+            return method(*args, **kwargs)
 
         if self.current_state is None or name not in self.current_state:
             raise KeyError(f"{self.name} has no result {name!r} at this point.")
@@ -241,6 +274,7 @@ class Theory(Component):
 
         self._cache.clear()
         self.current_state = None
+        self.current_key = None
 
 
 class Likelihood(Component):
@@ -272,7 +306,7 @@ class Provider:
 
         self._providers = dict(providers)
 
-    def get_result(self, name: str, **kwargs) -> Any:
+    def get_result(self, name: str, *args, **kwargs) -> Any:
 
         try:
             theory = self._providers[name]
@@ -282,7 +316,7 @@ class Provider:
                 f"listed in get_requirements() can be read."
             ) from None
 
-        return theory.get_result(name, **kwargs)
+        return theory.get_result(name, *args, **kwargs)
 
     def __getattr__(self, attribute: str):
 
@@ -290,12 +324,17 @@ class Provider:
 
             name = attribute[4:]
 
-            def getter(**kwargs):
-                return self.get_result(name, **kwargs)
+            def getter(*args, **kwargs):
+                return self.get_result(name, *args, **kwargs)
 
             return getter
 
         raise AttributeError(attribute)
+
+    def theory_for(self, name: str) -> Theory:
+        """The theory that provides ``name``."""
+
+        return self._providers[name]
 
     @property
     def provides(self) -> dict[str, str]:

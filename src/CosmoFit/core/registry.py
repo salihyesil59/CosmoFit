@@ -30,6 +30,8 @@ KINDS = ("theory", "likelihood", "sampler")
 _BUILTIN = {
     "theory": {
         "legacy_cosmology": "CosmoFit.core.legacy:LegacyCosmology",
+        "background": "CosmoFit.theories.background:Background",
+        "early_universe": "CosmoFit.theories.early:EarlyUniverse",
     },
     "likelihood": {},
     "sampler": {

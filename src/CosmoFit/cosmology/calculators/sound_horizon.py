@@ -375,6 +375,44 @@ _ZDRAG_NEFF_RANGE = (2.0, 5.0)
 _NU_PIVOT = 0.0006449
 
 
+def z_drag_fit(
+    omega_b: float,
+    omega_cb: float,
+    N_eff: float = NEFF_STANDARD,
+    omega_nu: float = _NU_PIVOT,
+) -> float:
+    """
+    The drag-epoch redshift from the CAMB-calibrated fit
+    (:data:`_ZDRAG_COEF`), at the given physical densities.
+
+    ``omega_cb`` is cold matter (baryons plus CDM), ``omega_nu`` the
+    present-day massive-neutrino density. Warns, once per process,
+    outside the calibration range.
+    """
+
+    wb = require_positive(omega_b, "omega_b")
+    wcb = require_positive(omega_cb, "omega_cb")
+
+    warn_outside_calibration("z_drag", {
+        "omega_b h^2": (wb, _ZDRAG_WB_RANGE),
+        "omega_cb h^2": (wcb, _ZDRAG_WCB_RANGE),
+        "N_eff": (float(N_eff), _ZDRAG_NEFF_RANGE),
+    })
+
+    lb = np.log(wb)
+    lm = np.log(wcb)
+    ln = np.log(N_eff / NEFF_STANDARD)
+    nu = omega_nu / _NU_PIVOT
+
+    basis = np.array([
+        1.0, lb, lm, lb ** 2, lm ** 2, lb * lm, lb ** 3, lm ** 3,
+        ln, ln ** 2, ln * lb, ln * lm,
+        nu, nu ** 2, nu * lb, nu * lm,
+    ])
+
+    return float(np.exp(basis @ _ZDRAG_COEF))
+
+
 class SoundHorizon:
     """
     The sound horizon at the drag epoch for a given cosmology.
@@ -654,40 +692,9 @@ class SoundHorizon:
         The :data:`_ZDRAG_COEF` fit, at a given cold-matter density.
         """
 
-        wb = require_positive(self.omega_b, "omega_b")
-        wcb = require_positive(omega_cb, "omega_cb")
-
-        warn_outside_calibration("z_drag", {
-            "omega_b h^2": (wb, _ZDRAG_WB_RANGE),
-            "omega_cb h^2": (wcb, _ZDRAG_WCB_RANGE),
-            "N_eff": (float(self.cosmo.N_eff), _ZDRAG_NEFF_RANGE),
-        })
-
-        lb = np.log(wb)
-        lm = np.log(wcb)
-        ln = np.log(self.cosmo.N_eff / NEFF_STANDARD)
-        nu = self.omega_nu / _NU_PIVOT
-
-        basis = np.array([
-            1.0,
-            lb,
-            lm,
-            lb ** 2,
-            lm ** 2,
-            lb * lm,
-            lb ** 3,
-            lm ** 3,
-            ln,
-            ln ** 2,
-            ln * lb,
-            ln * lm,
-            nu,
-            nu ** 2,
-            nu * lb,
-            nu * lm,
-        ])
-
-        return float(np.exp(basis @ _ZDRAG_COEF))
+        return z_drag_fit(
+            self.omega_b, omega_cb, float(self.cosmo.N_eff), self.omega_nu,
+        )
 
     # ---------------------------------------------------------
 

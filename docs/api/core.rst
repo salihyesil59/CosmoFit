@@ -63,3 +63,17 @@ Samplers
 
 .. automodule:: CosmoFit.samplers.minimize
    :members:
+
+Native theories
+---------------
+
+.. automodule:: CosmoFit.theories
+
+.. automodule:: CosmoFit.theories.background
+   :members:
+
+.. automodule:: CosmoFit.theories.dark_energy
+   :members:
+
+.. automodule:: CosmoFit.theories.early
+   :members:

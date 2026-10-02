@@ -145,6 +145,31 @@ _ZSTAR_WB_RANGE = (0.0195, 0.0250)
 _ZSTAR_WM_RANGE = (0.1056, 0.1757)
 
 
+def z_star_fit(omega_b: float, omega_m: float) -> float:
+    """
+    The photon-decoupling redshift from the CAMB-calibrated fit
+    (:data:`_ZSTAR_COEF`), at physical densities ``omega_b h^2`` and
+    ``omega_m h^2``. Warns, once per process, outside the calibration
+    range.
+    """
+
+    wb = require_positive(omega_b, "omega_b_h2")
+    wm = require_positive(omega_m, "omega_m_h2")
+
+    warn_outside_calibration("z_star", {
+        "omega_b h^2": (wb, _ZSTAR_WB_RANGE),
+        "omega_m h^2": (wm, _ZSTAR_WM_RANGE),
+    })
+
+    lb, lm = np.log(wb), np.log(wm)
+
+    basis = np.array([
+        1.0, lb, lm, lb**2, lm**2, lb * lm, lb**3, lm**3,
+    ])
+
+    return float(np.exp(basis @ _ZSTAR_COEF))
+
+
 class RecombinationCalculator:
     """
     Recombination-epoch quantities for a given cosmology, following
@@ -225,21 +250,7 @@ class RecombinationCalculator:
         which runs ~0.22% high for Planck-like parameters.
         """
 
-        wb = require_positive(self.omega_b_h2, "omega_b_h2")
-        wm = require_positive(self.omega_m_h2, "omega_m_h2")
-
-        warn_outside_calibration("z_star", {
-            "omega_b h^2": (wb, _ZSTAR_WB_RANGE),
-            "omega_m h^2": (wm, _ZSTAR_WM_RANGE),
-        })
-
-        lb, lm = np.log(wb), np.log(wm)
-
-        basis = np.array([
-            1.0, lb, lm, lb**2, lm**2, lb * lm, lb**3, lm**3,
-        ])
-
-        return float(np.exp(basis @ _ZSTAR_COEF))
+        return z_star_fit(self.omega_b_h2, self.omega_m_h2)
 
     def z_star_hs96(self) -> float:
         """
