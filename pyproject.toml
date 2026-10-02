@@ -91,6 +91,8 @@ dependencies = [
     "corner>=2.2",
     "tqdm>=4.66",
     "threadpoolctl>=3.0",
+    # The new core's inputs are YAML (CosmoFit.core.info).
+    "pyyaml>=6.0",
 ]
 
 # ==========================================================

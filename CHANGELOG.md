@@ -16,6 +16,89 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 1: theories, likelihoods and parameters from an input
+
+This is the first piece of the rewrite toward a component-based
+library: theories that compute, likelihoods that compare, samplers
+that explore, all assembled from one input, a dict or a YAML file.
+It lives in `CosmoFit.core` and `CosmoFit.samplers`. `Fitter` is
+untouched and remains the complete interface for now. MCMC, nested
+sampling, chains and plots move over in later phases.
+
+```yaml
+theory:
+  legacy_cosmology: {model: LCDM, compute_rd: true}
+likelihood:
+  desi:
+  omega_b:
+params:
+  H0:      {prior: {min: 50, max: 90}}
+  Omega_m: {prior: {min: 0.1, max: 0.6}}
+  Omega_b: {prior: {dist: norm, loc: 0.049, scale: 0.005}}
+sampler:
+  minimize: {starts: 3}
+```
+
+That input, passed to `CosmoFit.core.run`, gives the familiar
+BAO + BBN result: H0 = 68.5 from DESI DR2.
+
+**What is new, as opposed to moved:**
+
+- **Normalized priors**: uniform, Gaussian (optionally truncated) and
+  log-uniform, each with an inverse CDF for nested sampling. The old
+  path had only a box that returned 0 inside it.
+- **Four parameter roles**: sampled, fixed, *dependent* and
+  *derived*. A dependent parameter is a lambda of other parameters,
+  computed before evaluation. That is how a fit samples `omega_b`
+  (marked `drop: True`) and hands the cosmology the `Omega_b` it
+  expects. A derived parameter is recorded with each point, either
+  from a component's output or as a lambda.
+- **Requirements**: a likelihood says what it needs, and the model
+  finds the one theory that provides it. A theory can require
+  another, and theories are ordered accordingly.
+- **Caching by parameter value**: a theory keeps its recent states
+  keyed on the exact inputs it was computed at. A changed nuisance
+  parameter does not recompute the cosmology, and a result can never
+  come from different parameters than the ones asked for. The old
+  path relied on every caller remembering `refresh()`, and the one
+  that did not (`stats.derived`) was a bug fixed earlier in this
+  release.
+- **Errors at assembly**: everything checkable is checked before a
+  point is evaluated, with a message naming the problem:
+  - a requirement nobody provides;
+  - a requirement two theories both claim;
+  - a cycle between theories;
+  - a parameter no component takes (a typo, usually);
+  - a derived parameter nothing computes.
+- **Counted rejections**: a point that cannot be evaluated is
+  rejected, and the reason is recorded and counted, where the old
+  path turned it into a silent `-inf`.
+- **A registry**: built-in names, `package.module:Class` import
+  paths, and entry points (`cosmofit.theories`,
+  `cosmofit.likelihoods`, `cosmofit.samplers`), so another package
+  can contribute components.
+- **Two samplers**: `evaluate` (one point, every chi2 and derived
+  value) and `minimize`. `minimize` works in coordinates scaled by
+  each parameter's typical width, maximizes the posterior by default
+  (`ignore_prior: true` for the likelihood), and takes several
+  starts.
+
+**Every existing model and dataset already runs on it** through
+`core.legacy`. `legacy_cosmology` wraps a `Cosmology` subclass, and
+any dataset name wraps that dataset's class, along with `Fitter`'s
+dataset-combination warnings.
+
+**`tests/data/golden_chi2.json` is the bar every later phase has to
+clear.** It holds the chi2 of every built-in model on every dataset
+that needs no Boltzmann code: 21 x 17 values at one point, written by
+`tools/make_golden_chi2.py` straight from the original likelihood
+classes, so it depends on neither `Fitter` nor the new core. The core
+reproduces it to 1e-10 and matches `Fitter` to 1e-12 on five
+configurations that cover `compute_rd`, dataset versions and a free
+nuisance parameter.
+
+New dependency: `pyyaml`.
+
 ### DESI defaults to Data Release 2
 
 `"desi"` loaded DR1 (2024) unless asked otherwise, while the app has

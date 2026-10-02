@@ -143,6 +143,7 @@ Subpackages
 .. toctree::
    :maxdepth: 1
 
+   core
    cosmology
    likelihoods
    stats
