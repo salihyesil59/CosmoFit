@@ -180,3 +180,60 @@ def screening_margin(f_R_today, bound=SOLAR_SYSTEM_BOUND):
     deviation = float(np.max(np.abs(np.asarray(f_R_today, dtype=float) - 1.0)))
 
     return deviation, deviation <= bound
+
+
+# ------------------------------------------------------------
+# Fits used outside the range they were calibrated on
+# ------------------------------------------------------------
+
+#: Fitting formulas already warned about in this process, so an MCMC
+#: that spends a thousand steps in a prior tail says it once.
+_EXTRAPOLATION_WARNED: set = set()
+
+
+def warn_outside_calibration(fit: str, values: dict) -> None:
+    """
+    Warn, once per fitting formula per process, when it is evaluated
+    outside the parameter range it was calibrated on.
+
+    Not an error and not a rejection. The default prior bounds are
+    wider than these ranges, and rejecting the points outside would
+    silently truncate the prior -- a bias nothing in the output would
+    show. What the user should know is that the posterior's tails, if
+    they reach there, rest on an extrapolated polynomial.
+
+    Parameters
+    ----------
+    fit : str
+        Name of the fit, for the message and the once-only key.
+    values : dict
+        ``{name: (value, (low, high))}``.
+    """
+
+    import warnings
+
+    outside = {
+        name: (value, bounds) for name, (value, bounds) in values.items()
+        if not bounds[0] <= value <= bounds[1]
+    }
+
+    if not outside or fit in _EXTRAPOLATION_WARNED:
+        return
+
+    _EXTRAPOLATION_WARNED.add(fit)
+
+    detail = ", ".join(
+        f"{name} = {value:.4g} (calibrated on {low:g} to {high:g})"
+        for name, (value, (low, high)) in outside.items()
+    )
+
+    warnings.warn(
+        f"The {fit} fitting formula is being evaluated outside the "
+        f"range it was calibrated against CAMB on: {detail}. It is an "
+        f"extrapolation there, so any part of a posterior that reaches "
+        f"this region is less reliable than the rest. Narrow the prior "
+        f"(Fitter(bounds=...)) if the data do not need it. Warned once "
+        f"per process.",
+        UserWarning,
+        stacklevel=3,
+    )

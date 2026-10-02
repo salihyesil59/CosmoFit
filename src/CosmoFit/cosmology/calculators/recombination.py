@@ -98,7 +98,10 @@ from CosmoFit.cosmology.numerics.quadrature import (
 
 from CosmoFit.cosmology.core.constants import c as SPEED_OF_LIGHT
 from CosmoFit.cosmology.core.constants import Tcmb
-from CosmoFit.cosmology.core.utils import require_positive
+from CosmoFit.cosmology.core.utils import (
+    require_positive,
+    warn_outside_calibration,
+)
 
 
 #: (T_CMB / 2.7 K)^-4, the temperature scaling CHW19 write their
@@ -224,6 +227,11 @@ class RecombinationCalculator:
 
         wb = require_positive(self.omega_b_h2, "omega_b_h2")
         wm = require_positive(self.omega_m_h2, "omega_m_h2")
+
+        warn_outside_calibration("z_star", {
+            "omega_b h^2": (wb, _ZSTAR_WB_RANGE),
+            "omega_m h^2": (wm, _ZSTAR_WM_RANGE),
+        })
 
         lb, lm = np.log(wb), np.log(wm)
 

@@ -16,6 +16,29 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Fits used outside their calibration say so, and so does a blind N_eff
+
+**The `z_star` and `z_drag` fits extrapolated silently.** Both are
+calibrated against CAMB over recorded ranges, and nothing checked
+those ranges:
+
+| Fit | Calibrated on | Default prior reaches |
+|---|---|---|
+| `z_star` | `omega_m h^2` 0.106-0.176 | 0.0125-0.405 |
+| `z_drag` | `N_eff` 2-5 | up to 8 |
+
+They now warn, once per process, when evaluated outside their
+calibration. Out-of-range points are not rejected, because rejection
+would truncate the prior with no trace in the output. The user is
+told instead that those tails rest on an extrapolated polynomial.
+
+**A free `N_eff` with only the compressed CMB.** The compressed Planck
+priors fix the radiation density and `z_star` at the standard `N_eff`
+by construction, exactly as they ignore the neutrino mass. A free
+`N_eff` was therefore constrained by a computed `r_d` alone, with
+nothing in the CMB to push back. `Fitter` already warned about this
+for `m_nu`, and now warns about `N_eff` too.
+
 ### Tension statistics: honest bounds and real degrees of freedom
 
 **`suspiciousness` counted parameters, not constraints.** Its degrees

@@ -164,7 +164,10 @@ from scipy.interpolate import CubicSpline
 
 from CosmoFit.cosmology.core.constants import c as SPEED_OF_LIGHT
 from CosmoFit.cosmology.core.constants import Omega_gamma_h2, Tcmb
-from CosmoFit.cosmology.core.utils import require_positive
+from CosmoFit.cosmology.core.utils import (
+    require_positive,
+    warn_outside_calibration,
+)
 
 
 # ============================================================
@@ -653,6 +656,12 @@ class SoundHorizon:
 
         wb = require_positive(self.omega_b, "omega_b")
         wcb = require_positive(omega_cb, "omega_cb")
+
+        warn_outside_calibration("z_drag", {
+            "omega_b h^2": (wb, _ZDRAG_WB_RANGE),
+            "omega_cb h^2": (wcb, _ZDRAG_WCB_RANGE),
+            "N_eff": (float(self.cosmo.N_eff), _ZDRAG_NEFF_RANGE),
+        })
 
         lb = np.log(wb)
         lm = np.log(wcb)

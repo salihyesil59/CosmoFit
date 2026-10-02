@@ -390,6 +390,47 @@ def _warn_blind_neutrino_mass(names, free_params, compute_rd) -> None:
     )
 
 
+def _warn_blind_neff(names, free_params) -> None:
+    """
+    Warn when ``N_eff`` is free and the only CMB in the fit is the
+    compressed Planck priors.
+
+    The priors are as blind to extra radiation as to neutrino mass
+    (:func:`_warn_blind_neutrino_mass`): CHW19 define ``Omega_r =
+    Omega_m / (1 + z_eq)`` with ``z_eq`` from ``Omega_m h^2`` alone,
+    and their ``z_star`` fit is calibrated at the standard
+    ``N_eff``. Their prediction does not move with it. ``N_eff``
+    then reaches the fit only through a computed ``r_d``, with nothing
+    in the CMB to push back -- the very degeneracy the CMB exists to
+    break.
+    """
+
+    import warnings
+
+    if "N_eff" not in free_params:
+        return
+
+    seen = set(names)
+
+    if "planck" not in seen or seen & _CAMB_CMB_DATASETS:
+        return
+
+    warnings.warn(
+
+        "`N_eff` is a free parameter, and the only CMB in this fit is "
+        "the compressed Planck priors, which cannot respond to it: "
+        "their radiation density and z_star are fixed at the standard "
+        "N_eff by construction. A posterior for `N_eff` here is set by "
+        "whatever else reaches it (a computed r_d), not by the CMB. "
+        "Use 'planck_lite' to let the CMB measure it, or fix `N_eff`.",
+
+        UserWarning,
+
+        stacklevel=3,
+
+    )
+
+
 def _warn_ungrounded_coupling(model, names) -> None:
     """
     Warn when growth data meet a scalar-tensor model whose ``mu``
@@ -1078,6 +1119,8 @@ class Fitter:
         _warn_blind_neutrino_mass(
             self.dataset_names, self.free_params, self.compute_rd,
         )
+
+        _warn_blind_neff(self.dataset_names, self.free_params)
 
         for name in self.dataset_names:
 
