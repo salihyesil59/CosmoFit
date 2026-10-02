@@ -200,11 +200,15 @@ class BAODistanceLikelihood(BaseLikelihood):
 
 
 class DESILikelihood(BAODistanceLikelihood):
+    """
+    DESI BAO. ``version="desi2025"`` (the default) is Data Release 2,
+    13 measurements; ``"desi2024"`` is DR1, 12.
+    """
 
     def __init__(
         self,
         cosmology,
-        version="desi2024",
+        version="desi2025",
     ):
 
         dataset = load_desi(

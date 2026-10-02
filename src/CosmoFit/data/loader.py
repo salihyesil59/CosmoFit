@@ -1585,7 +1585,7 @@ def load_cc(
 # ============================================================
 
 def load_desi(
-    version: str = "desi2024",
+    version: str = "desi2025",
 ) -> DESIDataset:
     """
     Load a DESI BAO dataset.
@@ -1593,7 +1593,8 @@ def load_desi(
     Parameters
     ----------
     version : str, optional
-        Dataset version.
+        Dataset version: ``"desi2025"`` (DR2, the default) or
+        ``"desi2024"`` (DR1).
 
     Returns
     -------

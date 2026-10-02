@@ -16,6 +16,16 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### DESI defaults to Data Release 2
+
+`"desi"` loaded DR1 (2024) unless asked otherwise, while the app has
+defaulted to DR2 (2025) for some time. The same dataset name
+therefore meant different data in the library and in the app. The
+library default is now DR2: 13 measurements, including the DR2
+Lyman-alpha and the QSO tracer as anisotropic `D_M`/`D_H`. DR1
+remains available as `dataset_kwargs={"desi": {"version":
+"desi2024"}}`. Fits that relied on the default change.
+
 ### One AIC/BIC, and a resumed chain that says which version wrote it
 
 **AIC and BIC were written out three times.** The copies were in
