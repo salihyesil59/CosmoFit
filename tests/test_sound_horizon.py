@@ -627,3 +627,38 @@ def test_cached_value_tracks_the_densities():
     model.params.Omega_b *= 1.05
 
     assert abs(model.sound_horizon.rd_computed() - first) > 0.1
+
+
+def test_free_rd_next_to_the_cmb_warns():
+    """
+    BAO with a free rd measure H0*rd only; next to a CMB or BBN
+    constraint on the densities rd is made of, that drops the link
+    those data are there to supply.
+    """
+
+    from CosmoFit import Fitter
+
+    with pytest.warns(UserWarning, match="compute_rd=True"):
+
+        Fitter(
+            model=LCDM, datasets=["desi", "planck"],
+            free_params=["H0", "Omega_m", "rd"],
+            initial={"H0": 67.4, "Omega_m": 0.315},
+        )
+
+
+def test_free_rd_with_bao_alone_is_quiet():
+
+    import warnings
+
+    from CosmoFit import Fitter
+
+    with warnings.catch_warnings():
+
+        warnings.simplefilter("error")
+
+        Fitter(
+            model=LCDM, datasets=["desi", "cc"],
+            free_params=["H0", "Omega_m", "rd"],
+            initial={"H0": 67.4, "Omega_m": 0.315},
+        )

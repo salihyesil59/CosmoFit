@@ -16,6 +16,33 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A free rd next to the CMB, one more overlap, and one list of overlaps
+
+**A free `rd` beside the CMB or BBN now warns.** With `rd` free, BAO
+measures `H0 rd` and nothing more. On its own that is a legitimate
+choice, and an early-universe-agnostic one. Next to `planck`,
+`planck_lite` or `omega_b`, the same fit constrains the densities
+`rd` is computed from, yet lets the BAO ruler float free of them.
+That drops the link those data are there to supply. `Fitter` now
+says so and points to `compute_rd=True`. The message allows that it
+may be deliberate, and the README's quick example is one such case.
+
+**`fsigma8` + `bao_lowz` is a conflict.** Gold-2018's z = 0.15 point
+(0.490 +/- 0.145) is the SDSS DR7 Main Galaxy Sample's growth rate
+(Howlett et al. 2015), measured from the same galaxies as
+`bao_lowz`'s MGS BAO.
+
+**The app had its own copy of the conflict list.** By the time
+anyone compared the two, the copy held 7 of the library's 17 pairs.
+It is now derived from `CONFLICTING_DATASETS`, so the two cannot
+drift apart again.
+
+Two candidate conflicts from the same audit were not added.
+`desi` + `bao_lowz` is unverified, and the README states the low-z
+pair is independent. `planck` + `planck_lowe` does not double-count
+on any shared parameter, because the distance priors do not depend
+on tau.
+
 ### f(Q) and f(T) no longer pair a flat expansion with curved distances
 
 `FQExponential` and `FTPowerLaw` solve Friedmann equations built on

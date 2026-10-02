@@ -80,7 +80,7 @@ except ModuleNotFoundError:
 from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 from CosmoFit.stats.chains import ChainFile, StoredSampler
 from CosmoFit.stats.results import _json_default
-from CosmoFit.stats.fitter import usable_cpu_count
+from CosmoFit.stats.fitter import CONFLICTING_DATASETS, usable_cpu_count
 
 
 # ============================================================
@@ -873,14 +873,15 @@ DATASET_PRESETS = {
 }
 
 #: Dataset pairs that double-count data if combined -- see README.
+#: Dataset pairs that must not be combined, with why. Derived from the
+#: library's own list rather than kept as a copy: a copy here held 7 of
+#: the library's 17 pairs by the time anyone compared them.
 INCOMPATIBLE_PAIRS = [
-    ({"desi", "sdss_bao"}, "DESI and SDSS BAO target much of the same sky; combining them double-counts structure."),
-    ({"pantheon", "des_sn5yr"}, "DES-SN5YR's low-z sample overlaps Pantheon+; combining them double-counts those supernovae."),
-    ({"pantheon", "union3"}, "Union3 and Pantheon+ compile substantially the same supernovae."),
-    ({"des_sn5yr", "union3"}, "Union3's high-z half overlaps the DES sample."),
-    ({"planck", "planck_lite"}, "The distance priors are a compression of exactly these bandpowers -- this is the whole Planck dataset twice."),
-    ({"planck_lensing", "act_lensing"}, "ACT's lensing map overlaps Planck's on the sky, so the two reconstructions are correlated; combining the separate likelihoods overstates the joint constraint."),
-    ({"planck_lowe", "tau"}, "The τ prior is a Gaussian compression of exactly this low-ℓ EE likelihood -- the same measurement twice."),
+    (
+        {first, second},
+        f"{reason} Treating them as independent double-counts that data.",
+    )
+    for (first, second), reason in CONFLICTING_DATASETS.items()
 ]
 
 #: Datasets that are slow enough to be worth warning about before

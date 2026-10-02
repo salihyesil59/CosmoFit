@@ -228,6 +228,11 @@ CONFLICTING_DATASETS = {
         "variant for this; combining the separate likelihoods "
         "overstates the joint constraint.",
 
+    ("fsigma8", "bao_lowz"):
+        "The `fsigma8` compilation's z = 0.15 point is the SDSS DR7 "
+        "Main Galaxy Sample's growth rate (Howlett et al. 2015), "
+        "measured from the same galaxies as `bao_lowz`'s MGS BAO.",
+
     ("planck_lowe", "tau"):
         "The 'tau' Gaussian prior is a compression of exactly this "
         "low-l EE likelihood -- the same measurement twice.",
@@ -382,6 +387,56 @@ def _warn_blind_neutrino_mass(names, free_params, compute_rd) -> None:
         f"A posterior for `m_nu` from this combination is not a "
         f"neutrino-mass measurement. Add 'planck_lite' and "
         f"'planck_lensing', or fix `m_nu`.",
+
+        UserWarning,
+
+        stacklevel=3,
+
+    )
+
+
+#: Datasets whose prediction divides by ``rd``.
+_BAO_DATASETS = {
+    "desi", "sdss_bao", "sdss_fsbao", "bao_lowz",
+    "eboss_elg", "eboss_elg_fs", "eboss_lya",
+}
+
+#: Datasets that pin the physics ``rd`` is computed from.
+_EARLY_UNIVERSE_DATASETS = {"planck", "planck_lite", "omega_b"}
+
+
+def _warn_free_rd_with_early_universe(names, free_params, compute_rd) -> None:
+    """
+    Warn when BAO divides by a free ``rd`` while the same fit constrains
+    the densities ``rd`` is made of.
+
+    With ``rd`` free, BAO measures ``H0 rd`` and nothing more. That is
+    a legitimate, early-universe-agnostic choice on its own. Next to a
+    CMB or BBN constraint it throws away exactly the link those data
+    are there to supply -- the CMB fixes ``omega_b`` and ``omega_cb``,
+    and so ``rd``, and the fit lets ``rd`` float free of them.
+    """
+
+    import warnings
+
+    if compute_rd or "rd" not in free_params:
+        return
+
+    seen = set(names)
+
+    bao = sorted(seen & _BAO_DATASETS)
+    early = sorted(seen & _EARLY_UNIVERSE_DATASETS)
+
+    if not bao or not early:
+        return
+
+    warnings.warn(
+
+        f"`rd` is a free parameter while {early} constrain the "
+        f"densities it is computed from. The BAO in {bao} then measure "
+        f"only H0*rd, and the fit never asks whether that rd is the one "
+        f"the early universe implies. If that is not deliberate, use "
+        f"Fitter(compute_rd=True) and drop 'rd' from free_params.",
 
         UserWarning,
 
@@ -1137,6 +1192,10 @@ class Fitter:
         )
 
         _warn_blind_neff(self.dataset_names, self.free_params)
+
+        _warn_free_rd_with_early_universe(
+            self.dataset_names, self.free_params, self.compute_rd,
+        )
 
         for name in self.dataset_names:
 
