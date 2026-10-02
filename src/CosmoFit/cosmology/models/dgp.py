@@ -104,6 +104,19 @@ class DGP(Cosmology):
 
         one_minus_k = 1.0 - self.Omega_k
 
+        # sqrt(Omega_rc) = (1 - Omega_k - Omega_m) / (2 sqrt(1 - Omega_k))
+        # before squaring. Squaring drops its sign, and for
+        # Omega_m + Omega_k > 1 the root taken is the wrong one: E(0)
+        # then came out Omega_m-ish rather than 1, with no error.
+        if one_minus_k - self.Omega_m <= 0.0:
+
+            raise ValueError(
+                f"DGP: Omega_m + Omega_k = "
+                f"{self.Omega_m + self.Omega_k:.4f} >= 1 has no "
+                f"self-accelerating solution with E(0) = 1 -- "
+                f"sqrt(Omega_rc) would have to be negative."
+            )
+
         return (
 
             (one_minus_k - self.Omega_m) ** 2

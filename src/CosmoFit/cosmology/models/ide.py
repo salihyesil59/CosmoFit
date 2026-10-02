@@ -13,6 +13,23 @@ from CosmoFit.cosmology.numerics.powers import cube
 from CosmoFit.cosmology.core import Cosmology
 
 
+def _expm1_ratio(x):
+    """
+    ``expm1(x) / x``, equal to 1 at ``x = 0`` and accurate near it --
+    where the ratio of two vanishing quantities would otherwise lose
+    every digit.
+    """
+
+    x = np.asarray(x, dtype=float)
+
+    small = np.abs(x) < 1.0e-8
+
+    safe = np.where(small, 1.0, x)
+
+    return np.where(small, 1.0 + 0.5 * x, np.expm1(safe) / safe)
+
+
+
 class IDE(Cosmology):
     r"""
     Interacting Dark Energy: dark matter and dark energy exchange
@@ -109,29 +126,46 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
-    @property
-    def _transfer(self) -> float:
+    def _transfer_term(self, z):
         r"""
-        ``C = -xi Omega_de0 / (w0 + xi)``: the amount of the
-        matter budget that has been swapped into the dark-energy
-        scaling by the interaction.
+        The energy moved into matter by the interaction, in units of
+        today's critical density, and its derivative in ``z``:
+
+            T(z) = C [(1+z)^{3(1+w0+xi)} - (1+z)^3],
+            C = -xi Omega_de0 / (w0 + xi)
+
+        written so that it holds through ``w0 + xi = 0``. There ``C``
+        diverges while the bracket vanishes, and their product tends
+        to ``-3 xi Omega_de0 (1+z)^3 ln(1+z)`` -- energy fed into
+        matter linearly in ``ln(1+z)``, which is what solving the
+        continuity equations at the resonance directly gives. With
+        ``eps = w0 + xi``, ``L = ln(1+z)``, ``x = 3 eps L``:
+
+            T  = -3 xi Omega_de0 (1+z)^3 L g(x),      g(x) = expm1(x)/x
+            T' = -3 xi Omega_de0 (1+z)^2 [3 L g(x) + e^x]
+
+        The closed form used to set ``C = 0`` at the resonance, on the
+        stated grounds that this kept ``E(z)`` continuous. It did the
+        opposite -- the limit is not zero -- and next to the
+        resonance, where ``C`` was finite but huge, it lost digits to
+        cancellation.
         """
 
-        denom = self.w0 + self.xi
+        z = np.asarray(z, dtype=float)
 
-        if np.isclose(denom, 0.0):
+        L = np.log1p(z)
 
-            # At w0 + xi = 0 both components scale as (1+z)^3 and
-            # the particular solution degenerates; the source term
-            # then feeds matter linearly in ln(1+z) rather than as
-            # a second power law. C diverges, but only because the
-            # basis is wrong there -- the physical limit is that
-            # the transfer over any finite interval stays finite.
-            # Returning 0 keeps E(z) continuous through the
-            # resonance instead of overflowing on approach.
-            return 0.0
+        x = 3.0 * (self.w0 + self.xi) * L
 
-        return -self.xi * self.Omega_de0 / denom
+        amplitude = -3.0 * self.xi * self.Omega_de0
+
+        term = amplitude * cube(1.0 + z) * L * _expm1_ratio(x)
+
+        slope = amplitude * (1.0 + z) ** 2 * (
+            3.0 * L * _expm1_ratio(x) + np.exp(x)
+        )
+
+        return term, slope
 
     # ---------------------------------------------------------
 
@@ -139,15 +173,19 @@ class IDE(Cosmology):
 
         z = np.asarray(z, dtype=float)
 
-        C = self._transfer
+        transfer, _ = self._transfer_term(z)
 
         e2 = (
 
-            (self.Omega_m - C) * cube(1.0 + z)
+            self.Omega_m * cube(1.0 + z)
 
             +
 
-            (self.Omega_de0 + C) * (1.0 + z) ** self._exponent
+            transfer
+
+            +
+
+            self.Omega_de0 * (1.0 + z) ** self._exponent
 
             +
 
@@ -160,13 +198,9 @@ class IDE(Cosmology):
             raise ValueError(
 
                 f"IDE: E(z)^2 <= 0 for Omega_m={self.Omega_m:.4f}, "
-
                 f"w0={self.w0:.4f}, xi={self.xi:.4f}. A strong "
-
                 f"coupling can drive the effective matter density "
-
                 f"negative; this parameter region has no expanding "
-
                 f"solution.",
 
             )
@@ -179,17 +213,21 @@ class IDE(Cosmology):
 
         z = np.asarray(z, dtype=float)
 
-        C = self._transfer
+        _, d_transfer = self._transfer_term(z)
 
         p = self._exponent
 
         d_e2 = (
 
-            3.0 * (self.Omega_m - C) * (1.0 + z) ** 2
+            3.0 * self.Omega_m * (1.0 + z) ** 2
 
             +
 
-            p * (self.Omega_de0 + C) * (1.0 + z) ** (p - 1.0)
+            d_transfer
+
+            +
+
+            p * self.Omega_de0 * (1.0 + z) ** (p - 1.0)
 
             +
 
@@ -247,28 +285,17 @@ class IDE(Cosmology):
 
     def Omega_matter(self, z: Redshift) -> Array:
         r"""
-        ``(Omega_m - C)(1+z)^3 + C (1+z)^{3(1+w0+xi)}`` -- the
-        matter density with the interaction's transfer term
-        included.
+        ``Omega_m (1+z)^3 + T(z)`` -- the matter density with the
+        energy the interaction has moved into it (see
+        :meth:`_transfer_term`).
 
-        The second piece is energy that has flowed between the dark
-        components, so it tracks the dark-energy scaling rather
-        than the matter one. It is a real part of the matter
-        budget, not bookkeeping: it is what makes the growth of
-        structure in this model differ from wCDM's at the same
-        ``E(z)``.
+        That transfer is a real part of the matter budget, not
+        bookkeeping: it is what makes the growth of structure in this
+        model differ from wCDM's at the same ``E(z)``.
         """
 
         z = np.asarray(z, dtype=float)
 
-        C = self._transfer
+        transfer, _ = self._transfer_term(z)
 
-        return (
-
-            (self.Omega_m - C) * cube(1.0 + z)
-
-            +
-
-            C * (1.0 + z) ** self._exponent
-
-        )
+        return self.Omega_m * cube(1.0 + z) + transfer

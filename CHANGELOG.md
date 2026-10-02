@@ -16,6 +16,38 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Three closed forms, checked against the equations they solve
+
+**IDE at its resonance.** At `w0 + xi = 0` the closed form's
+`C = -xi Omega_de0 / (w0 + xi)` diverges. The code returned `C = 0`
+there, with a comment saying this kept `E(z)` continuous. It did the
+opposite: the limit is `-3 xi Omega_de0 (1+z)^3 ln(1+z)`, energy fed
+into matter linearly in `ln(1+z)`, so `E` jumped at the resonance.
+Next to it, `C` was finite but enormous, and multiplying it by a
+nearly vanishing bracket lost digits. The transfer term is now
+written through `expm1(x)/x`, which is exact and stable everywhere,
+resonance included.
+
+**Running vacuum with curvature.** With `Lambda = c0 + 3 nu H^2`,
+`H^2` obeys `d(H^2)/dN + 3(1-nu) H^2 = 3 c0 - k/a^2`. Its curvature
+solution is `Omega_k (1+z)^2 / (1 - 3 nu)`, not `Omega_k (1+z)^2`,
+because the vacuum responds to the curvature term in `H^2` like
+everything else in it. Matter also gains a curvature-fed piece,
+`2 nu K (1+z)^2`. `E`, `dEdz`, `Omega_matter`, `Omega_de` and the new
+`matter_exchange` now carry both. The error was of order
+`nu Omega_k`: small, but the closed form claimed to be exact.
+
+**DGP with `Omega_m + Omega_k >= 1`.** `Omega_rc` comes from squaring
+`sqrt(Omega_rc) = (1 - Omega_k - Omega_m) / (2 sqrt(1 - Omega_k))`.
+Squaring dropped the sign, so a closed matter budget produced
+`E(0) != 1` with no error. It now raises: the self-accelerating
+branch does not exist there.
+
+The tests integrate each model's own continuity equations with
+`solve_ivp` and require agreement to 1e-9. That includes the
+resonance itself and points 1e-7 on either side of it. Eight of the
+18 failed before.
+
 ### Distances past z = 5, and docstrings that said the wrong thing
 
 **The distance table stopped at z = 5.** Past it, `chi(z)` came back

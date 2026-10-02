@@ -11,6 +11,23 @@ from CosmoFit.typing import Array, Redshift
 from CosmoFit.cosmology.core import Cosmology
 
 
+def _expm1_ratio(x):
+    """
+    ``expm1(x) / x``, equal to 1 at ``x = 0`` and accurate near it --
+    where the ratio of two vanishing quantities would otherwise lose
+    every digit.
+    """
+
+    x = np.asarray(x, dtype=float)
+
+    small = np.abs(x) < 1.0e-8
+
+    safe = np.where(small, 1.0, x)
+
+    return np.where(small, 1.0 + 0.5 * x, np.expm1(safe) / safe)
+
+
+
 class RunningVacuum(Cosmology):
     r"""
     Running Vacuum Model: a cosmological "constant" that runs with
@@ -81,30 +98,54 @@ class RunningVacuum(Cosmology):
 
     # ---------------------------------------------------------
 
+    @property
+    def _K(self) -> float:
+        r"""
+        The curvature coefficient, ``Omega_k / (1 - 3 nu)``.
+
+        With ``Lambda = c0 + 3 nu H^2`` the Friedmann and continuity
+        equations combine into ``d(H^2)/dN + 3(1-nu) H^2 = 3 c0 - k/a^2``,
+        whose curvature solution is ``-k / ((1 - 3 nu) a^2)``: the
+        running vacuum responds to the curvature term in ``H^2`` as it
+        does to everything else in it. The closed form used to carry
+        plain ``Omega_k (1+z)^2``, an ``O(nu Omega_k)`` error.
+        """
+
+        one_minus_3nu = 1.0 - 3.0 * self.nu
+
+        if self.Omega_k != 0.0 and abs(one_minus_3nu) < 1.0e-8:
+
+            raise ValueError(
+                "RunningVacuum: nu = 1/3 is a resonance of the curved "
+                "solution; it is far outside the model's physical "
+                "range."
+            )
+
+        return self.Omega_k / one_minus_3nu if self.Omega_k else 0.0
+
+    @property
+    def _B(self) -> float:
+        """
+        Amplitude of the ``(1+z)^{3(1-nu)}`` mode, times ``1 - nu``:
+        ``Omega_m - 2 nu K``, so that ``Omega_matter(0) = Omega_m``.
+        """
+
+        return self.Omega_m - 2.0 * self.nu * self._K
+
+    # ---------------------------------------------------------
+
     def _matter_term(self, z):
         r"""
-        ``(Omega_m / (1 - nu)) [(1+z)^{3(1-nu)} - 1]``.
+        ``(B / (1 - nu)) [(1+z)^{3(1-nu)} - 1]``, written through
+        ``expm1`` so it is finite and accurate at ``nu -> 1``, where
+        it tends to ``3 B ln(1+z)``.
         """
 
         z = np.asarray(z, dtype=float)
 
-        nu = self.nu
+        L = np.log1p(z)
 
-        if np.isclose(nu, 1.0):
-
-            # lim_{nu->1} [(1+z)^{3(1-nu)} - 1] / (1 - nu)
-            #   = 3 ln(1+z)
-            return 3.0 * self.Omega_m * np.log1p(z)
-
-        return (
-
-            self.Omega_m / (1.0 - nu)
-
-        ) * (
-
-            (1.0 + z) ** (3.0 * (1.0 - nu)) - 1.0
-
-        )
+        return self._B * 3.0 * L * _expm1_ratio(3.0 * (1.0 - self.nu) * L)
 
     # ---------------------------------------------------------
 
@@ -116,7 +157,7 @@ class RunningVacuum(Cosmology):
 
             1.0
 
-            + self.Omega_k * ((1.0 + z) ** 2 - 1.0)
+            + self._K * ((1.0 + z) ** 2 - 1.0)
 
             + self._matter_term(z)
 
@@ -128,30 +169,15 @@ class RunningVacuum(Cosmology):
 
         z = np.asarray(z, dtype=float)
 
-        nu = self.nu
-
-        if np.isclose(nu, 1.0):
-
-            d_matter = 3.0 * self.Omega_m / (1.0 + z)
-
-        else:
-
-            # The 1/(1-nu) prefactor and the 3(1-nu) exponent
-            # cancel exactly, which is why this is simply
-            # 3 Omega_m (1+z)^{2-3nu}.
-            d_matter = (
-
-                3.0 * self.Omega_m
-
-                * (1.0 + z) ** (2.0 - 3.0 * nu)
-
-            )
+        # The 1/(1-nu) of the matter term and its 3(1-nu) exponent
+        # cancel exactly: 3 B (1+z)^{2-3nu}.
+        d_matter = 3.0 * self._B * (1.0 + z) ** (2.0 - 3.0 * self.nu)
 
         return (
 
             (
 
-                2.0 * self.Omega_k * (1.0 + z)
+                2.0 * self._K * (1.0 + z)
 
                 + d_matter
 
@@ -180,11 +206,7 @@ class RunningVacuum(Cosmology):
 
         z = np.asarray(z, dtype=float)
 
-        matter = self.Omega_m * (1.0 + z) ** (
-
-            3.0 * (1.0 - self.nu)
-
-        )
+        matter = self.Omega_matter(z)
 
         return (
 
@@ -200,30 +222,49 @@ class RunningVacuum(Cosmology):
 
     def matter_exchange(self, z: Redshift) -> Array:
         """
-        ``Q / (H rho_m) = 3 nu``: matter diluting as ``a^{-3(1-nu)}``
-        means ``rho_m' + 3 rho_m = 3 nu rho_m``.
+        ``Q / (H rho_m)``, from ``rho_m' + 3 rho_m = Q / H`` applied to
+        :meth:`Omega_matter`: ``3 nu`` for a flat universe, and
+        ``(3 nu M1 + M2) / (M1 + M2)`` with curvature, ``M1`` and
+        ``M2`` the two terms of the matter density.
         """
 
-        return np.full_like(np.asarray(z, dtype=float), 3.0 * self.nu)
+        z = np.asarray(z, dtype=float)
+
+        m1, m2 = self._matter_parts(z)
+
+        return (3.0 * self.nu * m1 + m2) / (m1 + m2)
+
+    # ---------------------------------------------------------
+
+    def _matter_parts(self, z):
+        """
+        The two pieces of the matter density: the running mode
+        ``B (1+z)^{3(1-nu)}`` and the curvature-fed
+        ``2 nu K (1+z)^2``.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        m1 = self._B * (1.0 + z) ** (3.0 * (1.0 - self.nu))
+
+        m2 = 2.0 * self.nu * self._K * (1.0 + z) ** 2
+
+        return m1, m2
 
     # ---------------------------------------------------------
 
     def Omega_matter(self, z: Redshift) -> Array:
         r"""
-        ``Omega_m (1+z)^{3(1-nu)}`` -- matter dilutes more slowly
-        than in LCDM because the running vacuum is feeding it.
+        ``B (1+z)^{3(1-nu)} + 2 nu K (1+z)^2`` -- matter dilutes more
+        slowly than in LCDM because the running vacuum is feeding it,
+        and with curvature the vacuum's response to the ``k/a^2`` term
+        feeds it too. ``Omega_m (1+z)^{3(1-nu)}`` when flat.
 
         Overriding this is what makes ``nu`` visible to the linear
-        growth equation; without it the growth source term would
-        use LCDM's matter scaling while ``E(z)`` used the RVM one,
-        which is internally inconsistent rather than merely
-        approximate.
+        growth equation; without it the growth source term would use
+        LCDM's matter scaling while ``E(z)`` used the RVM one.
         """
 
-        z = np.asarray(z, dtype=float)
+        m1, m2 = self._matter_parts(z)
 
-        return self.Omega_m * (1.0 + z) ** (
-
-            3.0 * (1.0 - self.nu)
-
-        )
+        return m1 + m2
