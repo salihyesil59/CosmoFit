@@ -98,3 +98,6 @@ Native theories
 
 .. automodule:: CosmoFit.theories.growth
    :members:
+
+.. automodule:: CosmoFit.theories.boltzmann
+   :members:

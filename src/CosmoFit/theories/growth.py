@@ -90,10 +90,15 @@ class Growth(Theory):
     -------
     k : float
         Wavenumber [h/Mpc] for a scale-dependent ``mu``; default 0.1.
+    amplitude : ``"sigma8"`` or ``"boltzmann"``
+        Where today's amplitude comes from: the parameter ``sigma8``
+        (the default), or a Boltzmann code's ``sigma8_0`` -- computed
+        from the primordial amplitude, so a fit with CMB spectra does
+        not carry a second amplitude nothing ties to the first.
 
     Parameters
     ----------
-    ``sigma8``: today's amplitude, which ``D(z)`` scales.
+    ``sigma8``, with the default ``amplitude``.
 
     Provides
     --------
@@ -102,7 +107,8 @@ class Growth(Theory):
 
     Derived parameters
     ------------------
-    ``S8 = sigma8 sqrt(Omega_m / 0.3)``.
+    ``S8 = sigma8 sqrt(Omega_m / 0.3)``, with the default ``amplitude``
+    (with ``boltzmann``, the Boltzmann code derives it).
     """
 
     #: Fixed RK4 steps per unit of ``ln a``. The old calculator's 300
@@ -112,30 +118,56 @@ class Growth(Theory):
 
     def initialize(self) -> None:
 
-        unknown = set(self.info) - {"k"}
+        unknown = set(self.info) - {"k", "amplitude"}
 
         if unknown:
             raise ComponentError(f"{self.name}: unknown option(s) {sorted(unknown)}.")
 
         self.k = float(self.info.get("k", 0.1))
 
+        self.amplitude = self.info.get("amplitude", "sigma8")
+
+        if self.amplitude not in ("sigma8", "boltzmann"):
+            raise ComponentError(
+                f"{self.name}: amplitude must be 'sigma8' or 'boltzmann', "
+                f"not {self.amplitude!r}."
+            )
+
     def accepts(self, name: str) -> bool:
-        return name == "sigma8"
+        return name == "sigma8" and self.amplitude == "sigma8"
 
     def get_default_params(self) -> dict:
         return {}
 
     def get_requirements(self) -> dict:
-        return {"expansion": None, "background_densities": None}
+
+        requirements = {"expansion": None, "background_densities": None}
+
+        if self.amplitude == "boltzmann":
+            requirements["sigma8_0"] = None
+
+        return requirements
 
     def get_required_params(self) -> list[str]:
-        return ["sigma8"]
+        return ["sigma8"] if self.amplitude == "sigma8" else []
 
     def get_can_provide(self) -> list[str]:
         return ["growth_factor", "growth_rate", "sigma8_z", "fsigma8"]
 
     def get_derived_params(self) -> list[str]:
-        return ["S8"]
+        return ["S8"] if self.amplitude == "sigma8" else []
+
+    def check_model(self, model) -> None:
+
+        if self.amplitude == "sigma8" and any(
+            "sigma8_0" in theory.get_can_provide() for theory in model.theories.values()
+        ):
+            raise ComponentError(
+                f"{self.name} takes sigma8 as a parameter, while a Boltzmann "
+                f"code here derives it from the primordial amplitude -- two "
+                f"amplitudes nothing ties together. Give {self.name} "
+                f"'amplitude: boltzmann'."
+            )
 
     # ---------------------------------------------------------
 
@@ -265,9 +297,12 @@ class Growth(Theory):
 
         D0 = float(D_spline(0.0))
 
+        if self.amplitude == "boltzmann":
+            sigma8 = self.provider.get_sigma8_0()
+
         state.update(D_spline=D_spline, P_spline=P_spline, D0=D0, sigma8=float(sigma8))
 
-        if want_derived:
+        if want_derived and self.amplitude == "sigma8":
             state["derived"] = {
                 "S8": float(sigma8) * math.sqrt(densities["Omega_m"] / 0.3),
             }

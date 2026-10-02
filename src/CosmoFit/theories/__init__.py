@@ -15,6 +15,11 @@ Native theories of the 2.0 core.
     rate and ``f sigma8``, on the background's expansion and through the
     dark sector's growth hooks.
 
+``camb``
+    :class:`~theories.boltzmann.CAMB` -- CMB spectra and ``sigma8`` from
+    CAMB, for dark sectors it can represent
+    (:func:`~theories.boltzmann.cmb_support`).
+
 Named in an input's ``theory`` block by these names.
 
 Dark sectors, by family:
@@ -33,6 +38,7 @@ Dark sectors, by family:
 """
 
 from .background import Background, neutrino_density, neutrino_pressure
+from .boltzmann import CAMB, cmb_support
 from .dark_energy import DARK_ENERGY, DarkEnergy, HuSawicki, get_dark_energy
 from .dark_sector import DarkSector, ExpansionContext, GrowthContext
 from .early import EarlyUniverse
@@ -41,6 +47,7 @@ from .sectors import DARK_SECTORS, get_dark_sector
 
 __all__ = [
     "Background",
+    "CAMB",
     "DARK_ENERGY",
     "DARK_SECTORS",
     "DarkEnergy",
@@ -50,6 +57,7 @@ __all__ = [
     "Growth",
     "GrowthContext",
     "HuSawicki",
+    "cmb_support",
     "get_dark_energy",
     "get_dark_sector",
     "neutrino_density",

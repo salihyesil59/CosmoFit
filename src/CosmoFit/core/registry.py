@@ -33,6 +33,7 @@ _BUILTIN = {
         "background": "CosmoFit.theories.background:Background",
         "early_universe": "CosmoFit.theories.early:EarlyUniverse",
         "growth": "CosmoFit.theories.growth:Growth",
+        "camb": "CosmoFit.theories.boltzmann:CAMB",
     },
     "likelihood": {},
     "sampler": {

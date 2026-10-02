@@ -866,9 +866,9 @@ class CAMBBackend:
 
             results = camb.get_results(pars)
 
+            # Not passing `pars` again: that recomputes everything
+            # get_results just did, and doubled the cost of the call.
             powers = results.get_cmb_power_spectra(
-
-                pars,
 
                 CMB_unit="muK",
 

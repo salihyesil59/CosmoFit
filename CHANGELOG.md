@@ -16,6 +16,57 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 2d: CMB spectra from CAMB, on the native background
+
+`CosmoFit.theories.CAMB` (`camb` in an input) provides the lensed CMB
+spectra (`Cl`, as `C_l` or `D_l`, with the lensing potential) and
+`sigma8`. It takes everything from the background theory: the
+densities it solved with, and the dark sector's own `w(z)`, which goes
+to CAMB's PPF module as a table. The old backend converted a neutrino
+mass back into a density with its own 93.14 eV. Here `omega_cdm` is
+`omega_cb - omega_b`, exactly as the background has it.
+
+Which models CAMB accepts is decided from the sector's hooks
+(`cmb_support`). A sector is refused if it:
+
+- changes the gravitational coupling (DGP, f(Q), f(T), f(R,T),
+  Hu-Sawicki);
+- moves energy into matter (IDE, running vacuum);
+- makes `E(z)` jump (LsCDM);
+- has no equation of state to give (Cardassian, holographic).
+
+The refusal names the reason and points to the compressed distance
+priors. These are the same models the old gate refused.
+
+**Growth now has one amplitude.** With `growth: {amplitude:
+boltzmann}`, the growth theory scales by CAMB's `sigma8` of the cold
+matter, which is computed from `ln1e10As`. Taking a free `sigma8`
+alongside CAMB is now an error. The old library only warned that the
+two amplitudes were not tied together. `S8` then comes from CAMB's
+all-matter `sigma8`, the value usually quoted.
+
+How it was checked:
+
+- **Background:** CAMB, given these parameters, solves the native
+  background to 4e-7 in `H(z)` up to `z = 1100`. This holds for
+  Lambda, curved Lambda, CPL across `w = -1`, GEDE and GCG.
+- **Spectra:** they match the old backend to about 1e-5. The residual is
+  the neutrino-density conversion.
+- **Growth:** the native growth theory solves one equation, where
+  CAMB solves the Boltzmann hierarchy. Their `sigma8(z)` for the cold
+  matter agrees to 2e-5 up to `z = 5`, for flat and curved Lambda and
+  for CPL. This is an independent check of the radiation-era initial
+  condition from phase 2c. With 0.06 eV of neutrinos the two differ by
+  1e-4, which is the scale-dependent suppression one equation does not
+  carry.
+
+**Every CAMB call used to run CAMB twice.** The old backend passed its
+parameters to `get_cmb_power_spectra` as well as to `get_results`, and
+that recomputes everything. The problem showed up while timing the new
+theory: half of each call went into the second run. Both backends now
+read the spectra from the results they already have. CMB-spectra fits
+are about twice as fast (LCDM: 0.6 s to 0.3 s per evaluation).
+
 ### The 2.0 core, phase 2c: growth of structure on the native background
 
 `CosmoFit.theories.Growth` solves the linear growth equation on the
