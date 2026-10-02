@@ -16,6 +16,32 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The Fisher matrix says when it cannot be trusted
+
+`fisher()` inverted whatever matrix the finite differences gave it,
+which failed silently in three ways:
+
+- **A step into an undefined region.** If a step took a parameter
+  somewhere the likelihood is undefined (a negative `Omega_m`, say),
+  the infinite chi2 became a NaN entry in the matrix. It now raises,
+  naming the step.
+- **A flat direction.** If a free parameter is one no dataset reads
+  (`rd` without BAO), its row is zero and `np.linalg.inv` raised, or
+  numerical noise turned it into a huge error. If the matrix is not
+  positive definite, it is now reported along its worst direction.
+  `covariance` becomes the pseudo-inverse, any error without a
+  positive variance is NaN, and `positive_definite` says which case
+  applies.
+- **Step dependence.** The steps default to 1e-3 of each prior width,
+  with nothing checking that the answer did not depend on them.
+  `check_steps=True` (the default) recomputes the diagonal at half
+  the steps and warns if any entry moves by more than 10%.
+
+`best_fit()`'s Nelder-Mead rescue had a flat budget of 2000
+evaluations, which ran out on 8-10 parameter fits. It now scales
+with dimension, and if the rescue stops without converging it says
+so. It used to return an unconverged point as the best fit.
+
 ### LsCDM's growth rate now jumps where its expansion rate does
 
 `E(z)` in LsCDM jumps at `z_dagger`, where the cosmological constant

@@ -400,3 +400,62 @@ def test_warm_start_can_be_turned_off():
     signature = inspect.signature(Fitter.profile)
 
     assert signature.parameters["warm_start"].default is True
+
+
+# ============================================================
+# Fisher: refusing what it cannot vouch for
+# ============================================================
+
+def _cc_fit(free):
+
+    return Fitter(
+        model=LCDM, datasets=["cc"], free_params=free,
+        initial={"H0": 68.0, "Omega_m": 0.3, "rd": 147.0},
+    )
+
+
+def test_fisher_is_quiet_on_a_well_posed_problem():
+
+    import warnings
+
+    fit = _cc_fit(["H0", "Omega_m"])
+
+    with warnings.catch_warnings():
+
+        warnings.simplefilter("error")
+
+        result = fit.fisher(theta=[68.0, 0.3])
+
+    assert result["positive_definite"]
+    assert np.all(np.isfinite(result["errors"]))
+
+
+def test_fisher_reports_an_unconstrained_direction():
+    """
+    CC never reads ``rd``, so its row of the Fisher matrix is zero.
+    ``np.linalg.inv`` used to raise on it -- or, with numerical noise,
+    return a huge, meaningless error. It is reported instead.
+    """
+
+    fit = _cc_fit(["H0", "Omega_m", "rd"])
+
+    with pytest.warns(UserWarning, match="not positive definite"):
+
+        result = fit.fisher(theta=[68.0, 0.3, 147.0], check_steps=False)
+
+    assert not result["positive_definite"]
+    assert np.isnan(result["errors"][2])
+
+
+def test_fisher_refuses_a_step_into_an_undefined_region():
+    """
+    A step taking ``Omega_m`` negative makes ``E(z)^2 < 0`` inside the
+    CC redshift range. The infinite chi2 there used to become a NaN
+    entry in the matrix.
+    """
+
+    fit = _cc_fit(["H0", "Omega_m"])
+
+    with pytest.raises(ValueError, match="not finite at a Fisher step"):
+
+        fit.fisher(theta=[68.0, 0.1], steps=[0.5, 0.2])

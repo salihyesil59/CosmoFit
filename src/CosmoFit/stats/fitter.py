@@ -2523,6 +2523,7 @@ class Fitter:
         self,
         steps: Redshift | None = None,
         theta: Redshift | None = None,
+        check_steps: bool = True,
     ) -> dict:
         """
         Fisher matrix: the curvature of ``chi2`` at the best fit,
@@ -2556,13 +2557,26 @@ class Fitter:
         theta : array_like, optional
             Point to expand about. Defaults to the best fit, which
             must therefore have been found.
+        check_steps : bool, optional
+            Recompute the diagonal at half the steps and warn if it
+            moves by more than 10% -- the sign that the steps are
+            either too large for the quadratic approximation or too
+            small for the likelihood's noise. ``2 n`` extra
+            evaluations.
 
         Returns
         -------
         dict
             ``matrix``, its inverse as ``covariance``, ``errors``
-            (the square roots of the diagonal), ``theta`` and
-            ``steps``.
+            (the square roots of the diagonal), ``theta``, ``steps``
+            and ``positive_definite``.
+
+            A matrix that is not positive definite is not the
+            curvature at a minimum -- the point is not the best fit,
+            or a direction is flat. It is reported rather than
+            inverted blindly: a warning names the worst direction,
+            ``covariance`` is the pseudo-inverse, and the error of any
+            parameter it leaves without a positive variance is NaN.
         """
 
         if theta is None:
@@ -2590,7 +2604,28 @@ class Fitter:
 
         n = len(theta)
 
-        chi2 = self.logpost.chi2
+        names = list(self.free_params)
+
+        def chi2(point):
+
+            value = self.logpost.chi2(point)
+
+            if not np.isfinite(value):
+
+                moved = {
+                    names[k]: float(point[k])
+                    for k in range(n) if point[k] != theta[k]
+                }
+
+                raise ValueError(
+                    f"chi2 is not finite at a Fisher step "
+                    f"({moved or 'the expansion point itself'}). The "
+                    f"likelihood is undefined there -- usually a step "
+                    f"that crosses a physical boundary. Pass smaller "
+                    f"`steps=` for the parameters involved."
+                )
+
+            return value
 
         centre = chi2(theta)
 
@@ -2620,15 +2655,86 @@ class Fitter:
                     mixed / (4.0 * steps[i] * steps[j]) / 2.0
                 )
 
-        covariance = np.linalg.inv(matrix)
+        if check_steps:
+
+            half = steps / 2.0
+
+            diagonal = np.empty(n)
+
+            for i in range(n):
+
+                shift = np.zeros(n)
+                shift[i] = half[i]
+
+                diagonal[i] = (
+                    chi2(theta + shift) - 2.0 * centre + chi2(theta - shift)
+                ) / half[i] ** 2 / 2.0
+
+            with np.errstate(divide="ignore", invalid="ignore"):
+                change = np.abs(diagonal / np.diag(matrix) - 1.0)
+
+            unstable = [names[i] for i in range(n) if not change[i] < 0.1]
+
+            if unstable:
+
+                warnings.warn(
+                    f"The Fisher matrix depends on the step size for "
+                    f"{unstable}: halving the steps moved those diagonal "
+                    f"entries by more than 10%. The steps are too large "
+                    f"for the quadratic approximation, or too small for "
+                    f"the likelihood's numerical noise. Set `steps=` by "
+                    f"hand.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+
+        positive_definite = bool(eigenvalues.min() > 0.0)
+
+        if positive_definite:
+
+            covariance = np.linalg.inv(matrix)
+
+            errors = np.sqrt(np.diag(covariance))
+
+        else:
+
+            worst = eigenvectors[:, int(np.argmin(eigenvalues))]
+
+            direction = ", ".join(
+                f"{w:+.2f} {name}" for w, name in zip(worst, names)
+                if abs(w) > 0.1
+            )
+
+            warnings.warn(
+                f"The Fisher matrix is not positive definite (smallest "
+                f"eigenvalue {eigenvalues.min():.3g}, along "
+                f"{direction}). This is not the curvature at a minimum: "
+                f"the expansion point is not the best fit, or that "
+                f"direction is unconstrained. Its inverse would be "
+                f"meaningless; the pseudo-inverse is returned and "
+                f"errors without a positive variance are NaN.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+            covariance = np.linalg.pinv(matrix)
+
+            variances = np.diag(covariance)
+
+            errors = np.where(
+                variances > 0.0, np.sqrt(np.abs(variances)), np.nan,
+            )
 
         return {
             "matrix": matrix,
             "covariance": covariance,
-            "errors": np.sqrt(np.diag(covariance)),
+            "errors": errors,
             "theta": theta,
             "steps": steps,
             "free_params": list(self.free_params),
+            "positive_definite": positive_definite,
         }
 
     # ------------------------------------------------------------
@@ -2949,18 +3055,27 @@ class Fitter:
             bounds=bounds,
 
             options={
-
                 "initial_simplex": simplex,
-
-                "maxfev": 2000,
-
+                # Nelder-Mead's work grows with dimension; a flat 2000
+                # evaluations ran out on 8-10 parameter fits before
+                # the simplex had converged.
+                "maxfev": 400 * (len(x0) + 1),
                 "xatol": 1e-4,
-
                 "fatol": 1e-3,
-
             },
-
         )
+
+        if not second.success:
+
+            warnings.warn(
+                f"The Nelder-Mead rescue stopped without converging "
+                f"({second.message}). The best fit returned is the "
+                f"lowest point either attempt reached, not a "
+                f"verified minimum; check it with `restarts=` or a "
+                f"different `method=`.",
+                UserWarning,
+                stacklevel=3,
+            )
 
         return second if second.fun < first.fun else first
 
