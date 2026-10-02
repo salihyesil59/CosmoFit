@@ -21,7 +21,7 @@ class BA(Cosmology):
 
         w(z) = w0 + wa * z * (1 + z) / (1 + z^2)
 
-    Designed to stay finite (-> w0 - wa as z -> infinity, rather
+    Designed to stay finite (-> w0 + wa as z -> infinity, rather
     than diverging or saturating) at arbitrarily high redshift
     unlike CPL, which several papers cite as a theoretical
     advantage when extrapolating w(z) into the matter/radiation

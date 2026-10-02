@@ -276,16 +276,17 @@ def test_the_distance_table_still_refuses_to_extrapolate():
     """
     ``construct_fast`` defaults to extrapolating, and the distance
     table must not: beyond the redshift it was built for, a
-    silently extrapolated cubic is worse than no answer. NaN is how
-    that is signalled, and `DistanceIntegrator.extend` is how a
-    caller asks for more.
+    silently extrapolated cubic is worse than no answer. The spline
+    itself still says NaN there. What ``chi`` does with a redshift
+    beyond the table is extend the table -- compute, not extrapolate
+    -- see `test_distances_beyond_the_default_table_extend_it`.
     """
 
     model = lcdm()
 
     assert np.isfinite(model.integrator.chi(4.0))
 
-    assert np.isnan(model.integrator.chi(50.0))
+    assert np.isnan(model.integrator._chi(50.0))
 
 
 # ============================================================
@@ -559,3 +560,30 @@ def test_the_log_substituted_integrals_did_not_lose_accuracy():
         assert abs(integral(z) / reference - 1.0) < bound, (
             f"{integral.__name__}: {abs(integral(z) / reference - 1.0):.2e}"
         )
+
+
+def test_distances_beyond_the_default_table_extend_it():
+    """
+    The chi(z) table stopped at z = 5 and returned NaN past it, which
+    every likelihood would have turned into a silent rejection. It
+    now grows to cover the request.
+    """
+
+    from scipy.integrate import quad
+
+    from CosmoFit import LCDM
+
+    model = LCDM(LCDM.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
+
+    z = 8.0
+
+    expected = quad(lambda x: 1.0 / float(model.E(x)), 0.0, z,
+                    epsabs=0, epsrel=1e-12)[0]
+
+    assert float(model.integrator.chi(z)) == pytest.approx(expected, rel=1e-8)
+    assert model.integrator.zmax >= z
+
+    # And the range survives a rebuild, as at every MCMC step.
+    model.refresh()
+
+    assert np.isfinite(float(model.integrator.chi(z)))

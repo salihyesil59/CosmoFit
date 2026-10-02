@@ -76,9 +76,12 @@ def _omega_gamma_h2(T_cmb: float) -> float:
 
 Omega_gamma_h2 = _omega_gamma_h2(Tcmb)
 
-#: Effective number of relativistic neutrino species (Standard
-#: Model prediction, Planck 2018 fiducial value).
-N_eff = 3.046
+#: Effective number of relativistic neutrino species: the Standard
+#: Model value with full neutrino-decoupling corrections (Bennett et
+#: al. 2021), the default of every calculation in this library
+#: (``CosmologyParameters.N_eff``, ``sound_horizon.NEFF_STANDARD``).
+#: It was 3.046 here -- the older value -- while nothing read it.
+N_eff = 3.044
 
 
 # ============================================================

@@ -41,8 +41,10 @@ class FRHuSawicki(LCDM):
 
     **Growth of structure is where this model actually differs from
     LCDM**, and is implemented here via ``mu(a, k)``: the standard
-    chameleon-screened, scale- and time-dependent effective
-    gravitational coupling for designer f(R) (Hu & Sawicki 2007;
+    *linear*, scale- and time-dependent effective gravitational
+    coupling for designer f(R) -- the scalaron's Compton wavelength,
+    not chameleon screening, which is non-linear and is not in it
+    (Hu & Sawicki 2007;
     the general parametrized-``mu`` framework of Pogosian &
     Silvestri 2008, arXiv:0709.0296),
 
@@ -121,7 +123,7 @@ class FRHuSawicki(LCDM):
 
     def mu(self, a: Redshift, k: float | None = None) -> Array:
         """
-        Chameleon-screened effective gravitational coupling
+        Linear (unscreened) effective gravitational coupling
         G_eff(a,k)/G_N -- see the class docstring for the
         derivation.
         """

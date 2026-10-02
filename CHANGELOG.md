@@ -16,6 +16,36 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Distances past z = 5, and docstrings that said the wrong thing
+
+**The distance table stopped at z = 5.** Past it, `chi(z)` came back
+NaN, because the spline does not extrapolate. A likelihood turned
+that into chi2 = NaN, and a sampler then rejected every point without
+a word. No bundled dataset goes beyond z = 2.33, so nothing ever
+showed it, but a quasar or GRB Hubble diagram would. The table now
+extends itself to cover a request and keeps that range on later
+rebuilds. The spline still refuses to extrapolate: the extension is
+computed, not guessed.
+
+**Corrected statements:**
+- f(R) Hu-Sawicki's `mu(a,k)` was called "chameleon-screened" in its
+  docstrings and the README. It is the linear result, set by the
+  scalaron's Compton wavelength. Chameleon screening is non-linear
+  and is not included. The README section on it already said so.
+- BA's `w(z)` tends to `w0 + wa` at high z, not `w0 - wa`.
+- `define_model`'s finite-difference `dEdz` was described as feeding
+  only `q(z)`. It also feeds the distance quadrature and the growth
+  friction.
+- The integrator's module docstring described a trapezoid rule and
+  PCHIP interpolation. The code uses a fourth-order corrected
+  trapezoid and a cubic Hermite spline.
+- `Fitter`'s docstring listed 8 of its datasets. It now points to the
+  registry and to `CONFLICTING_DATASETS`.
+- `sh0es2024` is the SMC-anchor result (Breuval et al. 2024), not a
+  JWST recalibration.
+- `constants.N_eff` was 3.046 while every calculation uses 3.044.
+  Nothing read it. It is now 3.044.
+
 ### Growth in IDE and running vacuum: the exchange dilutes the contrast
 
 In interacting dark energy and running vacuum, matter gains (or

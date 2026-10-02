@@ -237,7 +237,7 @@ class H0Likelihood(GaussianPriorLikelihood):
 
     Versions: ``"sh0es2022"`` (default; Riess et al. 2022,
     73.04 +- 1.04), ``"sh0es2024"`` (Breuval et al. 2024, the
-    JWST/HST Cepheid re-calibration, 73.17 +- 0.86), and
+    Small Magellanic Cloud Cepheids as a new anchor, 73.17 +- 0.86), and
     ``"tdcosmo2025"`` (Birrer et al. 2025, strong-lensing time
     delays, 71.6 +- 3.6 -- independent of the Cepheid ladder
     entirely, and the one to reach for when the question is

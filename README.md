@@ -68,7 +68,8 @@ pip install cosmofit
   * **FRHuSawicki** -- f(R) gravity (Hu-Sawicki); background is identical to LCDM's by
     construction (stated explicitly, see [CHANGELOG.md](CHANGELOG.md) at v0.16.0), but
     growth of structure -- where this model's `f_R0`/`n` parameters actually show up --
-    is now real: a scale- and time-dependent, chameleon-screened `mu(a,k)`
+    is now real: a scale- and time-dependent `mu(a,k)` -- the linear result, with no chameleon
+    screening (which is non-linear)
 
 * Growth of structure: every model (not just the three above) gets a linear growth factor
   D(z), growth rate f(z), and fsigma8(z)/S8 via a generic `mu(a,k)` hook on top of its own

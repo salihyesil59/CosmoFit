@@ -959,13 +959,10 @@ class Fitter:
         CosmoFit.
 
     datasets : list[str]
-        Which likelihoods to combine. Keys of
-        :data:`DATASET_REGISTRY` (currently
-        ``"cc"``, ``"desi"``, ``"sdss_bao"``, ``"pantheon"``,
-        ``"des_sn5yr"``, ``"planck"``, ``"fsigma8"``, ``"s8"``). Do
-        not combine ``"desi"``/``"sdss_bao"`` or
-        ``"pantheon"``/``"des_sn5yr"`` in the same fit -- see the
-        corresponding likelihood classes' docstrings for why.
+        Which likelihoods to combine: keys of
+        :data:`DATASET_REGISTRY`. Pairs that must not be combined
+        (they share data) are listed with their reasons in
+        :data:`CONFLICTING_DATASETS`, and combining one warns.
 
     free_params : list[str]
         Names of the :class:`CosmologyParameters` fields that

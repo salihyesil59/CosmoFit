@@ -102,9 +102,11 @@ def _wrap_mu(func):
 def _numerical_dEdz(self, z, h: float = 1e-4):
     """
     Central-finite-difference fallback for ``dEdz``, used when
-    :func:`define_model` isn't given one explicitly. Only feeds
-    ``background.q()`` (the deceleration-parameter plot); fitting
-    and every other plot only need ``E(z)``.
+    :func:`define_model` isn't given one explicitly. It feeds more
+    than ``background.q()``: the distance table's fourth-order
+    quadrature uses it for the derivative of ``1/E``, and the growth
+    solver for its friction term, so its accuracy reaches every
+    distance and growth prediction.
     """
 
     z = np.asarray(z, dtype=float)

@@ -5,8 +5,10 @@ This module computes the dimensionless comoving distance
 
     χ(z) = ∫ dz / E(z)
 
-using a fast cumulative trapezoidal integration on a dense
-redshift grid followed by a monotonic PCHIP interpolation.
+with a corrected (Euler-Maclaurin) trapezoid rule on a uniform
+redshift grid -- fourth order, using the model's own dE/dz -- and
+interpolates it with a cubic Hermite spline whose slopes are the
+exact 1/E(z).
 
 The integral is evaluated only once for each cosmology,
 making MCMC analyses orders of magnitude faster than
@@ -63,8 +65,9 @@ class DistanceIntegrator:
         χ(z) = ∫ dz / E(z)
 
     is computed only once on a dense redshift grid and
-    subsequently evaluated through a monotonic PCHIP
-    interpolation.
+    subsequently evaluated through a cubic Hermite interpolant.
+    Asked for a redshift beyond the grid, it extends the grid
+    rather than returning NaN.
 
     Parameters
     ----------
@@ -241,6 +244,22 @@ class DistanceIntegrator:
         float or ndarray
 
             χ(z)
+
+        Notes
+        -----
+        A redshift beyond the table's ``zmax`` (5 by default) used to
+        come back NaN -- out of the spline's range -- which a
+        likelihood turned into chi2 = NaN and a sampler into a silent
+        rejection of every point. No bundled dataset reaches past
+        z = 2.33, so nothing showed it; a quasar or GRB Hubble
+        diagram would. The table now grows to cover the request, and
+        keeps that range on every later rebuild.
         """
+
+        top = float(np.max(z)) if np.size(z) else 0.0
+
+        if top > self.zmax:
+
+            self.prepare(1.1 * top)
 
         return self._chi(z)
