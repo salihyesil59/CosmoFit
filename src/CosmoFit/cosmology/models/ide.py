@@ -233,6 +233,18 @@ class IDE(Cosmology):
 
     # ---------------------------------------------------------
 
+    def matter_exchange(self, z: Redshift) -> Array:
+        """
+        ``Q / (H rho_m) = 3 xi rho_de / rho_m``, read off the matter
+        continuity equation in the class docstring.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        return 3.0 * self.xi * self.Omega_de(z) / self.Omega_matter(z)
+
+    # ---------------------------------------------------------
+
     def Omega_matter(self, z: Redshift) -> Array:
         r"""
         ``(Omega_m - C)(1+z)^3 + C (1+z)^{3(1+w0+xi)}`` -- the

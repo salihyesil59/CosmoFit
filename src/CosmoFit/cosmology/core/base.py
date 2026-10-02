@@ -399,6 +399,24 @@ class Cosmology:
 
     # ---------------------------------------------------------
 
+    def matter_exchange(self, z: Redshift) -> Array | None:
+        r"""
+        Rate at which matter gains energy from the dark sector, in
+        units of the expansion rate: ``psi = Q / (H rho_m)``, with
+        ``rho_m' + 3 rho_m = Q / H`` (``' = d/dln a``).
+
+        ``None`` -- no exchange -- for every model whose matter is
+        conserved. A model that overrides :meth:`Omega_matter` because
+        matter is *not* conserved should override this too: the
+        exchange enters the growth equation in two more places than
+        ``Omega_m(a)`` (see
+        :class:`~cosmology.calculators.growth.GrowthCalculator`).
+        """
+
+        return None
+
+    # ---------------------------------------------------------
+
     def background_jumps(self) -> tuple[float, ...]:
         """
         Redshifts at which this model's ``E(z)`` is discontinuous.

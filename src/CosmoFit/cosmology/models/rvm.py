@@ -198,6 +198,16 @@ class RunningVacuum(Cosmology):
 
     # ---------------------------------------------------------
 
+    def matter_exchange(self, z: Redshift) -> Array:
+        """
+        ``Q / (H rho_m) = 3 nu``: matter diluting as ``a^{-3(1-nu)}``
+        means ``rho_m' + 3 rho_m = 3 nu rho_m``.
+        """
+
+        return np.full_like(np.asarray(z, dtype=float), 3.0 * self.nu)
+
+    # ---------------------------------------------------------
+
     def Omega_matter(self, z: Redshift) -> Array:
         r"""
         ``Omega_m (1+z)^{3(1-nu)}`` -- matter dilutes more slowly

@@ -16,6 +16,49 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Growth in IDE and running vacuum: the exchange dilutes the contrast
+
+In interacting dark energy and running vacuum, matter gains (or
+loses) energy from the dark sector. The growth solver saw this only
+through `Omega_m(a)` in its source term, which is exactly how the
+background had already been corrected. Energy deposited
+homogeneously into matter does two more things, both missing:
+
+- **It dilutes the density contrast.** Perturbing
+  `rho_m' + 3 rho_m = Q/H`, with `Q` homogeneous, gives
+  `delta' + psi delta + theta/(aH) = 0`, where `psi = Q/(H rho_m)`.
+- **It changes the friction.** Eliminating `theta` with geodesic
+  matter and Poisson's equation gives
+
+      delta'' + (2 + dlnH/dN + psi) delta'
+        - [3/2 Omega_m mu - psi (2 + dlnH/dN) - psi'] delta = 0
+
+  This is the equation of Gomez-Valent, Sola & Basilakos (2015),
+  written in `N = ln a`.
+
+Models now report `psi` through a `Cosmology.matter_exchange(z)`
+hook:
+
+- `RunningVacuum`: `3 nu`
+- `IDE`: `3 xi rho_de / rho_m`
+
+The solver carries both terms. The test integrates the uncombined
+continuity and Euler system with `solve_ivp`, so it checks the
+algebra rather than repeating it. The two agree to 1e-8.
+
+Effect on `f D` at z = 0:
+
+| Model | Before | After |
+|---|---|---|
+| RVM, `nu = 1e-3` | 0.512 | 0.510 |
+| RVM, `nu = 0.01` | 0.508 | 0.486 |
+| IDE, `xi = 0.02` | 0.504 | 0.380 |
+
+The IDE numbers rest on stated assumptions: the dark energy does not
+cluster on sub-horizon scales, and the energy it hands to matter
+carries no momentum in matter's frame. As noted before, this model
+couples all of `Omega_m`, baryons included.
+
 ### A_planck carries its calibration prior when freed
 
 Planck releases plik_lite with one nuisance constraint, the absolute

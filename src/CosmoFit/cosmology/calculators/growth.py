@@ -136,7 +136,9 @@ class GrowthCalculator:
 
         z = 1.0 / a - 1.0
 
-        friction = 2.0 + self._dlnH_dN(z)
+        dlnH = self._dlnH_dN(z)
+
+        friction = 2.0 + dlnH
 
         source = 1.5 * self.cosmo.background.Omega_m(z) * self.cosmo.mu(
 
@@ -145,6 +147,36 @@ class GrowthCalculator:
             k=self.k,
 
         )
+
+        exchange = getattr(self.cosmo, "matter_exchange", None)
+
+        psi = None if exchange is None else exchange(z)
+
+        if psi is not None:
+
+            # Matter that gains energy from a non-clustering dark
+            # sector. Perturbing rho_m' + 3 rho_m = Q/H with Q
+            # homogeneous gives delta' + psi delta + theta/(aH) = 0;
+            # with geodesic matter and Poisson, eliminating theta:
+            #
+            #   delta'' + (2 + dlnH/dN + psi) delta'
+            #     - [3/2 Omega_m mu - psi (2 + dlnH/dN) - psi'] delta = 0
+            #
+            # (Gomez-Valent, Sola & Basilakos 2015, in N = ln a).
+            # Omega_m(a) alone, which is all this solver used to
+            # carry, leaves out the two psi terms.
+            psi = np.asarray(psi, dtype=float)
+
+            step = 1.0e-4
+
+            dpsi = (
+                np.asarray(exchange(np.exp(-(N + step)) - 1.0), dtype=float)
+                - np.asarray(exchange(np.exp(-(N - step)) - 1.0), dtype=float)
+            ) / (2.0 * step)
+
+            friction = friction + psi
+
+            source = source - psi * (2.0 + dlnH) - dpsi
 
         return friction, source
 
