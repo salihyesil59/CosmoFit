@@ -81,6 +81,7 @@ from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
 from CosmoFit.stats.chains import ChainFile, StoredSampler
 from CosmoFit.stats.results import _json_default
 from CosmoFit.stats.fitter import CONFLICTING_DATASETS, usable_cpu_count
+from CosmoFit.data.metadata import DATASETS, FAMILIES
 
 
 # ============================================================
@@ -492,40 +493,25 @@ MODEL_INFO = {
 
 }
 
-DATASET_LABELS = {
-    "cc": "Cosmic Chronometers (CC)",
-    "desi": "DESI BAO",
-    "sdss_bao": "SDSS BAO (BOSS DR12 + eBOSS DR16)",
-    "bao_lowz": "Low-z BAO (6dFGS + SDSS MGS)",
-    "pantheon": "Pantheon+ (SNe Ia)",
-    "des_sn5yr": "DES-SN5YR (SNe Ia)",
-    "union3": "Union3 (SNe Ia, binned)",
-    "planck": "Planck 2018 CMB (distance priors)",
-    "planck_lite": "Planck 2018 CMB (full TT/TE/EE spectra)",
-    "planck_lensing": "Planck 2018 CMB lensing",
-    "planck_lowe": "Planck 2018 low-ℓ EE (τ, tabulated)",
-    "act_lensing": "ACT DR6 CMB lensing",
-    "fsigma8": "Growth rate fσ₈(z) (RSD)",
-    "s8": "S₈ weak-lensing prior",
-    "h0": "Local H₀ (distance ladder)",
-    "omega_b": "BBN prior on ω_b",
-    "tau": "Reionization τ prior",
-}
+#: Each dataset's descriptive title, from the library's metadata.
+DATASET_LABELS = {key: info.title for key, info in DATASETS.items()}
 
 #: Which probe family each dataset belongs to, for grouping the
 #: sidebar. A fit is usually built by picking *one* from each family
 #: rather than by ticking everything, and the flat checkbox list made
-#: that impossible to see.
+#: that impossible to see. The families and their members are the
+#: library's (:mod:`data.metadata`); only the icons are the GUI's.
+_FAMILY_ICONS = {
+    "expansion": "📏", "bao": "🌀", "sn": "💥",
+    "cmb": "🔥", "growth": "🕸️", "external": "📌",
+}
+
 DATASET_GROUPS = [
-    ("📏 Expansion rate", ["cc"]),
-    ("🌀 BAO (standard ruler)", ["desi", "sdss_bao", "sdss_fsbao", "bao_lowz",
-                                "eboss_elg", "eboss_elg_fs",
-                                "eboss_lya"]),
-    ("💥 Supernovae (standard candle)", ["pantheon", "des_sn5yr", "union3"]),
-    ("🔥 CMB", ["planck", "planck_lite", "planck_lowe",
-                "planck_lensing", "act_lensing"]),
-    ("🕸️ Growth of structure", ["fsigma8", "s8"]),
-    ("📌 External measurements", ["h0", "omega_b", "tau"]),
+    (
+        f"{_FAMILY_ICONS[family]} {title}",
+        [key for key, info in DATASETS.items() if info.family == family],
+    )
+    for family, title in FAMILIES.items()
 ]
 
 #: A short, honest note per dataset: what it measures, over what

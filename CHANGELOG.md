@@ -16,6 +16,47 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 3c: one description of each dataset, and conflicts that follow from it
+
+`CosmoFit.data.metadata` now describes every dataset in one place:
+
+- its legend label and its GUI title;
+- its probe family and its native likelihood;
+- the arXiv identifiers of the measurement;
+- whether it needs CAMB;
+- the samples it is built from.
+
+`Fitter`'s labels, the GUI's titles and sidebar groups, and the native
+likelihood names all read this module.
+
+**Which datasets must not be combined is now derived from the samples
+they share.** Each dataset lists what it measures: the same BOSS/eBOSS
+galaxies, the same patch of sky, the same supernovae, or the same CMB
+measurement in compressed form. Two datasets that share a sample are
+not independent. Previously the 17 pairs were written by hand, and the
+GUI had kept its own copy, which held 7 of them by the time anyone
+compared the two. The derived set is exactly those 17 pairs, and a
+test pins it so that a change has to be made on purpose. A new
+dataset declares its samples and gets its conflicts with no further
+work.
+
+The native likelihoods now give the warnings `Fitter` gives:
+
+- pairs that share a sample, named by their likelihood names;
+- Pantheon+'s Cepheid hosts together with a SH0ES `H0`;
+- the full-posterior `tau` together with `plik_lite`.
+
+**One reason was wrong.** The pair `fsigma8` with the eBOSS ELG full
+shape was justified by "the compilation includes eBOSS growth-rate
+measurements". The compilation's eBOSS point comes from DR14
+*quasars*, not the DR16 ELGs. The two still overlap: they measure
+growth in the same eBOSS volume near z ~ 0.85. The pair stands, and
+its reason now says that.
+
+The GUI used to show the raw keys `sdss_fsbao`, `eboss_elg`,
+`eboss_elg_fs` and `eboss_lya` in the sidebar, because its own titles
+had no entry for them. Those four now have titles.
+
 ### The 2.0 core, phase 3b: the CMB spectra likelihoods
 
 The four likelihoods that need CMB spectra now read them from the

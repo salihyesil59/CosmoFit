@@ -107,3 +107,6 @@ Native likelihoods
 
 .. automodule:: CosmoFit.likelihoods.native
    :members:
+
+.. automodule:: CosmoFit.data.metadata
+   :members: DatasetInfo, conflicts

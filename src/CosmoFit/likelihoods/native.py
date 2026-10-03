@@ -350,6 +350,42 @@ class DatasetLikelihood(Likelihood):
 
         return requirements
 
+    def check_model(self, model) -> None:
+        """
+        How the datasets are combined, once per model (from whichever
+        is listed first): pairs that share a sample
+        (:func:`data.metadata.conflicts`), and the two double counts that
+        depend on options -- Pantheon+'s Cepheids with a SH0ES ``H0``, the
+        full-posterior ``tau`` with ``plik_lite``.
+        """
+
+        datasets = [
+            lk for lk in model.likelihoods.values() if isinstance(lk, DatasetLikelihood)
+        ]
+
+        if datasets[0] is not self:
+            return
+
+        import warnings
+
+        from CosmoFit.data.metadata import conflicts
+        from CosmoFit.stats import fitter
+
+        names = {lk.dataset: lk.name for lk in datasets}
+
+        for (first, second), reason in conflicts(names).items():
+            warnings.warn(
+                f"Likelihoods '{names[first]}' and '{names[second]}' should not "
+                f"be combined: {reason} Treating them as independent "
+                f"double-counts that data, which understates the uncertainties "
+                f"and can bias the result. Use one of the two.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        fitter._warn_calibrated_twice([lk.legacy for lk in datasets])
+        fitter._warn_tau_counted_twice([lk.legacy for lk in datasets])
+
     # ---------------------------------------------------------
 
     def chi2(self) -> float:

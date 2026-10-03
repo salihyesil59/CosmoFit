@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 
     from CosmoFit.stats.nested import NestedResult
 
+from CosmoFit.data import metadata as _metadata
 from CosmoFit.cosmology.core.base import Cosmology
 from CosmoFit.cosmology.core.parameters import CosmologyParameters
 
@@ -147,103 +148,10 @@ DATASET_REGISTRY = {
 #: measurements but the same sky, the same supernovae, or the same
 #: number twice -- so combining them multiplies a likelihood by
 #: (part of) itself, which understates the uncertainty and biases
-#: the result without producing any visible symptom. Each was
-#: previously documented only in the relevant likelihood's
-#: docstring, where nothing checked it. :class:`Fitter` now warns.
-CONFLICTING_DATASETS = {
-
-    ("desi", "sdss_bao"):
-        "DESI covers much of the same sky and the same structure "
-        "BOSS/eBOSS did; they are not independent.",
-
-    ("desi", "sdss_fsbao"):
-        "DESI covers much of the same sky and the same structure "
-        "BOSS/eBOSS did; they are not independent.",
-
-    ("sdss_bao", "sdss_fsbao"):
-        "The same BOSS/eBOSS galaxies analysed two ways -- the BAO "
-        "peak alone, and the full anisotropic shape with the growth "
-        "rate. `sdss_fsbao` contains these BAO measurements.",
-
-    ("sdss_fsbao", "fsigma8"):
-        "The `fsigma8` compilation includes BOSS and eBOSS growth "
-        "measurements, which `sdss_fsbao` measures again -- this "
-        "time jointly with the geometry.",
-
-    # Not a new dataset's problem, but the same double-counting,
-    # and it has been reachable all along: the BAO-only SDSS
-    # dataset and the growth compilation are built from the same
-    # BOSS/eBOSS galaxies, and combining them treats geometry and
-    # growth from one survey as independent measurements. The
-    # released BAO+FS consensus (`sdss_fsbao`) exists precisely so
-    # they need not be.
-    ("sdss_bao", "fsigma8"):
-        "The `fsigma8` compilation includes BOSS and eBOSS growth "
-        "measurements from the same galaxies `sdss_bao`'s BAO "
-        "comes from, and the two are correlated (0.19 to 0.64 within "
-        "a redshift bin in the released covariance). Use "
-        "`sdss_fsbao`, which measures both jointly.",
-
-    ("desi", "eboss_lya"):
-        "DESI's Lyman-alpha forest sample is drawn from much of the "
-        "same sky as eBOSS's and re-observes many of the same "
-        "quasars, so the two BAO measurements at z ~ 2.33 are "
-        "correlated. That this needs saying is not a judgement "
-        "call: DESI and eBOSS publish a *joint* Lyman-alpha "
-        "likelihood precisely because multiplying the separate ones "
-        "is wrong.",
-
-    ("desi", "eboss_elg"):
-        "DESI's emission-line galaxy sample succeeds eBOSS's over "
-        "much of the same footprint.",
-
-    ("desi", "eboss_elg_fs"):
-        "DESI's emission-line galaxy sample succeeds eBOSS's over "
-        "much of the same footprint.",
-
-    ("eboss_elg", "eboss_elg_fs"):
-        "The same eBOSS DR16 galaxies analysed two ways -- an "
-        "isotropic BAO scale, and the full anisotropic shape with "
-        "the growth rate. Use one or the other, not both.",
-
-    ("fsigma8", "eboss_elg_fs"):
-        "The `fsigma8` compilation includes eBOSS growth-rate "
-        "measurements, which this grid's f*sigma8 axis measures "
-        "again.",
-
-
-    ("pantheon", "des_sn5yr"):
-        "DES-SN5YR's low-z anchor sample (~11% of it) is also "
-        "compiled into Pantheon+.",
-
-    ("pantheon", "union3"):
-        "Union3 and Pantheon+ compile substantially the same "
-        "literature supernovae.",
-
-    ("des_sn5yr", "union3"):
-        "Union3's high-redshift half overlaps the DES sample.",
-
-    ("planck_lensing", "act_lensing"):
-        "ACT's lensing map overlaps Planck's on the sky, so the two "
-        "reconstructions are correlated. ACT publish a proper joint "
-        "variant for this; combining the separate likelihoods "
-        "overstates the joint constraint.",
-
-    ("fsigma8", "bao_lowz"):
-        "The `fsigma8` compilation's z = 0.15 point is the SDSS DR7 "
-        "Main Galaxy Sample's growth rate (Howlett et al. 2015), "
-        "measured from the same galaxies as `bao_lowz`'s MGS BAO.",
-
-    ("planck_lowe", "tau"):
-        "The 'tau' Gaussian prior is a compression of exactly this "
-        "low-l EE likelihood -- the same measurement twice.",
-
-    ("planck", "planck_lite"):
-        "The distance priors are a compression of exactly these "
-        "bandpowers -- this is the whole Planck dataset twice, "
-        "once in full and once in summary.",
-
-}
+#: the result without producing any visible symptom. Derived from the
+#: samples each dataset is built from (:mod:`data.metadata`), where a
+#: new dataset declares its own. :class:`Fitter` warns.
+CONFLICTING_DATASETS = dict(_metadata.CONFLICTING_DATASETS)
 
 
 #: How each dataset name should be *written* -- the short form used
@@ -252,29 +160,7 @@ CONFLICTING_DATASETS = {
 #: (``"des_sn5yr"`` -> ``"DES-SN5YR"``). Short on purpose: several of
 #: these are joined together to describe a fit, so this is the
 #: abbreviation, not the GUI's full descriptive label.
-DATASET_LABELS = {
-    "cc": "CC",
-    "desi": "DESI",
-    "sdss_bao": "SDSS",
-    "sdss_fsbao": "SDSS BAO+FS",
-    "eboss_elg": "eBOSS ELG",
-    "eboss_elg_fs": "eBOSS ELG (full shape)",
-    "eboss_lya": r"eBOSS Ly$\alpha$",
-    "bao_lowz": "6dFGS + MGS",
-    "pantheon": "Pantheon+",
-    "des_sn5yr": "DES-SN5YR",
-    "union3": "Union3",
-    "planck": "Planck",
-    "planck_lite": "Planck TTTEEE",
-    "planck_lensing": "Planck lensing",
-    "planck_lowe": "Planck lowE",
-    "act_lensing": "ACT DR6 lensing",
-    "fsigma8": r"$f\sigma_8$",
-    "s8": r"$S_8$",
-    "h0": r"$H_0$",
-    "omega_b": "BBN",
-    "tau": r"$\tau$",
-}
+DATASET_LABELS = {key: info.label for key, info in _metadata.DATASETS.items()}
 
 
 #: Datasets that compute the CMB from scratch, and therefore carry
