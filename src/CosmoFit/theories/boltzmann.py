@@ -97,8 +97,9 @@ class CAMB(Theory):
     Options
     -------
     lmax : int
-        Highest multipole; likelihoods asking for more widen it.
-        Default 2508.
+        Highest multipole; likelihoods asking for more widen it. By
+        default, the most any likelihood asks for -- 30 for low-l EE
+        alone -- or 2508 if none says.
     lens_potential_accuracy : int
         CAMB's lensing accuracy; the largest any likelihood asks for is
         used. Default 1.
@@ -131,7 +132,7 @@ class CAMB(Theory):
         if unknown:
             raise ComponentError(f"{self.name}: unknown option(s) {sorted(unknown)}.")
 
-        self.lmax = int(self.info.get("lmax", 2508))
+        self.lmax = int(self.info.get("lmax", 0))
         self.lens_potential_accuracy = int(self.info.get("lens_potential_accuracy", 1))
 
         try:
@@ -169,6 +170,9 @@ class CAMB(Theory):
                 self.lens_potential_accuracy,
                 int(options.get("lens_potential_accuracy", 0)),
             )
+
+        if self.lmax == 0:
+            self.lmax = 2508
 
     def check_model(self, model) -> None:
 

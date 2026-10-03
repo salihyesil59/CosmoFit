@@ -18,7 +18,13 @@ it there is now that likelihood's own:
 * ``MB`` -- a supernova likelihood that does not marginalize the
   absolute magnitude analytically takes it as a parameter;
 * ``tau_reio`` -- read by the tau prior, shared with the CAMB theory
-  when there is one.
+  when there is one;
+* ``A_planck`` -- Planck's absolute calibration, for the bandpower and
+  low-l EE likelihoods (default 1; ``planck_lite`` carries its Gaussian
+  prior).
+
+The CMB spectra likelihoods read the ``camb`` theory's ``Cl``, each
+asking for the multipoles and lensing accuracy it needs.
 
 Named in an input by family::
 
@@ -154,6 +160,56 @@ class _Params:
             raise AttributeError(name) from None
 
 
+class _Spectra:
+    """
+    What the CMB likelihoods' classes read from the old CAMB backend --
+    ``cls``, ``lensing_spectra``, and the widening ``CAMBBackend.shared``
+    applies -- served from the ``camb`` theory's ``Cl``. The largest
+    ``lmax`` and lensing accuracy a class asks for become its likelihood's
+    requirement.
+    """
+
+    #: Attributes ``CAMBBackend.shared`` resets on widening.
+    _cache_key = None
+    _cache_value = None
+
+    def __init__(self, view):
+
+        self._view = view
+        self.lmax = 0
+        self.lens_potential_accuracy = 1
+
+    def _Cl(self, ell_factor):
+        return self._view._provider.get_Cl(ell_factor=ell_factor)
+
+    def cls(self, lmin: int = 2) -> dict:
+        """Raw ``C_l`` [muK^2] from ``lmin`` to the highest multipole computed."""
+
+        Cl = self._Cl(False)
+
+        return {
+            "ell": Cl["ell"][lmin:],
+            "TT": Cl["tt"][lmin:], "TE": Cl["te"][lmin:], "EE": Cl["ee"][lmin:],
+        }
+
+    def lensing_spectra(self, lmax: int) -> dict:
+        """``D_l`` [muK^2] and ``[L(L+1)]^2 C_L^phiphi / 2 pi``, from ``l = 0``."""
+
+        Dl = self._Cl(True)
+
+        if lmax + 1 > len(Dl["ell"]):
+            raise ComponentError(
+                f"Spectra asked for to l = {lmax}, computed to {len(Dl['ell']) - 1}."
+            )
+
+        stop = lmax + 1
+
+        return {
+            "TT": Dl["tt"][:stop], "EE": Dl["ee"][:stop], "TE": Dl["te"][:stop],
+            "PP": Dl["pp"][:stop],
+        }
+
+
 class ProviderCosmology:
     """
     The part of an old-style cosmology the datasets' classes read, served
@@ -165,6 +221,10 @@ class ProviderCosmology:
 
         self._likelihood = likelihood
         self.params = _Params(likelihood)
+
+        # Where CAMBBackend.shared looks for an existing backend: the old
+        # CMB classes find this one and never build their own.
+        self._camb_backend = _Spectra(self)
 
     @property
     def _provider(self):
@@ -209,6 +269,10 @@ class ProviderCosmology:
     @property
     def MB(self) -> float:
         return self._likelihood.current_params["MB"]
+
+    @property
+    def A_planck(self) -> float:
+        return self._likelihood.current_params["A_planck"]
 
     @property
     def recombination(self):
@@ -437,6 +501,49 @@ class Tau(DatasetLikelihood):
         return ["tau_reio"]
 
 
+# ----------------------------------------------------------- CMB spectra
+
+class _CMBSpectra(DatasetLikelihood):
+
+    def get_requirements(self) -> dict:
+
+        spectra = self.view._camb_backend
+
+        return {"Cl": {
+            "lmax": spectra.lmax,
+            "lens_potential_accuracy": spectra.lens_potential_accuracy,
+        }}
+
+
+class _Calibrated(_CMBSpectra):
+
+    def get_params(self) -> list[str]:
+        return ["A_planck"]
+
+    def get_default_params(self) -> dict:
+        return {"A_planck": 1.0}
+
+
+class PlanckLite(_Calibrated):
+    """Planck 2018 high-l ``plik_lite`` bandpowers (``spectra``, ``use_low_ell``)."""
+    dataset = "planck_lite"
+
+
+class PlanckLowE(_Calibrated):
+    """Planck 2018 low-l EE, tabulated in ``tau``."""
+    dataset = "planck_lowe"
+
+
+class PlanckLensing(_CMBSpectra):
+    """Planck 2018 lensing reconstruction."""
+    dataset = "planck_lensing"
+
+
+class ACTLensing(_CMBSpectra):
+    """ACT DR6 lensing reconstruction."""
+    dataset = "act_lensing"
+
+
 #: Every native likelihood, by the name it is listed under.
 NATIVE_LIKELIHOODS = {
     "bao.desi": DESI,
@@ -453,6 +560,10 @@ NATIVE_LIKELIHOODS = {
     "rsd.fsigma8": FSigma8,
     "lss.s8": S8,
     "cmb.distance_priors": DistancePriors,
+    "cmb.planck_lite": PlanckLite,
+    "cmb.planck_lowe": PlanckLowE,
+    "cmb.planck_lensing": PlanckLensing,
+    "cmb.act_lensing": ACTLensing,
     "external.h0": H0,
     "external.bbn": BBN,
     "external.tau": Tau,

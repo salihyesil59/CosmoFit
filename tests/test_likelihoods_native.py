@@ -79,7 +79,8 @@ def _golden_chi2(model_name, dataset):
     return chi2(result)
 
 
-@pytest.mark.parametrize("dataset", sorted(OLD_TO_NEW))
+# The golden file holds no dataset that needs CAMB.
+@pytest.mark.parametrize("dataset", sorted(GOLDEN["LCDM"]["chi2"]))
 def test_every_model_gives_the_old_chi2(dataset):
     """
     LsCDM is left out of the distance datasets: its old distance table
@@ -316,3 +317,112 @@ def test_unknown_options_name_the_likelihood():
             "likelihood": {"bao.desi": {"versoin": "desi2025"}},
             "params": BASE,
         })
+
+
+# ============================================================
+# CMB spectra
+# ============================================================
+
+def _cmb(likelihood, extra=None, **params):
+
+    pytest.importorskip("camb")
+
+    return evaluate({
+        "theory": {"background": None, "camb": None},
+        "likelihood": likelihood,
+        "params": {**PLANCK, **params, **(extra or {})},
+    })
+
+
+@pytest.mark.parametrize("name, dataset", [
+    ("cmb.planck_lite", "planck_lite"),
+    ("cmb.planck_lowe", "planck_lowe"),
+    ("cmb.planck_lensing", "planck_lensing"),
+    ("cmb.act_lensing", "act_lensing"),
+])
+def test_cmb_spectra_give_the_old_chi2(name, dataset):
+    """
+    Against the old likelihood on the old LCDM. What differs is the
+    massive-neutrino density, converted from m_nu with 93.14 eV in the
+    old backend and integrated exactly in the native background: ~1e-5
+    in the spectra.
+    """
+
+    from CosmoFit.stats.fitter import DATASET_REGISTRY
+
+    _, point = _cmb({name: None})
+
+    if point.rejected is not None:
+        pytest.skip(f"CAMB returned NaN spectra ({point.rejected}), a known CAMB failure")
+
+    cls = CosmoFit.LCDM.PARAMS_CLASS
+    old = DATASET_REGISTRY[dataset](CosmoFit.LCDM(cls(**{**cls.defaults(), **PLANCK})))
+
+    assert chi2(point) == pytest.approx(old.chi2(), abs=0.01)
+
+
+def test_camb_computes_only_the_multipoles_asked_for():
+
+    pytest.importorskip("camb")
+
+    lowe = get_model({
+        "theory": {"background": None, "camb": None},
+        "likelihood": {"cmb.planck_lowe": None},
+        "params": PLANCK,
+    })
+
+    assert lowe.theories["camb"].lmax == 30
+
+    both = get_model({
+        "theory": {"background": None, "camb": None},
+        "likelihood": {"cmb.planck_lite": None, "cmb.planck_lensing": None},
+        "params": PLANCK,
+    })
+
+    assert both.theories["camb"].lmax == 2508
+    assert both.theories["camb"].lens_potential_accuracy == 4
+
+
+def test_A_planck_is_shared_and_carries_its_prior():
+
+    pytest.importorskip("camb")
+
+    m = get_model({
+        "theory": {"background": None, "camb": None},
+        "likelihood": {"cmb.planck_lite": None, "cmb.planck_lowe": None},
+        "params": {**PLANCK, "A_planck": {"prior": {"min": 0.9, "max": 1.1}}},
+    })
+
+    assert m.sampled_params == ["A_planck"]
+
+    from CosmoFit.likelihoods.planck_lite import A_PLANCK_PRIOR
+
+    mean, sigma = A_PLANCK_PRIOR
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        at_one = m.logposterior({"A_planck": 1.0})
+        off = m.logposterior({"A_planck": 1.0 + sigma})
+
+    if at_one.rejected or off.rejected:
+        pytest.skip("CAMB returned NaN spectra, a known CAMB failure")
+
+    lite = m.likelihoods["cmb.planck_lite"]
+
+    # The calibration prior is in planck_lite's chi2, once.
+    assert lite.chi2() - lite.legacy.covariance.chi2(lite.legacy.residuals()) == pytest.approx(
+        ((1.0 + sigma - mean) / sigma) ** 2,
+    )
+
+
+def test_tau_is_shared_with_camb():
+
+    pytest.importorskip("camb")
+
+    m = get_model({
+        "theory": {"background": None, "camb": None},
+        "likelihood": {"cmb.planck_lowe": None, "external.tau": None},
+        "params": {**PLANCK, "tau_reio": {"prior": {"min": 0.01, "max": 0.1}}},
+    })
+
+    assert m.sampled_params == ["tau_reio"]

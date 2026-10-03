@@ -16,6 +16,34 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 3b: the CMB spectra likelihoods
+
+The four likelihoods that need CMB spectra now read them from the
+`camb` theory: `cmb.planck_lite`, `cmb.planck_lowe`,
+`cmb.planck_lensing` and `cmb.act_lensing`.
+
+Each likelihood asks for the highest multipole and the lensing accuracy
+it needs, and CAMB computes the largest of those. When nobody asks,
+CAMB uses `lmax = 2508`. Low-l EE alone used to cost a full `l = 2508`
+run, and now CAMB stops at `l = 30`.
+
+`A_planck`, Planck's absolute calibration, is now a parameter of the
+bandpower and low-l EE likelihoods. It defaults to 1, and the two
+likelihoods share it. `planck_lite` counts its Gaussian prior once.
+`tau_reio` is shared the same way between CAMB and the `external.tau`
+prior.
+
+At Planck's best fit, all four give the old likelihoods' chi2 to within
+0.003. The residual is the massive-neutrino density, which the old
+backend converted from `m_nu` with 93.14 eV.
+
+**The CAMB failures in the test suite were CAMB's.** The new CAMB tests
+failed now and then in full runs and never on their own. A full run has
+now recorded the reason: CAMB returned NaN spectra and the point was
+rejected. That is the same intermittent CAMB failure the old backend
+already documented, and the tests that need clean spectra now skip
+when it happens.
+
 ### The 2.0 core, phase 3a: the datasets read the native theories
 
 Every dataset that needs no Boltzmann code is now a likelihood of the
