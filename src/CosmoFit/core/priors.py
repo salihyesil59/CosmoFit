@@ -74,6 +74,11 @@ class Prior:
     def scale(self) -> float:
         raise NotImplementedError
 
+    def as_dict(self) -> dict:
+        """How an input writes this prior (:func:`make_prior` reads it back)."""
+
+        raise NotImplementedError
+
     def sample(self, rng: np.random.Generator) -> float:
         """One draw, by inverse-CDF sampling."""
 
@@ -130,6 +135,9 @@ class Uniform(Prior):
     def scale(self) -> float:
         # The standard deviation of the uniform distribution.
         return (self.max - self.min) / math.sqrt(12.0)
+
+    def as_dict(self) -> dict:
+        return {"min": self.min, "max": self.max}
 
     def __repr__(self) -> str:
         return f"Uniform(min={self.min:g}, max={self.max:g})"
@@ -209,6 +217,18 @@ class Gaussian(Prior):
     def scale(self) -> float:
         return self.sigma
 
+    def as_dict(self) -> dict:
+
+        out = {"dist": "norm", "loc": self.loc, "scale": self.sigma}
+
+        if math.isfinite(self.min):
+            out["min"] = self.min
+
+        if math.isfinite(self.max):
+            out["max"] = self.max
+
+        return out
+
     def __repr__(self) -> str:
 
         text = f"Gaussian(loc={self.loc:g}, scale={self.sigma:g}"
@@ -262,6 +282,9 @@ class LogUniform(Prior):
         # Half the interval's width in log space, mapped back at the
         # center: the step at which x moves by a "typical" factor.
         return self.center * 0.5 * math.log(self.max / self.min) / math.sqrt(3.0)
+
+    def as_dict(self) -> dict:
+        return {"dist": "loguniform", "min": self.min, "max": self.max}
 
     def __repr__(self) -> str:
         return f"LogUniform(min={self.min:g}, max={self.max:g})"

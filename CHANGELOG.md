@@ -16,6 +16,62 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 4a: an adaptive MCMC, and output getdist reads
+
+`sampler: {mcmc: ...}` is adaptive Metropolis-Hastings. Several chains
+run side by side. Each one is a Gaussian random walk at the optimal
+scaling `(2.4/sqrt(d))^2` times a proposal covariance, which works as
+follows:
+
+- **Start:** the covariance starts from a `covmat` file, or from each
+  parameter's `proposal`, `ref` or prior width.
+- **Learning:** once the chains roughly agree, the covariance is
+  replaced by their pooled covariance.
+- **Stopping:** the run stops when the multivariate Gelman-Rubin
+  `R - 1` falls below `Rminus1_stop`. `R - 1` is the largest eigenvalue
+  of `W^-1 B`, computed on the second half of each chain. A single
+  chain is compared against itself split into four.
+
+On a correlated three-parameter Gaussian, the run stops at `R - 1 <
+0.01` within a few thousand steps per chain. It recovers the mean to
+0.15 sigma and the correlations to 0.1. LCDM on DESI + Pantheon+ + CC,
+with `rd` computed, converges to `R - 1 = 0.02` in under two minutes.
+
+With `output: chains/run`, a run writes:
+
+- `run.input.yaml`, the input as given;
+- `run.updated.yaml`, with every default filled in;
+- `run.1.txt` and the other chains, in getdist's format (weight,
+  `-log posterior`, then the sampled and derived parameters, `-log
+  prior` and each likelihood's chi2);
+- `run.paramnames` and `run.ranges`;
+- the learned `run.covmat`;
+- a `run.progress` log.
+
+A run will not write over existing output unless told to:
+`force: true` starts over, and `resume: true` continues from the chains
+and the covmat. Resuming is refused when the input that wrote the
+output differs from the current one. The stopping rules
+(`Rminus1_stop`, `max_samples`, `max_time`) are the exception and may
+differ.
+
+Each parameter can now be written back as the declaration that reads
+it in: `ParamSpec.declaration()`, and `as_dict()` for each prior.
+
+**CAMB's intermittent NaN spectra came from CAMB, and it is fixed
+upstream.** The full test suite has failed on CMB tests now and then
+for as long as those tests have existed. Tracing the failures pinned
+down what was happening. After one matplotlib figure with text was
+drawn in a process, every lensed CAMB result in that process came back
+NaN, while the unlensed spectra stayed fine. The floating-point control
+state (x87, MXCSR) did not change, so the cause was not there. CAMB
+was reading past the end of an array in its non-linear lensing spline,
+and the result depended on whatever memory lay there. The fix,
+cmbant/CAMB#211, was merged on 2026-09-25 but is not in a CAMB release
+yet. Until the next release, install CAMB from its `main` branch
+(`pip install git+https://github.com/cmbant/CAMB`). With it, the
+figure-then-CAMB reproduction stays finite and the full suite passes.
+
 ### The 2.0 core, phase 3c: one description of each dataset, and conflicts that follow from it
 
 `CosmoFit.data.metadata` now describes every dataset in one place:

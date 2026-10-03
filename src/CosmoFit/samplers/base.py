@@ -22,6 +22,8 @@ class Sampler:
         The model to sample.
     seed : int, optional
         Seeds ``rng``. An ``info["seed"]`` takes precedence.
+    output : core.output.Output, optional
+        Where to write; nothing is written without one.
 
     Notes
     -----
@@ -32,7 +34,9 @@ class Sampler:
     #: Options this sampler takes, with defaults.
     defaults: dict = {}
 
-    def __init__(self, info: dict | None, model, seed: int | None = None):
+    def __init__(self, info: dict | None, model, seed: int | None = None, output=None):
+
+        from CosmoFit.core.output import Output
 
         info = dict(info or {})
 
@@ -48,6 +52,7 @@ class Sampler:
         self.model = model
         self.seed = info.get("seed", seed)
         self.rng = np.random.default_rng(self.seed)
+        self.output = output if output is not None else Output({})
 
         self.initialize()
 

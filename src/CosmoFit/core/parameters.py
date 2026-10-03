@@ -119,6 +119,48 @@ class ParamSpec:
     def label(self) -> str:
         return self.latex or self.name
 
+    def declaration(self) -> dict | float:
+        """
+        This parameter as an input's ``params`` block would declare it --
+        :func:`parse_param` reads it back. A function is given by name.
+        """
+
+        def named(function):
+            return getattr(function, "__name__", repr(function))
+
+        role = self.role
+
+        if role == "fixed" and self.latex is None:
+            return float(self.value)
+
+        out = {}
+
+        if role == "sampled":
+
+            out["prior"] = self.prior.as_dict()
+
+            if isinstance(self.ref, Prior):
+                out["ref"] = self.ref.as_dict()
+            elif self.ref is not None:
+                out["ref"] = float(self.ref)
+
+            if self.proposal is not None:
+                out["proposal"] = float(self.proposal)
+
+            if self.drop:
+                out["drop"] = True
+
+        elif role == "derived":
+            out["derived"] = True if self.derived is True else named(self.derived)
+
+        else:
+            out["value"] = float(self.value) if role == "fixed" else named(self.value)
+
+        if self.latex is not None:
+            out["latex"] = self.latex
+
+        return out
+
 
 def parse_param(name: str, spec: Any) -> ParamSpec:
     """

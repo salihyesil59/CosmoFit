@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from .info import load_info, validate_info
 from .model import Model
+from .output import Output
 from .registry import resolve
 
 
@@ -47,7 +48,7 @@ def run(info, seed: int | None = None):
 
     options = {k: v for k, v in options.items() if k != "class"}
 
-    sampler = sampler_cls(options, model, seed=seed)
+    sampler = sampler_cls(options, model, seed=seed, output=Output(info))
 
     sampler.run()
 

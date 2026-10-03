@@ -788,6 +788,13 @@ class CAMBBackend:
         rather than a transient glitch. The one thing that can be
         done here is to refuse to pass it on.
 
+        The cause turned out to be CAMB's: its non-linear lensing
+        spline read past the end of an array, so the lensed spectra
+        depended on whatever memory lay there -- drawing one matplotlib
+        figure in the process was enough to make them NaN from then on.
+        Fixed in CAMB by cmbant/CAMB#211, after its 2.0.4 release; with
+        a CAMB that has it, this check should never fire.
+
         Raising is not by itself the whole fix -- ``BoltzmannError``
         is a ``RuntimeError``, which the posterior catches and turns
         into a rejection like any other. What keeps that from being

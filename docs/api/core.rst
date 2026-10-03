@@ -43,6 +43,9 @@ Input and registry
 .. automodule:: CosmoFit.core.run
    :members:
 
+.. automodule:: CosmoFit.core.output
+   :members:
+
 The existing models and datasets
 --------------------------------
 
@@ -62,6 +65,9 @@ Samplers
    :members:
 
 .. automodule:: CosmoFit.samplers.minimize
+   :members:
+
+.. automodule:: CosmoFit.samplers.mcmc
    :members:
 
 Native theories
