@@ -56,6 +56,11 @@ class LegacyExpansion(DarkSector):
 
         self.flat_only = bool(getattr(self.model_cls, "FLAT_ONLY", False))
 
+        # ADE fixes Omega_m itself and ignores the one it is given; the
+        # background must then take the model's, or its densities and
+        # its E(z) describe different universes.
+        self.derives_matter = "Omega_m" in getattr(self.model_cls, "DERIVED_PARAMS", ())
+
         self._cache = {}
 
     def _instance(self, **values):
@@ -86,9 +91,17 @@ class LegacyExpansion(DarkSector):
         return E2
 
     def _model(self, ctx, **p):
-        return self._instance(
-            H0=ctx.H0, Omega_m=ctx.Omega_cb, Omega_k=ctx.Omega_k, **p,
-        )
+
+        values = dict(H0=ctx.H0, Omega_k=ctx.Omega_k, **p)
+
+        # A model that derives Omega_m ignores the one it is built with,
+        # but its parameter class still wants one.
+        values["Omega_m"] = 0.3 if self.derives_matter else ctx.Omega_cb
+
+        return self._instance(**values)
+
+    def matter_density(self, make_context, **p):
+        return float(self._model(make_context(1.0), **p).Omega_m)
 
     # The growth hooks are the wrapped model's own.
 

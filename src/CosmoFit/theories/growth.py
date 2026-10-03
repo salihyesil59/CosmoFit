@@ -103,7 +103,8 @@ class Growth(Theory):
     Provides
     --------
     ``growth_factor`` (``D``, normalized to 1 today), ``growth_rate``
-    (``f = dlnD/dlna``), ``sigma8_z`` and ``fsigma8`` -- each ``z=...``.
+    (``f = dlnD/dlna``), ``sigma8_z`` and ``fsigma8`` -- each ``z=...``
+    -- and ``S8``, with the default ``amplitude``.
 
     Derived parameters
     ------------------
@@ -152,7 +153,15 @@ class Growth(Theory):
         return ["sigma8"] if self.amplitude == "sigma8" else []
 
     def get_can_provide(self) -> list[str]:
-        return ["growth_factor", "growth_rate", "sigma8_z", "fsigma8"]
+
+        provides = ["growth_factor", "growth_rate", "sigma8_z", "fsigma8"]
+
+        # S8 is quoted for all matter; with a Boltzmann code here, it
+        # comes from there, and this theory's amplitude is cold matter's.
+        if self.amplitude == "sigma8":
+            provides.append("S8")
+
+        return provides
 
     def get_derived_params(self) -> list[str]:
         return ["S8"] if self.amplitude == "sigma8" else []
@@ -300,12 +309,14 @@ class Growth(Theory):
         if self.amplitude == "boltzmann":
             sigma8 = self.provider.get_sigma8_0()
 
-        state.update(D_spline=D_spline, P_spline=P_spline, D0=D0, sigma8=float(sigma8))
+        S8 = float(sigma8) * math.sqrt(densities["Omega_m"] / 0.3)
+
+        state.update(
+            D_spline=D_spline, P_spline=P_spline, D0=D0, sigma8=float(sigma8), S8=S8,
+        )
 
         if want_derived and self.amplitude == "sigma8":
-            state["derived"] = {
-                "S8": float(sigma8) * math.sqrt(densities["Omega_m"] / 0.3),
-            }
+            state["derived"] = {"S8": S8}
 
         return True
 

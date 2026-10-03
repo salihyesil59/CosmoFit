@@ -16,6 +16,68 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 3a: the datasets read the native theories
+
+Every dataset that needs no Boltzmann code is now a likelihood of the
+new core (`CosmoFit.likelihoods.native`). Each one reads its
+predictions from the theories through the provider. They are listed
+by family:
+
+| Family | Likelihoods |
+|---|---|
+| BAO | `bao.desi`, `bao.sdss`, `bao.sdss_fullshape`, `bao.eboss_elg`, `bao.eboss_elg_fullshape`, `bao.eboss_lya`, `bao.lowz` |
+| Supernovae | `sn.pantheonplus`, `sn.des_sn5yr`, `sn.union3` |
+| Other probes | `cc.chronometers`, `rsd.fsigma8`, `lss.s8`, `cmb.distance_priors` |
+| External measurements | `external.h0`, `external.bbn`, `external.tau` |
+
+The data, covariances and chi2 are the datasets' own classes, unchanged.
+Each class is handed a read-only view of the provider where it used to
+be handed a model, so a likelihood cannot change a theory's state.
+
+Nuisance parameters now belong to the likelihoods that use them, not to
+the cosmology:
+
+- **`rd`:** a BAO likelihood takes the sound horizon from the
+  `early_universe` theory by default. It takes `rd` as a parameter only
+  with `rd: free`. Several BAO likelihoods with a free `rd` share one
+  parameter.
+- **`MB`:** a supernova likelihood takes `MB` only when it does not
+  marginalize it analytically. Pantheon+ with its Cepheid hosts is one
+  such case.
+
+`lss.s8` reads `S8` as a quantity. It comes from the growth theory, or
+from CAMB when the growth amplitude is CAMB's, and in both cases it is
+the `S8` of all matter.
+
+How it was checked: the golden reference holds 21 models and 17
+datasets. With radiation off and each model wrapped by the `legacy`
+sector, the native likelihoods reproduce it to 2e-7 or better. The
+one exception is LsCDM on the three datasets beyond its sign switch,
+where the old distance table smeared the jump and was off by 2e-5 in
+`D_M`. The native table is exact there.
+
+With radiation on, at the same point, LCDM's chi2 moves by at most
+0.08 on the distance datasets and by 0.2 on `f sigma8`. The `f sigma8`
+shift comes from neutrinos no longer counting as clustering matter.
+
+**The distance priors keep their own conventions.** Chen, Huang & Wang
+(2019) compressed Planck with radiation `Omega_m / (1 + z_eq)` and with
+massive neutrinos inside `Omega_m`. That puts `l_A` 0.1% below the
+exact `pi / theta_*`. The native background gives the exact value, and
+at Planck's own best fit that value misses the prior by 2.7 sigma (chi2
+9.4). So `cmb.distance_priors` predicts in CHW19's conventions, as the
+old likelihood did (chi2 0.39 there), and takes only the dark sector's
+evolution from the background.
+
+**Wrapped ADE had two matter densities.** Old-style ADE derives
+`Omega_m` from `n` and ignores the value it is given, but the `legacy`
+sector reported the given value to the background. Its densities and
+`S8` then described a different universe from its `E(z)`. The `legacy`
+sector now derives the matter density whenever the wrapped model does.
+
+The old dataset names (`desi`, `pantheon`, ...) still run the old
+likelihoods on the old models.
+
 ### The 2.0 core, phase 2d: CMB spectra from CAMB, on the native background
 
 `CosmoFit.theories.CAMB` (`camb` in an input) provides the lensed CMB

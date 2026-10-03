@@ -101,3 +101,9 @@ Native theories
 
 .. automodule:: CosmoFit.theories.boltzmann
    :members:
+
+Native likelihoods
+------------------
+
+.. automodule:: CosmoFit.likelihoods.native
+   :members:

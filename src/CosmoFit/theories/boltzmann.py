@@ -115,6 +115,7 @@ class CAMB(Theory):
       likelihood is defined on.
     * ``sigma8_0`` -- ``sigma8`` of the cold matter today, the amplitude
       the growth theory scales when its ``amplitude`` is ``boltzmann``.
+    * ``S8`` -- of all matter, as the derived parameter.
 
     Derived parameters: ``sigma8`` (all matter, as usually quoted),
     ``S8 = sigma8 sqrt(Omega_m/0.3)`` and ``A_s``.
@@ -148,7 +149,7 @@ class CAMB(Theory):
         return {"expansion": None, "background_densities": None}
 
     def get_can_provide(self) -> list[str]:
-        return ["Cl", "sigma8_0"]
+        return ["Cl", "sigma8_0", "S8"]
 
     def get_derived_params(self) -> list[str]:
         return ["sigma8", "S8", "A_s"]
@@ -275,14 +276,15 @@ class CAMB(Theory):
         ):
             return False
 
-        state.update(Cl=Cl, sigma8_0=sigma8_cb)
+        Omega_m = self.provider.get_background_densities()["Omega_m"]
+        S8 = sigma8 * math.sqrt(Omega_m / 0.3)
+
+        state.update(Cl=Cl, sigma8_0=sigma8_cb, S8=S8)
 
         if want_derived:
-            Omega_m = self.provider.get_background_densities()["Omega_m"]
-
             state["derived"] = {
                 "sigma8": sigma8,
-                "S8": sigma8 * math.sqrt(Omega_m / 0.3),
+                "S8": S8,
                 "A_s": math.exp(params["ln1e10As"]) * 1.0e-10,
             }
 
