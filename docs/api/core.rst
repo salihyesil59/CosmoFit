@@ -70,6 +70,18 @@ Samplers
 .. automodule:: CosmoFit.samplers.mcmc
    :members:
 
+.. automodule:: CosmoFit.samplers.profile
+   :members:
+
+.. automodule:: CosmoFit.samplers.fisher
+   :members:
+
+.. automodule:: CosmoFit.samplers.emcee
+   :members:
+
+.. automodule:: CosmoFit.samplers.nested
+   :members:
+
 Native theories
 ---------------
 

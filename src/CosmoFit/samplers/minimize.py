@@ -14,6 +14,9 @@ an initial simplex then mean the same thing for every parameter.
 parameter, the maximum-likelihood point and the MAP differ, and they
 are different questions. ``ignore_prior: true`` asks the
 maximum-likelihood one (the prior's support still bounds the search).
+
+With an ``output`` prefix the best point is written to
+``.minimum.txt``, as one row in the chains' format.
 """
 
 from __future__ import annotations
@@ -61,6 +64,8 @@ class Minimize(Sampler):
 
     def initialize(self) -> None:
 
+        self._set_columns()
+
         parameters = self.model.parameters
 
         self.center = parameters.centers()
@@ -74,16 +79,37 @@ class Minimize(Sampler):
         if self.starts < 1:
             raise ValueError("starts must be at least 1.")
 
+        #: Sampled parameters held at a value, ``{index: value}``; the
+        #: search runs over the others. Empty here; a profile fills it.
+        self.fixed: dict[int, float] = {}
+
         self.runs = []
         self.best = None
 
     # ---------------------------------------------------------
 
+    @property
+    def _free(self) -> list[int]:
+        return [i for i in range(self.d) if i not in self.fixed]
+
     def _to_theta(self, x):
-        return self.center + self.scale * np.asarray(x, dtype=float)
+
+        theta = self.center.copy()
+
+        free = self._free
+
+        theta[free] = self.center[free] + self.scale[free] * np.asarray(x, dtype=float)
+
+        for index, value in self.fixed.items():
+            theta[index] = value
+
+        return theta
 
     def _to_x(self, theta):
-        return (np.asarray(theta, dtype=float) - self.center) / self.scale
+
+        free = self._free
+
+        return (np.asarray(theta, dtype=float)[free] - self.center[free]) / self.scale[free]
 
     def _objective(self, x) -> float:
 
@@ -102,9 +128,12 @@ class Minimize(Sampler):
 
         out = []
 
-        for (low, high), c, s in zip(
-            self.model.parameters.bounds(), self.center, self.scale,
-        ):
+        bounds = self.model.parameters.bounds()
+
+        for i in self._free:
+
+            (low, high), c, s = bounds[i], self.center[i], self.scale[i]
+
             out.append((
                 None if not math.isfinite(low) else (low - c) / s,
                 None if not math.isfinite(high) else (high - c) / s,
@@ -114,7 +143,8 @@ class Minimize(Sampler):
 
     # ---------------------------------------------------------
 
-    def run(self) -> None:
+    def _minimize_from(self, theta0):
+        """One optimization over the free parameters, from ``theta0``."""
 
         from scipy.optimize import minimize
 
@@ -127,35 +157,66 @@ class Minimize(Sampler):
             key = "maxfun" if method in ("L-BFGS-B", "TNC") else "maxfev"
             options[key] = int(self.options["max_evals"])
 
-        bounds = self._bounds()
+        x0 = self._to_x(theta0)
+
+        if method == "Nelder-Mead":
+
+            # A simplex one unit -- one typical step -- wide in every
+            # direction, which scaled coordinates make meaningful for
+            # every parameter at once.
+            options["initial_simplex"] = np.vstack(
+                [x0] + [x0 + np.eye(len(x0))[i] for i in range(len(x0))]
+            )
+
+        return minimize(
+            self._objective, x0, method=method, bounds=self._bounds(),
+            tol=self.options["tol"], options=options or None,
+        )
+
+    def _search(self, first=None) -> None:
+        """
+        :attr:`starts` optimizations; the first from ``first`` (default
+        the ``ref`` centers), the rest from draws of ``ref``.
+        """
+
+        self.runs = []
+        self.best = None
 
         for index in range(self.starts):
 
-            theta0 = (
-                self.center if index == 0
-                else self.model.parameters.sample_ref(self.rng)
-            )
+            if index == 0:
+                theta0 = self.center if first is None else np.asarray(first, dtype=float)
+            else:
+                theta0 = self.model.parameters.sample_ref(self.rng)
 
-            x0 = self._to_x(theta0)
-
-            if method == "Nelder-Mead":
-
-                # A simplex one unit -- one typical step -- wide in
-                # every direction, which scaled coordinates make
-                # meaningful for every parameter at once.
-                options["initial_simplex"] = np.vstack(
-                    [x0] + [x0 + np.eye(len(x0))[i] for i in range(len(x0))]
-                )
-
-            result = minimize(
-                self._objective, x0, method=method, bounds=bounds,
-                tol=self.options["tol"], options=options or None,
-            )
+            result = self._minimize_from(theta0)
 
             self.runs.append(result)
 
             if self.best is None or result.fun < self.best.fun:
                 self.best = result
+
+    def run(self) -> None:
+
+        self._prepare_output()
+
+        self._search()
+
+        if self.output.enabled:
+
+            self.output.write_updated(self.model, self.options)
+            self._write_minimum()
+
+    def _write_minimum(self) -> None:
+
+        theta = self._to_theta(self.best.x)
+        result = self.model.logposterior(theta)
+
+        row = np.concatenate([[1.0, -result.logpost], self._columns_of(theta, result)])
+
+        self.output.write_table(
+            ".minimum.txt", ["weight", "minuslogpost", *self.columns], row,
+        )
 
     # ---------------------------------------------------------
 

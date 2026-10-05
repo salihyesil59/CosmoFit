@@ -126,6 +126,8 @@ class MCMC(Sampler):
         Seconds before stopping, converged or not.
     """
 
+    resumable = True
+
     defaults = {
         "chains": 4,
         "max_samples": 100000,
@@ -141,10 +143,7 @@ class MCMC(Sampler):
 
     def initialize(self) -> None:
 
-        parameters = self.model.parameters
-
-        self.names = list(parameters.sampled)
-        self.d = len(self.names)
+        self._set_columns()
 
         if self.d == 0:
             raise ValueError("MCMC needs at least one sampled parameter.")
@@ -160,18 +159,6 @@ class MCMC(Sampler):
             every = float(every[:-1] or 1) * self.d
 
         self.learn_every = max(1, int(every))
-
-        self.derived_names = [
-            n for n in parameters.derived if not parameters.specs[n].drop
-        ]
-        self.likelihood_names = list(self.model.likelihoods)
-
-        self.columns = [
-            *self.names,
-            *self.derived_names,
-            "minuslogprior",
-            *(f"chi2__{name.replace('.', '_')}" for name in self.likelihood_names),
-        ]
 
         self.covariance = self._initial_covariance()
 
@@ -205,13 +192,6 @@ class MCMC(Sampler):
 
         covariance[np.ix_(cols, cols)] = matrix[np.ix_(rows, rows)]
 
-    def _columns_of(self, x, result) -> np.ndarray:
-
-        derived = [result.derived.get(n, np.nan) for n in self.derived_names]
-        chi2 = [-2.0 * result.loglikes.get(n, np.nan) for n in self.likelihood_names]
-
-        return np.concatenate([x, derived, [-result.logprior], chi2])
-
     def _evaluate(self, x):
         return self.model.logposterior(dict(zip(self.names, x)))
 
@@ -219,7 +199,7 @@ class MCMC(Sampler):
 
     def _start(self) -> None:
 
-        resumed = self.output.prepare()
+        resumed = self._prepare_output()
 
         if resumed:
             self._resume()

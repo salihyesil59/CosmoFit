@@ -62,6 +62,10 @@ _BUILTIN = {
         "evaluate": "CosmoFit.samplers.evaluate:Evaluate",
         "minimize": "CosmoFit.samplers.minimize:Minimize",
         "mcmc": "CosmoFit.samplers.mcmc:MCMC",
+        "emcee": "CosmoFit.samplers.emcee:Emcee",
+        "nested": "CosmoFit.samplers.nested:Nested",
+        "fisher": "CosmoFit.samplers.fisher:Fisher",
+        "profile": "CosmoFit.samplers.profile:Profile",
     },
 }
 

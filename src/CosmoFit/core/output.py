@@ -18,7 +18,15 @@ An input's ``output: chains/run`` is a prefix. A run writes:
     starred), and each sampled parameter's prior support.
 ``chains/run.covmat``
     The proposal covariance the sampler ended with, to start the next
-    run from.
+    run from -- or, from ``fisher``, the inverse Fisher matrix.
+``chains/run.minimum.txt``
+    The best fit ``minimize`` (or ``fisher``, before it expands) found,
+    as one row of a chain.
+``chains/run.profile.txt``
+    A profile likelihood: the fixed values, ``chi2`` minimized over the
+    rest, and where the rest went.
+``chains/run.evidence.yaml``
+    Nested sampling's ``ln Z``, its error, and what it was computed with.
 
 A run refuses to write over another's files unless told what to do with
 them: ``force: true`` deletes them first, ``resume: true`` continues from
@@ -171,6 +179,7 @@ class Output:
             if p.is_file() and p.name.startswith(name + ".")
             and p.name[len(name) + 1:].split(".")[0] in {
                 "input", "updated", "paramnames", "ranges", "covmat", "progress",
+                "minimum", "profile", "evidence",
             } | {str(i) for i in range(1, 1000)}
         )
 
@@ -343,6 +352,26 @@ class Output:
         np.savetxt(
             self.path(".covmat"), covariance, fmt="%.10e",
             header=" ".join(names), comments="# ",
+        )
+
+    def write_table(self, suffix: str, names: list[str], rows) -> None:
+        """Rows under a ``#``-header of names, as the chains are written."""
+
+        if not self.enabled:
+            return
+
+        np.savetxt(
+            self.path(suffix), np.atleast_2d(np.asarray(rows, dtype=float)),
+            fmt="%.10e", header=" ".join(f"{n:>16}" for n in names), comments="# ",
+        )
+
+    def write_yaml(self, suffix: str, content: dict) -> None:
+
+        if not self.enabled:
+            return
+
+        self.path(suffix).write_text(
+            _yaml().safe_dump(_clean(content), sort_keys=False), encoding="utf-8",
         )
 
     def read_covmat(self):

@@ -16,6 +16,44 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 4b: profile, Fisher, emcee and nested sampling on the new core
+
+Four more samplers now run on the new core, and each writes the same
+output as `mcmc`:
+
+- **`profile`** holds one parameter at each of a list of values (or
+  `{min, max, n}`) and minimizes `chi2` over the others. It
+  warm-starts each value from the previous one's optimum, and it
+  profiles the likelihood unless told otherwise. On a Gaussian it
+  gives the marginal `((x - mean) / sigma)^2` and the conditional
+  means exactly. It writes `.profile.txt`.
+- **`fisher`** returns the curvature at the best fit (found first with
+  `minimize` unless a `point` is given) and its inverse. The inverse
+  goes to `.covmat` only when it is positive definite, so an `mcmc`
+  can start from it. On LCDM with DESI + Pantheon+ + CC it gives
+  `Omega_m = 0.3003 +- 0.0075` in 17 evaluations. The MCMC gave
+  0.303 +- 0.008.
+- **`emcee`** is the affine-invariant ensemble. It stops once the run
+  is 50 autocorrelation times long and the estimate of `tau` has
+  stopped moving. Every step is written, so `resume: true` restarts
+  the walkers from where the file leaves them.
+- **`nested`** runs dynesty, with every prior kind mapped from the
+  unit cube through its inverse CDF. A Gaussian prior is therefore
+  the Gaussian itself, not a box around it. It writes the weighted
+  dead points as a chain and `ln Z` to `.evidence.yaml`. On the test
+  Gaussian, `ln Z` matches the closed form within its quoted error.
+
+`minimize` now writes `.minimum.txt`, and it can hold parameters
+fixed, which is how `profile` is built.
+
+**The Fisher step is now set by the likelihood, not the prior.** The
+old `Fitter.fisher` stepped by 1e-3 of each prior width. That is
+arbitrary for an analytic likelihood and lost under CAMB's numerical
+noise. Here each parameter's step is tuned until it moves `chi2` by
+about one, starting from the parameter's scale. The step is then
+checked by recomputing the diagonal at half the step. A flat direction
+is named rather than inverted.
+
 ### A forward f(R) model solves its closure once, not once per instance
 
 Profiling the slowest test in the suite found two wastes in the
