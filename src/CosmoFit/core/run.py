@@ -22,7 +22,8 @@ def run(info, seed: int | None = None):
     Parameters
     ----------
     info : dict, str or Path
-        The input; it must have a ``sampler`` block.
+        The input; it must have a ``sampler`` block -- or a ``post``
+        block, to reweight a finished run (see :mod:`core.post`).
     seed : int, optional
         For the sampler's random draws, unless the input sets one.
 
@@ -30,10 +31,25 @@ def run(info, seed: int | None = None):
     -------
     (dict, Sampler)
         The validated input and the sampler that ran -- its
-        ``products()`` hold the result.
+        ``products()`` hold the result. For a ``post`` input, the
+        :class:`~core.post.Post` that ran instead.
     """
 
-    info = validate_info(load_info(info))
+    info = load_info(info)
+
+    if "post" in info:
+
+        from .post import Post
+
+        if world().size > 1:
+            raise RuntimeError("Post-processing runs in one process; run it without mpirun.")
+
+        post = Post(info)
+        post.run()
+
+        return info, post
+
+    info = validate_info(info)
 
     if not info["sampler"]:
         raise ValueError(

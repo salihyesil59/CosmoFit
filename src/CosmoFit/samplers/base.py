@@ -7,7 +7,45 @@ from __future__ import annotations
 import numpy as np
 
 
-__all__ = ["Sampler"]
+__all__ = ["Sampler", "ChainColumns"]
+
+
+class ChainColumns:
+    """
+    The columns of a chain row after ``weight`` and ``minuslogpost``:
+    the sampled parameters, the derived ones not dropped,
+    ``minuslogprior``, and each likelihood's ``chi2__<name>`` (dots
+    as underscores).
+
+    Parameters
+    ----------
+    model : core.model.Model
+    """
+
+    def __init__(self, model):
+
+        parameters = model.parameters
+
+        self.names = list(parameters.sampled)
+        self.derived_names = [
+            n for n in parameters.derived if not parameters.specs[n].drop
+        ]
+        self.likelihood_names = list(model.likelihoods)
+
+        self.columns = [
+            *self.names,
+            *self.derived_names,
+            "minuslogprior",
+            *(f"chi2__{name.replace('.', '_')}" for name in self.likelihood_names),
+        ]
+
+    def of(self, x, result) -> np.ndarray:
+        """``x`` and its evaluation, in :attr:`columns` order."""
+
+        derived = [result.derived.get(n, np.nan) for n in self.derived_names]
+        chi2 = [-2.0 * result.loglikes.get(n, np.nan) for n in self.likelihood_names]
+
+        return np.concatenate([np.asarray(x, dtype=float), derived, [-result.logprior], chi2])
 
 
 class Sampler:
@@ -87,30 +125,19 @@ class Sampler:
         ``weight`` and ``minuslogpost``, as the chain files carry them.
         """
 
-        parameters = self.model.parameters
+        layout = ChainColumns(self.model)
 
-        self.names = list(parameters.sampled)
+        self._layout = layout
+        self.names = layout.names
         self.d = len(self.names)
-
-        self.derived_names = [
-            n for n in parameters.derived if not parameters.specs[n].drop
-        ]
-        self.likelihood_names = list(self.model.likelihoods)
-
-        self.columns = [
-            *self.names,
-            *self.derived_names,
-            "minuslogprior",
-            *(f"chi2__{name.replace('.', '_')}" for name in self.likelihood_names),
-        ]
+        self.derived_names = layout.derived_names
+        self.likelihood_names = layout.likelihood_names
+        self.columns = layout.columns
 
     def _columns_of(self, x, result) -> np.ndarray:
         """``x`` and its evaluation, in :attr:`columns` order."""
 
-        derived = [result.derived.get(n, np.nan) for n in self.derived_names]
-        chi2 = [-2.0 * result.loglikes.get(n, np.nan) for n in self.likelihood_names]
-
-        return np.concatenate([np.asarray(x, dtype=float), derived, [-result.logprior], chi2])
+        return self._layout.of(x, result)
 
     def _prepare_output(self) -> bool:
         """

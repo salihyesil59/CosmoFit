@@ -274,6 +274,8 @@ def test_starts_from_a_covmat(tmp_path):
      "ref": {"dist": "norm", "loc": 1.0, "scale": 0.05}},
     {"prior": {"dist": "loguniform", "min": 1e-3, "max": 1.0}, "drop": True},
     {"derived": True, "latex": r"\Omega"},
+    {"derived": "lambda a, b: a + b"},
+    {"value": "lambda H0: H0 / 100"},
     3.5,
 ])
 def test_a_declaration_reads_back_as_itself(declaration):

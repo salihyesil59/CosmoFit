@@ -64,9 +64,14 @@ def _as_function(obj, what: str) -> Callable:
     if isinstance(obj, str) and obj.strip().startswith("lambda"):
 
         try:
-            return eval(obj.strip(), {"np": np, "numpy": np, "math": math})
+            function = eval(obj.strip(), {"np": np, "numpy": np, "math": math})
         except SyntaxError as error:
             raise ValueError(f"{what}: not a valid lambda ({error}).") from None
+
+        # Kept, so the parameter can be written back as it was read.
+        function._source = obj.strip()
+
+        return function
 
     raise ValueError(f"{what}: expected a number, a callable or a lambda string.")
 
@@ -122,11 +127,15 @@ class ParamSpec:
     def declaration(self) -> dict | float:
         """
         This parameter as an input's ``params`` block would declare it --
-        :func:`parse_param` reads it back. A function is given by name.
+        :func:`parse_param` reads it back. A function read from a lambda
+        string is written as that string; one passed as a Python
+        callable only by name, which does not read back.
         """
 
         def named(function):
-            return getattr(function, "__name__", repr(function))
+            return getattr(function, "_source", None) or getattr(
+                function, "__name__", repr(function)
+            )
 
         role = self.role
 

@@ -2,11 +2,13 @@
 The new core: theories, likelihoods and samplers assembled from an
 input.
 
-**Status: phase 1 of the 2.0 rewrite.** The core runs every model and
-dataset the library has, through the wrappers in :mod:`core.legacy`,
-with the ``evaluate`` and ``minimize`` samplers. ``Fitter`` remains the
-complete interface for now -- MCMC, nested sampling, chains and plots
-move here in later phases.
+**Status: phase 4 of the 2.0 rewrite.** The core runs every model and
+dataset the library has -- natively (:mod:`CosmoFit.theories`,
+:mod:`CosmoFit.likelihoods.native`) or through the wrappers in
+:mod:`core.legacy` -- with the samplers of :mod:`CosmoFit.samplers`
+(evaluate, minimize, profile, fisher, mcmc, emcee, nested), getdist
+output, and :mod:`core.post` to reweight a finished run. ``Fitter``
+remains the interface the GUI and notebooks use until phase 5.
 
 ::
 
@@ -40,6 +42,9 @@ What each part is:
 * :mod:`core.registry` -- names to classes: built-ins, import paths,
   entry points.
 * :mod:`core.info` -- the input, as a dict or YAML.
+* :mod:`core.output` -- what a run writes, and resuming it.
+* :mod:`core.mpi` -- processes sharing a run.
+* :mod:`core.post` -- importance reweighting of a finished run.
 """
 
 from .component import Component, ComponentError, Likelihood, Provider, Theory

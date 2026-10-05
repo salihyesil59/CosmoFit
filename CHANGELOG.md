@@ -16,6 +16,48 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 4c: reweighting a finished run
+
+An input with a `post` block reweights the run its `output` names
+instead of sampling. It can:
+
+- add likelihoods, theories or derived parameters;
+- remove likelihoods.
+
+Every kept sample is evaluated once on the new model. Its weight is
+multiplied by `L_new / L_old`, where `L_old` comes from the chain's
+own `chi2__` columns. The result is written like a run under
+`<output>.post.<suffix>` (chains, `.paramnames`, `.ranges` and the new
+`.updated.yaml`), so getdist reads it as one.
+
+What would make the samples meaningless is refused:
+
+- changing a sampled parameter's prior;
+- adding a sampled parameter, a direction the samples never explored;
+- removing a theory, or every likelihood.
+
+Points the new model rejects are dropped and counted. The effective
+sample size `(sum w)^2 / sum w^2` is reported before and after. When
+it falls below a tenth of what it was, a warning says the new
+posterior overlaps the samples poorly.
+
+Validation:
+
+- **Toy Gaussian:** with a Gaussian constraint added on one parameter,
+  the closed-form posterior is recovered to 0.2 sigma.
+- **Real data:** DESI + CC, reweighted with SH0ES, gives
+  `H0 = 71.31 +- 0.67` and `Omega_m = 0.2991 +- 0.0079` from 450
+  effective samples. Sampling DESI + CC + SH0ES directly gives
+  `71.34 +- 0.72` and `0.2995 +- 0.0083`.
+
+**`.updated.yaml` could not be read back.** Post-processing starts
+from the run's `.updated.yaml`. Checking what that file holds before
+relying on it showed that a parameter declared as
+`"lambda a, b: a + b"` was written back as `<lambda>`, its function's
+name, so any run with such a parameter could not have been
+post-processed. A lambda read from a
+string now keeps that string, and is written as it was given.
+
 ### The 2.0 core, phase 4c: the MCMC's chains in several processes
 
 `processes: n` runs the `mcmc` chains in `n` processes started with
