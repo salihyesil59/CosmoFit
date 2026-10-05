@@ -16,6 +16,26 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A forward f(R) model solves its closure once, not once per instance
+
+Profiling the slowest test in the suite found two wastes in the
+closure solve:
+
+- **Duplicate cold solve.** The build checks `E(0) = 1` on an instance
+  of its own, at the defaults. Every test then made its first instance
+  at those same defaults and solved the closure again, cold. That cost
+  four seconds per instance, and at `z_init = 60` it was most of two
+  minutes. The closure and the history are now cached on the built
+  model, which all its instances share.
+- **Brent bisecting noise.** Brent was asked for `xtol = 1e-13` on
+  shots integrated at `rtol = 1e-7`. Below about 1e-8, the shot's own
+  error decides the sign, so Brent spent 24 evaluations bisecting
+  noise where 12 do. The full-tolerance polish that follows was always
+  what set the root's accuracy.
+
+The closure moves by 1e-11 relative, and the module now takes a
+minute and a half instead of four minutes 18 seconds.
+
 ### The 2.0 core, phase 4a: an adaptive MCMC, and output getdist reads
 
 `sampler: {mcmc: ...}` is adaptive Metropolis-Hastings. Several chains

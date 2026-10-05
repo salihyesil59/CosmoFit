@@ -22,13 +22,16 @@ condition to satisfy rather than the point one starts from.
 
 Cost
 ----
-This is the slowest module in the suite, around twenty minutes,
-because every model here has its closure shot for and each shot is
-a scan of full background integrations. That is disproportionate
-against a ~12 minute suite and is worth attacking, but not by
-deleting the tests: the insensitivity check needs two models built
-at different starting redshifts, and that comparison is the whole
-justification for the analytic continuation.
+This is the slowest module in the suite, because every model here
+has its closure shot for and each shot is a scan of full background
+integrations -- from z = 60, about 770 000 stiff steps apiece. It
+was four minutes until the closure was solved once per built model
+rather than once per instance, and Brent stopped bisecting below the
+accuracy a loose shot resolves; it is now about a minute and a half,
+almost all of it the z = 60 build. That build is not negotiable: the
+insensitivity check needs two models built at different starting
+redshifts, and that comparison is the whole justification for the
+analytic continuation.
 
 What is actually at risk
 ------------------------

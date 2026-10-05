@@ -2488,8 +2488,17 @@ class _ForwardCurvatureModel(_CurvatureModel):
                 f"rate at all."
             )
 
-        self._closure_cache = (key, solution)
-        self._closure_last = solution
+        # Kept on the class, not the instance: every instance of a
+        # built model shares its system, so the answer for these
+        # parameters is the same for all of them. The build checks
+        # E(0) = 1 on an instance of its own, and the first instance a
+        # caller makes is usually at those same defaults -- held per
+        # instance, the closure was solved twice over, each time with
+        # a cold scan, and at a deep starting redshift that was most
+        # of a minute apiece.
+        cls = type(self)
+        cls._closure_cache = (key, solution)
+        cls._closure_last = solution
 
         return solution
 
@@ -2560,7 +2569,8 @@ class _ForwardCurvatureModel(_CurvatureModel):
             self._SYSTEM, args, float(values["Omega_m"]), N_lo, N_hi,
         )
 
-        self._history_cache = (key, history)
+        # On the class, as the closure is: see `_solved_closure`.
+        type(self)._history_cache = (key, history)
 
         return history
 
@@ -2641,8 +2651,13 @@ def _bracketed_root(f, lo, hi, samples=17):
             if previous == 0.0:
                 return float(xs[i])
 
+            # Only to the accuracy a loose shot can resolve: below
+            # ~1e-8 its error, not the root, decides the sign, and
+            # Brent falls back to bisecting noise -- 24 evaluations
+            # where 12 do, measured. The caller polishes the root at
+            # full tolerance anyway.
             if previous * current <= 0.0:
-                return float(brentq(f, xs[i], xs[i + 1], xtol=1.0e-13))
+                return float(brentq(f, xs[i], xs[i + 1], xtol=1.0e-8))
 
         previous = current
 
