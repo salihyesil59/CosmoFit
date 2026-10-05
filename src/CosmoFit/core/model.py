@@ -234,6 +234,9 @@ class Model:
         providers = {}
         depends_on = {name: set() for name in self.theories}
 
+        #: For every component, the theories it reads.
+        self._reads = {c.name: set() for c in self.components}
+
         for component in self.components:
 
             for quantity, options in component.get_requirements().items():
@@ -243,6 +246,8 @@ class Model:
                 theory.must_provide(**{quantity: options})
 
                 providers[quantity] = theory
+
+                self._reads[component.name].add(theory.name)
 
                 if isinstance(component, Theory):
                     depends_on[component.name].add(theory.name)
@@ -309,6 +314,57 @@ class Model:
                     f"Derived parameter {name!r} reads {sorted(missing)}, "
                     f"which nothing provides."
                 )
+
+    # ---------------------------------------------------------
+    # Speeds
+    # ---------------------------------------------------------
+
+    def affected_by(self, name: str) -> set[str]:
+        """
+        The components whose result changes when the sampled parameter
+        ``name`` does: those taking it, or a dependent parameter
+        computed from it, and every component reading one of those.
+        """
+
+        changed = {name}
+
+        for dependent in self.parameters._dependent_order:
+            if set(self.parameters.specs[dependent].arguments) & changed:
+                changed.add(dependent)
+
+        affected = {
+            c for c, inputs in self._inputs_of.items() if set(inputs) & changed
+        }
+
+        # Downstream, until nothing new: a theory read by an affected
+        # component's provider chain changes what that component sees.
+        grew = True
+
+        while grew:
+
+            readers = {c for c, reads in self._reads.items() if reads & affected}
+
+            grew = not readers <= affected
+            affected |= readers
+
+        return affected
+
+    def slow_and_fast(self) -> tuple[list[str], list[str]]:
+        """
+        The sampled parameters split by cost: *slow* ones change a
+        theory's inputs, so moving them recomputes it; *fast* ones reach
+        likelihoods alone -- nuisance parameters, mostly -- and a move
+        in them is served from every theory's cache.
+
+        Each list keeps :attr:`sampled_params` order.
+        """
+
+        slow, fast = [], []
+
+        for name in self.sampled_params:
+            (slow if self.affected_by(name) & set(self.theories) else fast).append(name)
+
+        return slow, fast
 
     # ---------------------------------------------------------
     # Evaluation

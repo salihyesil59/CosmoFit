@@ -19,6 +19,39 @@ into four.
 
 The chains are weighted: a point the walk stayed at for ``n`` steps is
 one row of weight ``n``, as getdist reads them.
+
+Fast and slow parameters
+------------------------
+A parameter that reaches only likelihoods -- a nuisance parameter
+like ``MB`` or ``A_planck`` -- is *fast*: moving it leaves every
+theory's inputs alone, so the theories answer from their caches and a
+step costs a likelihood evaluation. One that changes a theory's inputs
+is *slow*. :meth:`core.model.Model.slow_and_fast` makes the split.
+
+When there are both, each step is a slow move followed by
+``fast_steps`` fast ones. The proposal is blocked the way the
+covariance is: with the parameters ordered slow first, its Cholesky
+factor ``L`` gives a slow move ``L[:, slow] z`` -- which also shifts
+the fast parameters along their correlation with the slow ones -- and
+a fast move ``L[fast, fast] z``, a step in the fast parameters'
+distribution *given* the slow ones. Each block is scaled by
+``proposal_scale / sqrt(its dimension)``. Every fast move is an
+ordinary Metropolis step, so the target is unchanged; the walk simply
+spends its effort where effort is cheap.
+
+``drag: true`` uses the fast moves differently, for Neal's (2005)
+dragging: a slow proposal is not accepted or rejected on its own, but
+after the fast parameters have been moved ``fast_steps - 1`` times
+along a path of distributions interpolating between the current slow
+point and the proposed one, so the fast parameters can adjust to the
+new slow ones before the decision. On a posterior where the fast
+parameters are strongly tied to the slow ones that raises the slow
+acceptance; it costs two evaluations per fast step, and needs every
+theory to cache at least two states.
+
+``fast_steps`` defaults to ``(t_slow / t_fast) ** oversample_power``,
+from timing the starting point -- 0.4, as in CosmoMC and cobaya. Give
+it as a number for a run that repeats exactly under its seed.
 """
 
 from __future__ import annotations
@@ -124,6 +157,14 @@ class MCMC(Sampler):
         Default 10000.
     max_time : float or None
         Seconds before stopping, converged or not.
+    oversample_power : float
+        Fast moves per slow one, as a power of their cost ratio.
+        Default 0.4; 0 makes one of each.
+    fast_steps : int or None
+        Fast moves per slow one, overriding ``oversample_power``.
+    drag : bool
+        Drag the fast parameters along each slow proposal instead of
+        oversampling them. Default False.
     """
 
     resumable = True
@@ -139,6 +180,9 @@ class MCMC(Sampler):
         "proposal_scale": 2.4,
         "max_tries": 10000,
         "max_time": None,
+        "oversample_power": 0.4,
+        "fast_steps": None,
+        "drag": False,
     }
 
     def initialize(self) -> None:
@@ -161,6 +205,15 @@ class MCMC(Sampler):
         self.learn_every = max(1, int(every))
 
         self.covariance = self._initial_covariance()
+
+        slow, fast = self.model.slow_and_fast()
+
+        #: Sampled-parameter indices, slow first, ``n_slow`` of them
+        #: slow. Blocking needs both kinds; otherwise one block.
+        self.blocked = bool(slow) and bool(fast)
+        self.order = [self.names.index(n) for n in slow + fast]
+        self.n_slow = len(slow)
+        self.fast_steps = 0
 
         self.Rminus1 = math.inf
         self.converged = False
@@ -319,19 +372,185 @@ class MCMC(Sampler):
 
     # ---------------------------------------------------------
 
+    def _measure_fast_steps(self) -> int:
+        """
+        Fast moves per slow one: given, or ``(t_slow / t_fast) **
+        oversample_power`` timed at the first chain's start.
+        """
+
+        if self.options["fast_steps"] is not None:
+
+            steps = int(self.options["fast_steps"])
+
+            if steps < 1:
+                raise ValueError("fast_steps must be at least 1.")
+
+            return steps
+
+        x = self.chains[0].x
+        scales = self.model.parameters.scales()
+
+        def seconds(index):
+
+            total = 0.0
+
+            # Three distinct small moves, so none is a cache hit of
+            # the one before.
+            for k in (1, 2, 3):
+
+                moved = x.copy()
+                moved[index] += 1e-3 * k * scales[index]
+
+                start = time.perf_counter()
+                self._evaluate(moved)
+                total += time.perf_counter() - start
+
+            return total / 3
+
+        # Fast first, from the start point freshly evaluated: timed
+        # after the slow moves, the start's theory state has been
+        # pushed out of the cache and the first fast move pays for it.
+        self._evaluate(x)
+
+        t_fast = seconds(self.order[-1])
+        t_slow = seconds(self.order[0])
+
+        ratio = t_slow / max(t_fast, 1e-9)
+
+        return max(1, int(round(ratio ** self.options["oversample_power"])))
+
+    def _proposal_factors(self):
+        """
+        ``(slow, fast)``: matrices taking standard normals to a move of
+        every parameter. Unblocked, ``slow`` is the whole proposal and
+        ``fast`` is None.
+        """
+
+        scale = self.options["proposal_scale"]
+
+        if not self.blocked:
+            return np.linalg.cholesky(self.covariance) * scale / math.sqrt(self.d), None
+
+        order = self.order
+        ns = self.n_slow
+        nf = self.d - ns
+
+        L = np.linalg.cholesky(self.covariance[np.ix_(order, order)])
+
+        slow = np.zeros((self.d, ns))
+        slow[order] = L[:, :ns] * scale / math.sqrt(ns)
+
+        fast = np.zeros((self.d, nf))
+        fast[order[ns:]] = L[ns:, ns:] * scale / math.sqrt(nf)
+
+        return slow, fast
+
+    def _accept(self, log_ratio: float) -> bool:
+        return log_ratio >= 0.0 or self.rng.uniform() < math.exp(log_ratio)
+
+    def _stay(self, index: int) -> None:
+
+        self.stuck[index] += 1
+
+        if self.stuck[index] >= self.options["max_tries"]:
+            raise RuntimeError(
+                f"Chain {index + 1} rejected {self.stuck[index]} proposals "
+                f"in a row. The proposal is too wide for the posterior: "
+                f"give smaller 'proposal' widths or a covmat."
+            )
+
+    def _move(self, index: int, chain: _Chain, x, result) -> None:
+
+        chain.weight -= 1
+        chain.leave()
+        chain.x, chain.result = x, result
+        chain.weight = 1
+        chain.accepted += 1
+        self.stuck[index] = 0
+
+    def _metropolis(self, index: int, chain: _Chain, step) -> None:
+        """One Metropolis step of ``chain`` by ``step``."""
+
+        chain.proposed += 1
+        chain.weight += 1
+
+        proposal = chain.x + step
+        result = self._evaluate(proposal)
+
+        if math.isfinite(result.logpost) and self._accept(
+            result.logpost - chain.result.logpost
+        ):
+            self._move(index, chain, proposal, result)
+        else:
+            self._stay(index)
+
+    def _drag(self, index: int, chain: _Chain, step, fast) -> None:
+        """
+        A slow move by ``step``, decided after dragging the fast
+        parameters (Neal 2005) through ``fast_steps - 1`` distributions
+        interpolating between the current slow point and the proposed
+        one. The end point carries the same fast moves as the start.
+
+        With ``n = fast_steps`` the acceptance is that of Neal's
+        construction, ``(1/n) sum_i [ln p(end_i) - ln p(start_i)]``
+        over the ``n`` points the pair visits, each fast move being a
+        Metropolis step on ``(1 - b) ln p(start) + b ln p(end)``, ``b =
+        i/n``.
+        """
+
+        chain.proposed += 1
+        chain.weight += 1
+
+        start_x, start = chain.x, chain.result
+        end_x = chain.x + step
+        end = self._evaluate(end_x)
+
+        if not math.isfinite(end.logpost):
+            self._stay(index)
+            return
+
+        n = self.fast_steps
+        log_weight = end.logpost - start.logpost
+
+        for i in range(1, n):
+
+            beta = i / n
+            move = fast @ self.rng.standard_normal(fast.shape[1])
+
+            trial_start = self._evaluate(start_x + move)
+            trial_end = self._evaluate(end_x + move)
+
+            if math.isfinite(trial_start.logpost) and math.isfinite(trial_end.logpost):
+
+                new = (1 - beta) * trial_start.logpost + beta * trial_end.logpost
+                old = (1 - beta) * start.logpost + beta * end.logpost
+
+                if self._accept(new - old):
+                    start_x, start = start_x + move, trial_start
+                    end_x, end = end_x + move, trial_end
+
+            log_weight += end.logpost - start.logpost
+
+        if self._accept(log_weight / n):
+            self._move(index, chain, end_x, end)
+        else:
+            self._stay(index)
+
     def run(self) -> None:
 
         self._start()
 
+        if self.blocked:
+            self.fast_steps = self._measure_fast_steps()
+
         start = time.monotonic()
-        scale = self.options["proposal_scale"] / math.sqrt(self.d)
 
         step = 0
-        stuck = [0] * len(self.chains)
+        self.stuck = [0] * len(self.chains)
 
         while step < self.options["max_samples"]:
 
-            L = np.linalg.cholesky(self.covariance) * scale
+            slow, fast = self._proposal_factors()
 
             for _ in range(self.learn_every):
 
@@ -339,32 +558,22 @@ class MCMC(Sampler):
 
                 for index, chain in enumerate(self.chains):
 
-                    chain.proposed += 1
-                    chain.weight += 1
+                    move = slow @ self.rng.standard_normal(slow.shape[1])
 
-                    proposal = chain.x + L @ self.rng.standard_normal(self.d)
-                    result = self._evaluate(proposal)
+                    if fast is None:
+                        self._metropolis(index, chain, move)
 
-                    log_ratio = result.logpost - chain.result.logpost
+                    elif self.options["drag"]:
+                        self._drag(index, chain, move, fast)
 
-                    if math.isfinite(result.logpost) and (
-                        log_ratio >= 0.0 or self.rng.uniform() < math.exp(log_ratio)
-                    ):
-                        chain.weight -= 1
-                        chain.leave()
-                        chain.x, chain.result = proposal, result
-                        chain.weight = 1
-                        chain.accepted += 1
-                        stuck[index] = 0
                     else:
-                        stuck[index] += 1
 
-                    if stuck[index] >= self.options["max_tries"]:
-                        raise RuntimeError(
-                            f"Chain {index + 1} rejected {stuck[index]} proposals "
-                            f"in a row. The proposal is too wide for the posterior: "
-                            f"give smaller 'proposal' widths or a covmat."
-                        )
+                        self._metropolis(index, chain, move)
+
+                        for _ in range(self.fast_steps):
+                            self._metropolis(
+                                index, chain, fast @ self.rng.standard_normal(fast.shape[1]),
+                            )
 
             self._check()
             self._flush()

@@ -16,6 +16,48 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 4c: fast and slow parameters in the MCMC
+
+`Model.slow_and_fast()` splits the sampled parameters by what moving
+them costs:
+
+- A **slow** parameter changes a theory's inputs, directly or through
+  a dependent parameter, so moving it recomputes the theory.
+- A **fast** parameter reaches only likelihoods: `rd` with `rd: free`,
+  `MB`, `A_planck`. Moving it is served from every theory's cache.
+
+When a run has both kinds, the `mcmc` sampler blocks its proposal the
+way the covariance is blocked. With the parameters ordered slow
+first, the Cholesky factor `L` of the covariance gives two moves:
+
+- a slow move, `L[:, slow] z`, which also carries the fast parameters
+  along their regression on the slow ones;
+- a fast move, `L[fast, fast] z`, a step in the fast parameters given
+  the slow ones.
+
+Each slow move is followed by `fast_steps` fast ones. That number is
+`(t_slow / t_fast) ** 0.4`, from timing the starting point, or a
+number given in the input.
+
+`drag: true` uses the fast moves for Neal's (2005) dragging instead. A
+slow proposal is decided only after the fast parameters have been
+walked along distributions interpolating between the old slow point
+and the new one.
+
+On a Gaussian whose nuisance parameter is 0.9-correlated with a slow
+one, both modes recover the mean to 0.15 sigma and the correlations to
+0.1. The theory is computed for under half the likelihood's
+evaluations. Without both kinds the proposal is the single block it
+was, drawing the same random numbers, so earlier runs repeat exactly.
+
+**The first timing measured the cache, not the theory.** The first
+version timed the slow moves first. Three slow moves pushed the
+starting point's theory state out of a three-state cache, so the
+first "fast" move recomputed the theory. A 5 ms theory then looked
+only three times slower than its likelihood, and the run got 2 fast
+steps where it now gets 9 or 10. The fast moves are now timed first,
+from the freshly evaluated start.
+
 ### The 2.0 core, phase 4b: profile, Fisher, emcee and nested sampling on the new core
 
 Four more samplers now run on the new core, and each writes the same
