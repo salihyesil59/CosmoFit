@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from .info import load_info, validate_info
 from .model import Model
+from .mpi import world
 from .output import Output
 from .registry import resolve
 
@@ -45,6 +46,13 @@ def run(info, seed: int | None = None):
     (name, options), = info["sampler"].items()
 
     sampler_cls = resolve("sampler", name, options)
+
+    if not getattr(sampler_cls, "parallel", False) and world().size > 1:
+        raise RuntimeError(
+            f"The {name!r} sampler runs in one process; under mpirun every "
+            f"process would run it into the same output. Run it without "
+            f"mpirun, or use mcmc."
+        )
 
     options = {k: v for k, v in options.items() if k != "class"}
 

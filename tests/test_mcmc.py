@@ -71,12 +71,16 @@ def moments(products):
 # ============================================================
 
 def test_recovers_a_correlated_gaussian():
+    """
+    At R - 1 < 0.005: at 0.01 the chains' means agree but a variance can
+    still be 10% off, which is what R - 1 does not measure.
+    """
 
-    _, sampler = run(gaussian_input(), seed=1)
+    _, sampler = run(gaussian_input(Rminus1_stop=0.005), seed=1)
     products = sampler.products(skip=0.3)
 
     assert products["converged"]
-    assert products["Rminus1"] < 0.01
+    assert products["Rminus1"] < 0.005
 
     mean, cov = moments(products)
 

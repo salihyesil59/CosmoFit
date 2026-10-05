@@ -16,6 +16,48 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 core, phase 4c: the MCMC's chains in several processes
+
+`processes: n` runs the `mcmc` chains in `n` processes started with
+`spawn`, which is the only method Windows has. Under `mpirun` with
+`mpi4py`, the chains are shared between the processes it was given.
+Both use one protocol from `CosmoFit.core.mpi`. The processes meet
+only at each check:
+
+- the first process gathers every chain's second half;
+- it decides `R - 1` and the learned covariance;
+- it hands both back to the others.
+
+**Every chain now draws from its own random stream**, spawned from the
+run's seed. A run split over processes therefore writes the same
+chains, byte for byte, as the same run in one. The tests hold it to
+that, on the toy Gaussian and on LCDM with DESI + Pantheon+ + CC.
+
+This changes the random numbers a serial run draws. The note in the
+fast/slow entry below, that unblocked runs repeat earlier runs
+exactly, no longer holds. One test then landed on a draw where a
+correlation came out 0.115 off at `R - 1 < 0.01`. A variance can
+still be 10% off at that point, because `R - 1` compares means. That
+test now runs to `R - 1 < 0.005` rather than shopping for a seed.
+
+A process that fails stops the run. It sends its traceback where its
+share of the check was due, and the first process raises it as a
+`WorkerError`. A process that dies without reporting is noticed by
+its exit. The test suite covers:
+
+- a likelihood that raises only in a started process;
+- one that cannot even be built there;
+- a stuck chain in the first process, which raises its own error.
+
+Under `mpirun`, a sampler that cannot share a run (anything but
+`mcmc`) is refused rather than run once per process into the same
+output.
+
+Starting a process rebuilds the model and reloads its data. On LCDM
+with distance likelihoods, four processes took 16 s for what one does
+in 6 s. They pay off where an evaluation is slow, as with a Boltzmann
+code.
+
 ### The 2.0 core, phase 4c: fast and slow parameters in the MCMC
 
 `Model.slow_and_fast()` splits the sampled parameters by what moving

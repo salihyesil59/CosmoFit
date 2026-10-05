@@ -46,6 +46,9 @@ Input and registry
 .. automodule:: CosmoFit.core.output
    :members:
 
+.. automodule:: CosmoFit.core.mpi
+   :members:
+
 The existing models and datasets
 --------------------------------
 

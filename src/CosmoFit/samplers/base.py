@@ -40,6 +40,11 @@ class Sampler:
     #: Whether ``resume: true`` can continue an earlier run's output.
     resumable: bool = False
 
+    #: Whether this sampler shares a run between processes under
+    #: ``mpirun``. One that does not is refused there, rather than run
+    #: once per process into the same output.
+    parallel: bool = False
+
     def __init__(self, info: dict | None, model, seed: int | None = None, output=None):
 
         from CosmoFit.core.output import Output
