@@ -3191,6 +3191,26 @@ class Fitter:
 
     # ------------------------------------------------------------
 
+    def to_info(self, exact: bool = False) -> dict:
+        """
+        This fit as an input for the 2.0 core (:mod:`cosmofit.core`);
+        with a ``sampler`` block added, and written to YAML, it runs
+        with ``cosmofit run``.
+
+        By default on the native theories and likelihoods -- the same
+        analysis with radiation in the late-time expansion, so ``chi2``
+        moves slightly. ``exact=True`` writes this fitter's own classes
+        instead, and ``cosmofit.core.get_model(fit.to_info(exact=True))``
+        gives this fitter's ``chi2`` at every point. See
+        :mod:`cosmofit.compat`.
+        """
+
+        from cosmofit.compat import fitter_to_info
+
+        return fitter_to_info(self, exact=exact)
+
+    # ------------------------------------------------------------
+
     def __repr__(self):
 
         return (

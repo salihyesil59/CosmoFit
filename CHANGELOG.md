@@ -16,6 +16,40 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Phase 5d: a `Fitter` written as a 2.0 input
+
+`Fitter.to_info()` writes a fitter as an input for the new core. The
+input carries the fitter's model, datasets, free parameters with
+their bounds, fixed values and dataset options. With a `sampler`
+block added and saved as YAML, `cosmofit run` takes over from it.
+`Fitter` itself is unchanged.
+
+There are two ways to write it:
+
+- **`to_info()`** is the analysis in 2.0. The model becomes its dark
+  sector on the native `background` (`CPL` is `dark_energy: cpl`), the
+  datasets become their native likelihoods, and the theories they need
+  are added for what they provide (`early_universe`, `growth`, `camb`).
+  The GCG's and the power-law and Hu-Sawicki models' parameters get
+  their new names. Radiation is now part of the late-time expansion,
+  so `chi2` moves by a few hundredths to about one: 0.4 to 1.1 for
+  LCDM on CC + DESI + Pantheon+. With `radiation: false` the native
+  input gives the fitter's `chi2` to 1e-7, so the whole difference is
+  radiation.
+- **`to_info(exact=True)`** runs the fitter's own classes through the
+  `legacy_cosmology` theory, and gives the fitter's `chi2` at every
+  point. This includes `compute_rd`, growth datasets and models
+  defined outside the library.
+
+A model built outside the library has no native sector. The native
+input wraps it radiation-free, and is refused, with `exact=True`
+named, when the datasets need the sound horizon. A free parameter
+that no component takes is refused too: the fitter samples it to no
+effect, as with `Omega_m` in ADE, which derives it.
+
+The `DeprecationWarning` on `Fitter` waits until the GUI and the
+notebooks run on the new core.
+
 ### Phase 5c: the dataset loaders, one module per family
 
 `data/loader.py` had grown to 3416 lines: every dataset's file table,

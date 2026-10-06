@@ -58,6 +58,15 @@ The existing models and datasets
 .. automodule:: cosmofit.core.legacy
    :members:
 
+.. automodule:: cosmofit.compat
+   :members:
+
+The command line
+----------------
+
+.. automodule:: cosmofit.cli
+   :members:
+
 Samplers
 --------
 
