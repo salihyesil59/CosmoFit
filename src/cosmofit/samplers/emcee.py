@@ -162,13 +162,19 @@ class Emcee(Sampler):
 
     # ---------------------------------------------------------
 
-    def _check(self) -> None:
+    def _tau(self, rows) -> float:
 
         import emcee
 
+        chain = np.array([step[:, 2: 2 + self.d] for step in rows])
+
+        return float(np.max(emcee.autocorr.integrated_time(chain, tol=0)))
+
+    def _check(self) -> None:
+
         chain = np.array([step[:, 2: 2 + self.d] for step in self.rows])
 
-        tau = float(np.max(emcee.autocorr.integrated_time(chain, tol=0)))
+        tau = self._tau(self.rows)
 
         # A walker that moved accepted its proposal; one that stayed
         # put rejected it. emcee keeps no count when it stores nothing.
@@ -200,7 +206,21 @@ class Emcee(Sampler):
         state = start
         unwritten = 0
 
-        while len(self.rows) < self.options["max_samples"]:
+        # A resumed run is judged before it moves, as the mcmc sampler's
+        # is: one that had converged is not sampled further.
+        if self.rows:
+
+            # `tau` must have stopped moving: compare with the estimate
+            # one check earlier, as the run that wrote these rows did.
+            earlier = len(self.rows) - self.options["check_every"]
+
+            if earlier > 1:
+                self.tau = self._tau(self.rows[:earlier])
+
+            self._check()
+            self._record(time.monotonic() - clock)
+
+        while not self.converged and len(self.rows) < self.options["max_samples"]:
 
             n = min(self.options["check_every"], self.options["max_samples"] - len(self.rows))
 
@@ -223,9 +243,6 @@ class Emcee(Sampler):
 
             self._record(time.monotonic() - clock)
 
-            if self.converged:
-                break
-
             limit = self.options["max_time"]
 
             if limit is not None and time.monotonic() - clock > limit:
@@ -241,6 +258,13 @@ class Emcee(Sampler):
         }
 
         self.progress.append(entry)
+
+        if self.callback is not None:
+            self.callback({
+                **entry,
+                "tau_factor": self.options["tau_factor"],
+                "max_samples": self.options["max_samples"],
+            })
 
         if self.output.enabled:
 

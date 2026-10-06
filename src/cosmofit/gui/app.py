@@ -47,12 +47,12 @@ from cosmofit import (
 )
 from cosmofit import available_versions, dataset_reference
 from cosmofit.stats import DATASET_REGISTRY, model_comparison
-from cosmofit.stats.chains import ChainFile, StoredSampler
+from cosmofit.compat import sample_on_core
 from cosmofit.stats.results import _json_default
-from cosmofit.stats.fitter import usable_cpu_count
 
 from cosmofit.gui.reference import (
     ACTION_CHOICE,
+    SAMPLERS,
     ACTION_PRESETS,
     BACKGROUND_DEGENERATE_MODELS,
     BUILTIN_MODELS,
@@ -75,6 +75,7 @@ from cosmofit.gui.reference import (
     STANDARD_FLUIDS,
 )
 from cosmofit.gui.helpers import (
+    _picklable,
     _action_and_model,
     _action_widgets,
     _build_model_class,
@@ -83,6 +84,7 @@ from cosmofit.gui.helpers import (
     _relevant_parameters,
 )
 from cosmofit.gui.render import (
+    _equivalent_input,
     _available_compare_plots,
     _available_plots,
     _configuration,
@@ -382,67 +384,112 @@ with st.sidebar:
                 "if σ₈ is left fixed; otherwise tick the box."
             )
 
-    st.markdown("### ⚙️ MCMC settings")
+    st.markdown("### ⚙️ Sampler settings")
 
     with st.container(border=True):
 
-        col_a, col_b = st.columns(2)
-        with col_a:
-            nwalkers = st.number_input(
-                "Walkers", min_value=8, value=48, step=2,
-                key="mcmc_nwalkers",
-                help="At least 2x the number of free parameters you "
-                     "tick below, or the fit will fail to start.",
-            )
-            burnin = st.number_input(
-                "Burn-in", min_value=0, value=500, step=50,
-                key="mcmc_burnin",
-            )
-        with col_b:
-            nsteps = st.number_input(
-                "Steps", min_value=50, value=3000, step=50,
-                key="mcmc_nsteps",
-            )
-            seed = st.number_input(
-                "Seed", min_value=0, value=42, step=1,
-                key="mcmc_seed",
-            )
-
-        auto_processes = st.checkbox(
-            "Use all available CPU cores", value=True,
-            key="mcmc_auto_processes",
-            help="Let CosmoFit decide how many worker processes to "
-                 "use (every core this session is allowed to run on, "
-                 "but only when the run is long enough to be worth "
-                 "it). Safe with a Custom model -- it detects that "
-                 "case and stays single-process instead of failing.",
+        sampler_label = st.radio(
+            "Sampler",
+            options=list(SAMPLERS),
+            key="mcmc_sampler",
+            help="Both run on the library's 2.0 core. Adaptive "
+                 "Metropolis-Hastings runs a few independent chains, "
+                 "learns the posterior's covariance as it goes, and "
+                 "stops once the chains agree (Gelman-Rubin R - 1). "
+                 "emcee's ensemble moves many walkers together and "
+                 "stops at 50 autocorrelation times.",
         )
+        sampler_name = SAMPLERS[sampler_label]
 
-        if auto_processes:
-            n_processes = "auto"
-        else:
+        col_a, col_b = st.columns(2)
+
+        if sampler_name == "mcmc":
+
+            with col_a:
+                n_chains = st.number_input(
+                    "Chains", min_value=2, max_value=16, value=4, step=1,
+                    key="mcmc_chains",
+                    help="Independent chains, compared with each other "
+                         "to decide when to stop.",
+                )
+                rminus1_stop = st.number_input(
+                    "Stop at R − 1", min_value=0.001, max_value=0.5,
+                    value=0.01, step=0.005, format="%.3f",
+                    key="mcmc_rminus1",
+                    help="How closely the chains must agree. 0.01 is "
+                         "the usual target; 0.05 for a first look.",
+                )
+            with col_b:
+                nsteps = st.number_input(
+                    "Max steps", min_value=50, value=20000, step=1000,
+                    key="mcmc_nsteps",
+                    help="Steps per chain before giving up on "
+                         "convergence -- a ceiling, not a target.",
+                )
+                burn_in = st.number_input(
+                    "Burn-in (fraction)", min_value=0.0, max_value=0.9,
+                    value=0.3, step=0.05, key="mcmc_burnin",
+                    help="Of each chain's steps, discarded from the "
+                         "start before summarizing.",
+                )
+
             n_processes = int(st.number_input(
-                "Parallel processes", min_value=1,
-                max_value=usable_cpu_count(), value=1, step=1,
-                help="Evaluate walkers across multiple CPU cores. "
-                     "Only works for built-in models -- a model you "
-                     "built here, from an expression or from an "
-                     "action, exists only in this session and cannot "
-                     "be sent to a worker process. CosmoFit detects "
-                     "that and stays single-process rather than "
-                     "failing.",
+                "Processes", min_value=1, max_value=int(n_chains), value=1, step=1,
+                key="mcmc_processes",
+                help="Run the chains in separate processes. Starting one "
+                     "rebuilds the model and reloads its data, which "
+                     "takes seconds -- worth it for a Boltzmann-code "
+                     "likelihood, not for distances alone. A model built "
+                     "here (from an expression or an action) exists only "
+                     "in this session and always runs in one.",
             ))
+
+            sampler_options = {
+                "chains": int(n_chains),
+                "Rminus1_stop": float(rminus1_stop),
+                "max_samples": int(nsteps),
+                "processes": n_processes,
+            }
+
+        else:
+
+            with col_a:
+                nwalkers = st.number_input(
+                    "Walkers", min_value=8, value=32, step=2,
+                    key="mcmc_nwalkers",
+                    help="At least 2x the number of free parameters you "
+                         "tick below, or the fit will fail to start.",
+                )
+            with col_b:
+                nsteps = st.number_input(
+                    "Max steps", min_value=50, value=20000, step=1000,
+                    key="mcmc_nsteps",
+                    help="Steps per walker before giving up on "
+                         "convergence -- a ceiling, not a target.",
+                )
+
+            burn_in = 0.0
+
+            sampler_options = {
+                "walkers": int(nwalkers),
+                "max_samples": int(nsteps),
+            }
+
+        seed = st.number_input(
+            "Seed", min_value=0, value=42, step=1,
+            key="mcmc_seed",
+        )
 
         best_fit_restarts = int(st.number_input(
             "Best-fit restarts", min_value=0, max_value=32, value=0, step=1,
-            help="After the chain, the best fit is found by an "
-                 "optimizer, and an optimizer converges into whichever "
-                 "basin it started in. Restarts draw that many further "
-                 "starting points from the prior and keep the best "
-                 "result. Worth setting when a model fits *worse* than "
-                 "the one it contains as a special case -- an "
-                 "impossible answer, and how this was found. Costs one "
-                 "extra optimization each; nothing during sampling.",
+            help="Before sampling, the best fit is found by an "
+                 "optimizer -- the chains start there -- and an "
+                 "optimizer converges into whichever basin it started "
+                 "in. Restarts draw that many further starting points "
+                 "from the prior and keep the best result. Worth setting "
+                 "when a model fits *worse* than the one it contains as "
+                 "a special case -- an impossible answer, and how this "
+                 "was found. Costs one extra optimization each.",
         ))
 
     st.markdown("### 💾 Saved chains")
@@ -451,23 +498,23 @@ with st.sidebar:
 
         reuse_chains = st.checkbox(
             "Save chains and reuse them", value=True,
-            help="Write each model's MCMC chain to disk as it is "
-                 "sampled, and reuse it next time instead of "
-                 "sampling it again. Add a second model and the "
-                 "first one comes back instantly; raise Steps and "
-                 "only the extra steps are sampled; close the app "
-                 "and it's all still there. Changing a model, its "
-                 "datasets, free parameters, priors, walkers or "
-                 "seed makes a different fit, which gets its own "
-                 "file -- so nothing is ever silently reused when "
-                 "it shouldn't be.",
+            help="Write each model's chains to disk as they are "
+                 "sampled, in getdist's format, and reuse them next "
+                 "time. Add a second model and the first one comes "
+                 "back instantly; tighten R − 1 or raise Max steps "
+                 "and the saved chains continue rather than restart; "
+                 "close the app and it's all still there. Changing a "
+                 "model, its datasets, free parameters, priors, the "
+                 "sampler, its chains or walkers, or the seed makes a "
+                 "different fit, which gets its own folder -- so "
+                 "nothing is ever silently reused when it shouldn't be.",
         )
 
         chain_dir = st.text_input(
             "Folder", value="chains", disabled=not reuse_chains,
-            help="Where the .h5 chain files go, relative to "
-                 "wherever the app was started. Delete files in "
-                 "here to force a fresh run.",
+            help="Where each fit's folder of chains goes, relative to "
+                 "wherever the app was started. Delete a fit's folder "
+                 "to force a fresh run.",
         )
 
 
@@ -595,8 +642,10 @@ of it, on one data point" -- which is the entire content of the Hubble
 tension.
 
 **5. Check convergence before believing the posterior.** The MCMC tab
-says outright whether the chain is long enough. With chain saving on,
-raising **Steps** and re-running only costs the extra steps.
+says outright whether the chains met their stopping rule -- R − 1 for
+the adaptive sampler, the autocorrelation time for emcee. With chain
+saving on, raising **Max steps** and re-running continues the saved
+chains instead of starting over.
 
 **6. Compare.** Add a second model to get AIC/BIC, a likelihood-ratio
 test where the two are nested, and every figure with both curves
@@ -1274,51 +1323,66 @@ if run_clicked:
                     )
 
                 model_label = f"Model {i + 1}"
-                last_shown = {"pct": -1}
 
-                def _on_step(step, total, elapsed, _bar=progress_bar,
-                             _last=last_shown, _i=i, _n=n_models, _label=model_label):
-                    pct = int(100 * step / total)
-                    if pct == _last["pct"] and step != total:
-                        return
-                    _last["pct"] = pct
-                    rate = step / elapsed if elapsed > 0 else 0.0
-                    overall = (_i + pct / 100.0) / _n
+                progress_bar.progress(
+                    i / n_models,
+                    text=f"Best fit for {model_label} ({i + 1}/{n_models})",
+                )
+
+                # The best fit first: the chains start there, which is
+                # where the posterior is.
+                fit.best_fit(restarts=int(best_fit_restarts))
+
+                def _on_check(entry, _bar=progress_bar, _i=i, _n=n_models,
+                              _label=model_label):
+                    done = min(1.0, entry["steps"] / max(entry["max_samples"], 1))
+                    if "Rminus1_stop" in entry:
+                        state = (
+                            f"R − 1 = {entry['Rminus1']:.3g}, "
+                            f"stopping at {entry['Rminus1_stop']:g}"
+                        )
+                    else:
+                        state = f"τ = {entry['tau']:.3g}"
                     _bar.progress(
-                        overall,
+                        (_i + done) / _n,
                         text=(
-                            f"Fitting {_label} ({_i + 1}/{_n}) -- {pct}% "
-                            f"({step}/{total} steps, {rate:.1f} it/s)"
+                            f"Sampling {_label} ({_i + 1}/{_n}) -- "
+                            f"{entry['steps']} steps, {state}"
                         ),
                     )
 
-                # One file per distinct fit (`chain_id` hashes the
-                # model, datasets, free parameters and priors, plus
-                # the two run settings a stored chain can't change
-                # halfway through). Same configuration as last
-                # time -> that file is picked up and nothing is
-                # re-sampled; anything changed -> a different file,
-                # sampled fresh, with the old one left alone.
-                save = None
-                if reuse_chains and chain_dir.strip():
-                    save = ChainFile(
-                        os.path.join(
-                            chain_dir.strip(),
-                            f"{fit.chain_id(nwalkers=int(nwalkers), seed=int(seed))}.h5",
-                        )
+                # One folder per distinct fit (`chain_id` hashes the
+                # model, datasets, free parameters and priors, plus the
+                # sampler settings a run cannot change halfway through).
+                # Same configuration as last time -> its chains are read
+                # back, and continued only if they had not met their
+                # stopping rule; anything changed -> a new folder.
+                options = dict(sampler_options)
+
+                if options.get("processes", 1) > 1 and not _picklable(model_classes[i]):
+                    options["processes"] = 1
+                    st.info(
+                        f"{model_label} was built in this session, so its "
+                        f"chains run in one process.", icon="ℹ️",
                     )
 
-                fit.run_mcmc(
-                    nwalkers=int(nwalkers), nsteps=int(nsteps),
-                    burnin=int(burnin), seed=int(seed), progress=False,
-                    n_processes=n_processes, callback=_on_step,
-                    save=save,
-                )
-                fit.best_fit(restarts=int(best_fit_restarts))
+                output = None
+                if reuse_chains and chain_dir.strip():
+                    identity = {
+                        k: v for k, v in options.items()
+                        if k in ("chains", "walkers")
+                    }
+                    output = os.path.join(
+                        chain_dir.strip(),
+                        fit.chain_id(sampler=sampler_name, seed=int(seed), **identity),
+                        "run",
+                    )
 
-                # A fully-cached model never runs a step, so
-                # `_on_step` never fires -- move the bar on itself,
-                # or it sits at the previous model's position.
+                sample_on_core(
+                    fit, sampler_name, options, output=output, seed=int(seed),
+                    callback=_on_check, burn_in=float(burn_in),
+                )
+
                 progress_bar.progress(
                     (i + 1) / n_models,
                     text=f"Fitted {model_label} ({i + 1}/{n_models})",
@@ -1333,7 +1397,7 @@ if run_clicked:
             st.session_state["fit_labels"] = plain_labels
             st.session_state["fit_plot_labels"] = plot_labels
 
-            reused = sum(isinstance(f.sampler, StoredSampler) for f in fits)
+            reused = sum(bool(getattr(f.sampler, "reused", False)) for f in fits)
 
             if reused:
                 st.toast(
@@ -1615,9 +1679,9 @@ if fits:
                 bounds=dict(model_bounds[0] or {}),
                 compute_rd=bool(compute_rd),
                 derive_sigma8=bool(derive_sigma8),
-                nwalkers=int(nwalkers),
-                nsteps=int(nsteps),
-                burnin=int(burnin),
+                sampler=sampler_name,
+                sampler_options=dict(sampler_options),
+                burn_in=float(burn_in),
                 seed=int(seed),
             )
 
@@ -1633,6 +1697,31 @@ if fits:
 
         except Exception as exc:
             st.caption(f"Could not build the snippet: {exc}")
+
+        try:
+            yaml_input = _equivalent_input(
+                fits[0], sampler_name, dict(sampler_options), int(seed),
+            )
+        except Exception as exc:
+            yaml_input = None
+            st.caption(f"Could not write the YAML input: {exc}")
+
+        if yaml_input is not None:
+
+            st.markdown(
+                "Or as an input for the command line -- "
+                "`cosmofit run cosmofit_run.yaml` (model 1):"
+            )
+
+            st.code(yaml_input, language="yaml")
+
+            st.download_button(
+                "⬇️ Download as .yaml",
+                data=yaml_input,
+                file_name="cosmofit_run.yaml",
+                mime="text/yaml",
+                key="dl_yaml",
+            )
 
     with st.expander("🔗 The posterior samples"):
 

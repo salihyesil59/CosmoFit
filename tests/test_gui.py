@@ -60,13 +60,12 @@ def _fresh(timeout: float = 300.0) -> AppTest:
 
     app.run()
 
+    # A short run: the adaptive sampler checks every 40 d steps, so this
+    # is two or three checks -- enough to have chains to draw, not to
+    # converge.
     for number in app.number_input:
-        if number.label == "Steps":
-            number.set_value(60)
-        elif number.label == "Burn-in":
-            number.set_value(10)
-        elif number.label == "Walkers":
-            number.set_value(8)
+        if number.label == "Max steps":
+            number.set_value(240)
 
     app.run()
 
@@ -969,7 +968,8 @@ def test_the_fit_is_offered_as_a_python_snippet():
 
     assert "from cosmofit import" in snippet
 
-    assert "run_mcmc(" in snippet
+    # It samples on the 2.0 core, as the page did.
+    assert "to_info(exact=True)" in snippet and "run(info)" in snippet
 
     # and it has to name the datasets this run actually used, not a
     # fixed example
@@ -1016,9 +1016,9 @@ def test_the_snippet_rebuilds_an_action_rather_than_importing_it():
         bounds={},
         compute_rd=False,
         derive_sigma8=False,
-        nwalkers=10,
-        nsteps=100,
-        burnin=20,
+        sampler="mcmc",
+        sampler_options={"chains": 4, "Rminus1_stop": 0.01, "max_samples": 100},
+        burn_in=0.3,
         seed=42,
     )
 
@@ -1168,3 +1168,50 @@ def test_the_chain_itself_can_be_taken_away():
     # not the raw step count -- quoting the wrong one would have
     # people believe they have more independent samples than they do
     assert any(char.isdigit() for char in chain_buttons[0])
+
+
+# ============================================================
+# Saved chains, on the 2.0 core
+# ============================================================
+
+def test_a_saved_fit_comes_back_without_sampling(tmp_path):
+    """
+    The second run of an unchanged configuration reads its chains back:
+    they had met their stopping rule, so not a single step is taken.
+    """
+
+    app = AppTest.from_file(APP, default_timeout=600)
+    app.run()
+
+    for text in app.text_input:
+        if text.label == "Folder":
+            text.set_value(str(tmp_path))
+
+    for number in app.number_input:
+        if number.label == "Stop at R − 1":
+            number.set_value(0.2)
+        elif number.label == "Max steps":
+            number.set_value(4000)
+
+    app.run()
+
+    run_button = [b for b in app.button if b.label == "🚀 Run Fit"][0]
+
+    app = run_button.click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    folders = [p for p in tmp_path.iterdir() if p.is_dir()]
+
+    assert len(folders) == 1
+    assert (folders[0] / "run.1.txt").exists()
+    assert (folders[0] / "run.updated.yaml").exists()
+
+    written = (folders[0] / "run.1.txt").read_text()
+
+    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    assert any("read straight from a saved chain" in t.value for t in app.toast)
+    assert (folders[0] / "run.1.txt").read_text() == written

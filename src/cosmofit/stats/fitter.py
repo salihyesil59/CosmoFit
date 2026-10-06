@@ -1735,6 +1735,11 @@ class Fitter:
             converged : bool
                 Whether every parameter satisfies
                 ``n_used >= tol * tau`` *and* ``R - 1 < rhat_tol``.
+                For chains the 2.0 core sampled
+                (:func:`cosmofit.compat.sample_on_core`), whether
+                they met that sampler's own stopping rule -- the
+                rule the run was stopped by -- which is then
+                reported as ``stopping_rule``.
         """
 
         if self.sampler is None:
@@ -1789,7 +1794,17 @@ class Fitter:
 
         acceptance = getattr(self.sampler, "acceptance_fraction", None)
 
+        # A sampler that stopped by a rule of its own is judged by it.
+        stopped_by = getattr(self.sampler, "stopped_by", None)
+
+        extra = {}
+
+        if stopped_by is not None:
+            converged = bool(stopped_by["converged"])
+            extra["stopping_rule"] = dict(stopped_by)
+
         return {
+            **extra,
             "tau": tau_dict,
             "n_used": int(n_used),
             "n_effective": n_effective,
@@ -1895,6 +1910,24 @@ class Fitter:
         diagnostics = self.convergence(burnin=burnin)
 
         if diagnostics["converged"]:
+            return
+
+        rule = diagnostics.get("stopping_rule")
+
+        if rule is not None:
+
+            warnings.warn(
+                f"The chains have not converged: they stopped short of "
+                f"their sampler's rule ({rule['rule']}; now "
+                f"{rule['value']:.3g}). Intervals from them are not yet "
+                f"reliable, however reasonable they look. Sample again "
+                f"with a higher max_samples -- a run with an output "
+                f"continues from where it stopped. Pass check=False to "
+                f"silence.",
+                UserWarning,
+                stacklevel=3,
+            )
+
             return
 
         slow = max(diagnostics["tau"], key=diagnostics["tau"].get)

@@ -261,6 +261,7 @@ class MCMC(Sampler):
 
         self.Rminus1 = math.inf
         self.converged = False
+        self.resumed = False
         self.progress: list[dict] = []
 
         #: This process's chains.
@@ -414,6 +415,8 @@ class MCMC(Sampler):
                 error = own
 
         resumed = self._sync(error, None, lambda _: resumed)
+
+        self.resumed = bool(resumed)
 
         error = None
 
@@ -759,6 +762,13 @@ class MCMC(Sampler):
 
         self._record(entry)
 
+        if self.callback is not None:
+            self.callback({
+                **entry,
+                "Rminus1_stop": self.options["Rminus1_stop"],
+                "max_samples": self.options["max_samples"],
+            })
+
         return {
             "Rminus1": Rminus1,
             "covariance": covariance,
@@ -792,7 +802,15 @@ class MCMC(Sampler):
         clock = time.monotonic()
         step = 0
 
-        while step < self.options["max_samples"]:
+        decision = {"stop": False}
+
+        # A resumed run is judged before it moves: chains that already
+        # meet the stopping rule are not sampled further, so opening a
+        # finished run again costs nothing.
+        if self.resumed:
+            decision = self._check_now(None, step, clock)
+
+        while not decision["stop"] and step < self.options["max_samples"]:
 
             slow, fast = self._proposal_factors()
             error = None
@@ -810,18 +828,7 @@ class MCMC(Sampler):
 
             step += self.learn_every
 
-            decision = self._sync(
-                error, self._report(),
-                lambda reports, step=step: self._decide(reports, step, clock),
-            )
-
-            self.Rminus1 = decision["Rminus1"]
-            self.covariance = decision["covariance"]
-            self.converged = decision["converged"]
-            self.progress.append(decision["entry"])
-
-            if decision["stop"]:
-                break
+            decision = self._check_now(error, step, clock)
 
         for chain in self.chains:
             chain.leave()
@@ -838,6 +845,21 @@ class MCMC(Sampler):
             None, [(c.index, np.array(c.rows).reshape(-1, width)) for c in self.chains],
             collect,
         )
+
+    def _check_now(self, error, step, clock) -> dict:
+        """Compare the chains across processes, and take the decision."""
+
+        decision = self._sync(
+            error, self._report(),
+            lambda reports: self._decide(reports, step, clock),
+        )
+
+        self.Rminus1 = decision["Rminus1"]
+        self.covariance = decision["covariance"]
+        self.converged = decision["converged"]
+        self.progress.append(decision["entry"])
+
+        return decision
 
     # ---------------------------------------------------------
 

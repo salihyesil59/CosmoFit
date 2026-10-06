@@ -284,3 +284,34 @@ def test_a_declaration_reads_back_as_itself(declaration):
 
     assert spec.declaration() == declaration
     assert parse_param("x", spec.declaration()).declaration() == declaration
+
+
+def test_a_converged_run_is_not_sampled_again(tmp_path):
+
+    prefix = tmp_path / "gauss"
+
+    run(gaussian_input(prefix, Rminus1_stop=0.5), seed=11)
+
+    before = [len(np.loadtxt(prefix.parent / f"gauss.{i}.txt")) for i in range(1, 5)]
+
+    info = gaussian_input(prefix, Rminus1_stop=0.5)
+    info["resume"] = True
+
+    _, again = run(info, seed=12)
+
+    after = [len(np.loadtxt(prefix.parent / f"gauss.{i}.txt")) for i in range(1, 5)]
+
+    assert after == before
+    assert again.products()["converged"]
+    assert again.progress[0]["steps"] == 0
+
+
+def test_progress_is_reported_at_every_check():
+
+    seen = []
+
+    _, sampler = run(gaussian_input(Rminus1_stop=0.05), seed=13, callback=seen.append)
+
+    assert len(seen) == len(sampler.progress) > 1
+    assert seen[-1]["Rminus1"] == sampler.products()["Rminus1"]
+    assert seen[-1]["Rminus1_stop"] == 0.05 and "max_samples" in seen[-1]

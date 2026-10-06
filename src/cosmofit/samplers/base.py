@@ -103,6 +103,11 @@ class Sampler:
         self.rng = np.random.default_rng(self.seed)
         self.output = output if output is not None else Output({})
 
+        #: Called with a dict of progress at every check, by the
+        #: samplers that check (``mcmc``, ``emcee``); see
+        #: :func:`core.run.run`.
+        self.callback = None
+
         self.initialize()
 
     def initialize(self) -> None:

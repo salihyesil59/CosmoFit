@@ -977,8 +977,11 @@ pip install "cosmofit[theory]"
 
 For datasets/models/parameters by clicking rather than coding, a
 [Streamlit](https://streamlit.io) app (the `cosmofit.gui` package) sits
-on top of the exact same public API as above -- it builds a
-`Fitter` and calls `run_mcmc()`/`best_fit()`/`fit.plots.*` for you.
+on top of the same library. It builds a `Fitter` for its checks and
+figures, and runs the calculations on the 2.0 core
+(`cosmofit.compat`): the adaptive Metropolis-Hastings sampler, stopped
+by R − 1, or emcee's ensemble, and the core's profile, Fisher and
+nested samplers.
 
 ```bash
 pip install "cosmofit[gui]"
@@ -995,12 +998,13 @@ whatever's missing on first run and then opens the app in your
 browser; safe to double-click again any time to relaunch it.
 
 Chains are saved and reused (the "Saved chains" box in the sidebar,
-on by default): add a second model to compare against and the first
-one comes back instantly instead of being re-sampled, raise Steps and
-only the extra steps are run, close the app and it's all still there.
-Each distinct configuration gets its own file (see
-[Saved Chains](#saved-chains)), so nothing is reused when it
-shouldn't be.
+on by default), in getdist's format, one folder per distinct
+configuration: add a second model to compare against and the first
+one comes back instantly instead of being re-sampled, tighten R − 1 or
+raise Max steps and the saved chains continue rather than restart,
+close the app and it's all still there. Changing the model, its
+datasets, free parameters, priors, the sampler or the seed makes a
+different folder, so nothing is reused when it shouldn't be.
 
 It lets you: tick which built-in datasets to fit; pick one of the
 seventeen built-in models, or write a custom one directly as an

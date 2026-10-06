@@ -199,3 +199,126 @@ def test_a_free_parameter_nothing_takes_is_refused():
 
     with pytest.raises(ValueError, match="'Omega_m'"):
         fitter.to_info()
+
+
+# ============================================================
+# A Fitter's calculations on the core
+# ============================================================
+
+from cosmofit.compat import (  # noqa: E402
+    CoreChains,
+    evidence_on_core,
+    fisher_on_core,
+    profile_on_core,
+    sample_on_core,
+)
+
+
+def lcdm():
+
+    fitter = quiet(
+        Fitter, model=cosmofit.LCDM, datasets=["cc", "desi"],
+        free_params=["H0", "Omega_m", "rd"],
+        initial={"H0": 68.0, "Omega_m": 0.3, "rd": 147.0},
+    )
+
+    quiet(fitter.best_fit)
+
+    return fitter
+
+
+@pytest.mark.parametrize("sampler, options", [
+    ("mcmc", {"Rminus1_stop": 0.02}),
+    ("emcee", {"walkers": 16, "max_samples": 3000}),
+])
+def test_core_chains_are_the_fitters_own(sampler, options):
+
+    fitter = lcdm()
+
+    quiet(sample_on_core, fitter, sampler, options, seed=1)
+
+    assert isinstance(fitter.sampler, CoreChains)
+
+    chain = fitter.sampler.get_chain()
+
+    assert chain.shape[1:] == (fitter.sampler.nwalkers, 3)
+    assert fitter.flat_samples().shape[1] == 3
+    assert 0 < fitter.burnin < fitter.sampler.iteration
+
+    summary = quiet(fitter.summary)
+
+    # CC + DESI: Omega_m to about 0.01.
+    assert summary["Omega_m"]["median"] == pytest.approx(0.30, abs=0.03)
+    assert 0.003 < summary["Omega_m"]["plus"] < 0.03
+
+    convergence = fitter.convergence()
+
+    assert "stopping_rule" in convergence
+    assert convergence["converged"] == fitter.sampler.stopped_by["converged"]
+
+    # The figures read it like any chain.
+    assert quiet(fitter.plots.corner) is not None
+
+
+def test_a_saved_run_is_read_back_not_sampled_again(tmp_path):
+
+    output = str(tmp_path / "lcdm" / "run")
+
+    first = lcdm()
+    quiet(sample_on_core, first, "mcmc", {"Rminus1_stop": 0.05}, output=output, seed=2)
+
+    assert first.sampler.stopped_by["converged"]
+    assert not first.sampler.reused
+
+    rows = np.loadtxt(tmp_path / "lcdm" / "run.1.txt")
+
+    again = lcdm()
+    quiet(sample_on_core, again, "mcmc", {"Rminus1_stop": 0.05}, output=output, seed=3)
+
+    assert again.sampler.reused
+    np.testing.assert_array_equal(np.loadtxt(tmp_path / "lcdm" / "run.1.txt"), rows)
+    # Read back from the files, which keep eleven significant digits.
+    np.testing.assert_allclose(again.flat_samples(), first.flat_samples(), rtol=1e-9)
+
+
+def test_the_core_profile_is_the_fitters():
+
+    fitter = lcdm()
+    values = np.linspace(0.27, 0.33, 4)
+
+    new = quiet(profile_on_core, fitter, "Omega_m", values)
+    old = quiet(fitter.profile, "Omega_m", values)
+
+    np.testing.assert_allclose(new["delta_chi2"], old["delta_chi2"], atol=1e-3)
+    assert set(new["params"][0]) == {"H0", "rd"}
+
+
+def test_the_core_fisher_agrees_with_the_fitters():
+
+    fitter = lcdm()
+
+    new = quiet(fisher_on_core, fitter)
+    old = quiet(fitter.fisher)
+
+    assert new["free_params"] == old["free_params"]
+    np.testing.assert_allclose(new["errors"], old["errors"], rtol=0.05)
+    np.testing.assert_allclose(new["theta"], old["theta"])
+
+
+def test_the_core_evidence_agrees_with_the_fitters():
+
+    pytest.importorskip("dynesty")
+
+    from cosmofit.stats.nested import run_nested
+
+    fitter = lcdm()
+
+    new = quiet(evidence_on_core, fitter, nlive=150, seed=4)
+    old = quiet(run_nested, fitter.logpost, fitter.prior, fitter.free_params,
+                n_live=150, progress=False, seed=4)
+
+    error = np.hypot(new.log_evidence_error, old.log_evidence_error)
+
+    assert abs(new.log_evidence - old.log_evidence) < 4 * error
+    assert new.prior_volume == pytest.approx(old.prior_volume)
+    assert new.samples.shape[1] == 3

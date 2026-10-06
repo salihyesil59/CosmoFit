@@ -14,7 +14,7 @@ from .registry import resolve
 __all__ = ["run"]
 
 
-def run(info, seed: int | None = None):
+def run(info, seed: int | None = None, callback=None):
     """
     Build the model an input describes, run its sampler, and return
     both.
@@ -26,6 +26,11 @@ def run(info, seed: int | None = None):
         block, to reweight a finished run (see :mod:`core.post`).
     seed : int, optional
         For the sampler's random draws, unless the input sets one.
+    callback : callable, optional
+        Called with a dict of progress (``steps``, ``Rminus1`` or
+        ``tau``, ``acceptance``, ``seconds``, and the stopping
+        targets) at every check of a sampler that checks -- for a
+        progress bar. In the first process only.
 
     Returns
     -------
@@ -73,6 +78,7 @@ def run(info, seed: int | None = None):
     options = {k: v for k, v in options.items() if k != "class"}
 
     sampler = sampler_cls(options, model, seed=seed, output=Output(info))
+    sampler.callback = callback
 
     sampler.run()
 

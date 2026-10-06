@@ -34,6 +34,7 @@ from cosmofit import (
     EBOSSLyaLikelihood,
 )
 from cosmofit.stats import cpl_diagnostics
+from cosmofit.compat import evidence_on_core, fisher_on_core, profile_on_core
 
 from cosmofit.gui.reference import (
     PLOT_EXPORT_FORMATS,
@@ -376,9 +377,9 @@ def _equivalent_script(
     bounds: dict,
     compute_rd: bool,
     derive_sigma8: bool,
-    nwalkers: int,
-    nsteps: int,
-    burnin: int,
+    sampler: str,
+    sampler_options: dict,
+    burn_in: float,
     seed: int,
 ) -> str:
     """
@@ -396,7 +397,7 @@ def _equivalent_script(
     here rather than a difference the reader has to notice.
     """
 
-    lines = ["from cosmofit import Fitter"]
+    lines = ["from cosmofit import Fitter", "from cosmofit.core import run"]
 
     action_specs = [spec for spec in action_specs if spec]
 
@@ -461,12 +462,25 @@ def _equivalent_script(
 
         lines.append(")")
         lines.append("")
-        lines.append(
-            f"fit.run_mcmc(nwalkers={nwalkers}, nsteps={nsteps}, "
-            f"burnin={burnin}, seed={seed})"
-        )
+        lines.append("# The same fit as an input for the 2.0 core, which samples it.")
+        lines.append("info = fit.to_info(exact=True)")
+        lines.append(f"info['sampler'] = {{{sampler!r}: {dict(sampler_options, seed=seed)!r}}}")
+        lines.append("info['output'] = 'chains/cosmofit_run'")
         lines.append("")
-        lines.append("print(fit.summary())")
+        lines.append("_, sampler = run(info)")
+        lines.append("")
+
+        if sampler == "mcmc":
+            lines.append(f"products = sampler.products(skip={burn_in!r})")
+            lines.append(
+                "print('R - 1 =', products['Rminus1'], "
+                "'converged:', products['converged'])"
+            )
+        else:
+            lines.append("products = sampler.products()")
+            lines.append(
+                "print('tau =', products['tau'], 'converged:', products['converged'])"
+            )
 
         # One model is the common case and reads best as a script;
         # several would need a loop, and guessing how someone wants
@@ -480,6 +494,26 @@ def _equivalent_script(
         break
 
     return "\n".join(lines)
+
+
+def _equivalent_input(fit: Fitter, sampler: str, sampler_options: dict, seed: int):
+    """
+    The fit as a YAML input for ``cosmofit run`` -- or ``None`` for a
+    model built in this session, which a file cannot name.
+    """
+
+    import yaml
+
+    from cosmofit.compat import _model_reference
+
+    if not isinstance(_model_reference(fit.model_cls), str):
+        return None
+
+    info = fit.to_info(exact=True)
+    info["sampler"] = {sampler: dict(sampler_options, seed=int(seed))}
+    info["output"] = "chains/cosmofit_run"
+
+    return yaml.safe_dump(info, sort_keys=False)
 
 
 # ------------------------------------------------------------
@@ -585,28 +619,39 @@ def _render_posterior(fit: Fitter) -> None:
         width="stretch",
     )
 
-    if result.mcmc.convergence["converged"]:
-        st.success(
-            "Converged -- chain length exceeds 50x the "
-            "autocorrelation time.", icon="✅",
-        )
-    elif fit.chain is not None:
+    convergence = result.mcmc.convergence
+    rule = convergence.get("stopping_rule")
+    saved = getattr(fit.sampler, "output", None)
+
+    if rule is None:
+        reached = "chain length exceeds 50x the autocorrelation time"
+        missed = "the chain is shorter than 50 autocorrelation times"
+    elif rule["target"] is not None:
+        reached = f"R − 1 = {rule['value']:.3g}, below {rule['target']:g}"
+        missed = f"R − 1 = {rule['value']:.3g}, still above {rule['target']:g}"
+    else:
+        reached = f"{rule['rule']}, with τ = {rule['value']:.3g}"
+        missed = f"τ = {rule['value']:.3g} is not settled at {rule['rule']}"
+
+    if convergence["converged"]:
+        st.success(f"Converged -- {reached}.", icon="✅")
+    elif saved:
         st.warning(
-            f"Not converged yet -- raise Steps above "
-            f"{result.mcmc.nsteps} and run again before trusting "
-            f"this posterior. The steps already sampled are saved, "
-            f"so only the new ones cost anything.", icon="⚠️",
+            f"Not converged yet -- {missed}. Raise Max steps and run "
+            f"again before trusting this posterior: the saved chains "
+            f"continue from where they stopped.", icon="⚠️",
         )
     else:
         st.warning(
-            "Not converged yet -- consider more steps before "
-            "trusting this posterior.", icon="⚠️",
+            f"Not converged yet -- {missed}. Raise Max steps before "
+            f"trusting this posterior.", icon="⚠️",
         )
 
-    if fit.chain is not None:
+    if saved:
         st.caption(
-            f"Chain saved in `{fit.chain.path}` "
-            f"({result.mcmc.nsteps} steps x {result.mcmc.nwalkers} walkers)."
+            f"Chains saved under `{saved}` in getdist's format "
+            f"({result.mcmc.nsteps} steps x {result.mcmc.nwalkers} "
+            f"{'chains' if rule and rule['target'] is not None else 'walkers'})."
         )
 
     # --------------------------------------------------------
@@ -850,7 +895,7 @@ def _render_profile(fit: Fitter, label: str) -> None:
         return
 
     with st.spinner(f"Profiling {name} at {values.size} points..."):
-        profile = fit.profile(name, values)
+        profile = profile_on_core(fit, name, values)
 
     delta = np.asarray(profile["delta_chi2"], dtype=float)
 
@@ -930,7 +975,7 @@ def _render_fisher(fit: Fitter, label: str) -> None:
         return
 
     with st.spinner("Differentiating chi2 at the best fit..."):
-        fisher = fit.fisher()
+        fisher = fisher_on_core(fit)
 
     rows = []
 
@@ -994,9 +1039,10 @@ def _render_evidence(fits: list[Fitter], labels: list[str]) -> None:
     which is exactly what makes it able to compare models at all.
     """
 
+    from cosmofit.stats import evidence as evidence_mod
+
     try:
-        from cosmofit.stats.nested import run_nested
-        from cosmofit.stats import evidence as evidence_mod
+        import dynesty  # noqa: F401
     except ModuleNotFoundError:
         st.warning(
             "Nested sampling needs **dynesty**, an optional "
@@ -1038,10 +1084,7 @@ def _render_evidence(fits: list[Fitter], labels: list[str]) -> None:
             i / len(fits), text=f"Nested sampling {label} ({i + 1}/{len(fits)})",
         )
 
-        results[label] = run_nested(
-            fit.logpost, fit.prior, fit.free_params,
-            n_live=int(n_live), progress=False,
-        )
+        results[label] = evidence_on_core(fit, nlive=int(n_live))
 
     progress.empty()
 

@@ -852,8 +852,9 @@ SLOW_DATASETS = {
         "Planck TT/TE/EE computes the CMB power spectrum from scratch "
         "with CAMB on every likelihood evaluation (~0.7 s per step, "
         "against ~1 ms for every other dataset combined). A full chain "
-        "takes hours, not minutes -- use a saved chain, raise "
-        "n_processes, and consider the compressed distance priors "
+        "takes hours, not minutes -- use a saved chain, run the "
+        "chains in several Processes, and consider the compressed "
+        "distance priors "
         "('Planck 2018 CMB distance priors') unless you specifically "
         "need the spectra. It also only works for LCDM and models with "
         "a w(z), not the modified-gravity ones."
@@ -944,6 +945,12 @@ COMPARE_PLOT_LABELS = {
 
 
 MAX_MODELS = 5
+
+#: The samplers the page offers -- the 2.0 core's -- by label.
+SAMPLERS = {
+    "Adaptive Metropolis-Hastings": "mcmc",
+    "emcee ensemble": "emcee",
+}
 
 
 #: Export formats offered for every figure -- (file extension, MIME

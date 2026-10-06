@@ -459,3 +459,15 @@ def _build_model_class(slot: int, model_choice: str):
         dEdz=dEdz_expr,
         mu=mu_expr,
     )
+
+
+def _picklable(model_cls) -> bool:
+    """
+    Whether a separate process can import this model by name -- true of
+    the built-in models and of classes in importable modules, false of
+    one built in this session from an expression or an action.
+    """
+
+    from cosmofit.compat import _model_reference
+
+    return isinstance(_model_reference(model_cls), str)

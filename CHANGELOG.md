@@ -16,6 +16,46 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The GUI samples on the 2.0 core
+
+The GUI still builds a `Fitter`, for its checks, its warnings and its
+figures. The calculations now run on the new core, through
+`cosmofit.compat`, on `fit.to_info(exact=True)`. The fitter's own
+model and likelihood classes are what is evaluated, so the physics,
+and every number the page showed before, are unchanged.
+
+- **Sampling.** The sidebar offers the adaptive Metropolis-Hastings
+  sampler (chains, the `R - 1` to stop at, a ceiling on steps, burn-in
+  as a fraction, processes) or emcee's ensemble (walkers, a ceiling on
+  steps). The chains start at the best fit, found first.
+  `sample_on_core` hands the result back as `fitter.sampler`, a
+  `CoreChains`. That object expands each Metropolis-Hastings chain's
+  weighted rows into one row per step; every chain takes the same
+  number, so together they are emcee's `(steps, walkers, parameters)`.
+  `summary()`, `convergence()`, the derived posteriors, `best_fit()`
+  and every figure read it unchanged.
+- **Convergence is judged by the rule the run stopped by.**
+  `Fitter.convergence()` reports the sampler's own rule
+  (`stopping_rule`) when it has one, as does `summary()`'s warning.
+  Emcee's 50 autocorrelation times would otherwise have called a run
+  unconverged that had met `R - 1 < 0.01`.
+- **Saved chains** are now the core's output, in getdist's format,
+  one folder per configuration. A run that had met its stopping rule
+  is read back without a single new step. Resuming checks the chains
+  before moving, for both `mcmc` and `emcee`; for emcee, the earlier
+  `tau` is recomputed from the saved rows, since convergence there
+  means `tau` has stopped moving. One that had not is continued.
+  `run(..., callback=...)` reports each check, which is how the page's
+  progress bar shows `R - 1` or `tau` as the run goes.
+- **The inference tabs.** Profile, Fisher and evidence run the core's
+  `profile`, `fisher` and `nested` samplers. The profile is the
+  fitter's to 1e-3 in `chi2`. Fisher errors agree within 5%; the core
+  sizes its steps from the likelihood. The evidence agrees within its
+  error.
+- **"The same fit in Python"** now samples on the core
+  (`fit.to_info(exact=True)`, then `run(info)`). For a built-in model
+  it also gives the input as YAML, for `cosmofit run`.
+
 ### Phase 5f: example inputs, CI on Windows and macOS, `.coverage` untracked
 
 - **`examples/yaml/`** holds inputs for `cosmofit run`:
