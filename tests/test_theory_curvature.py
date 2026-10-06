@@ -380,5 +380,10 @@ def test_a_fourth_order_model_fits_real_data():
 
     result = fit.best_fit(restarts=0, seed=0)
 
-    assert result.success
+    # Judged by where it landed, not by scipy's flag: on CI's Linux
+    # runners L-BFGS-B reported "ABNORMAL" (a line search that a
+    # finite-difference gradient could not satisfy) at chi2 = 23.28,
+    # a perfectly good minimum. With alpha_fr = 1e-3 this is LCDM to
+    # within a small correction, and LCDM on CC + DESI reaches 23.51.
     assert np.isfinite(result.fun)
+    assert result.fun < 24.0

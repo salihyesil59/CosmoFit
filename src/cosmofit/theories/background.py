@@ -425,6 +425,17 @@ class Background(Theory):
             if index > 0:
                 z[0] = np.nextafter(jumps[index - 1], np.inf)
 
+            # And the piece below one ends just short of it, for the same
+            # reason the other way. Only the first guard was here, and
+            # which way expm1(log1p(1.8)) rounds is the platform's maths
+            # library's choice: on Windows it lands below 1.8, on Linux
+            # and macOS above -- so there, and only there, the last
+            # slope below the jump was taken from above it, and every
+            # distance past it was off by 4e-5. CI on Linux and macOS
+            # was red for it while every Windows run was green.
+            if index < len(jumps):
+                z[-1] = np.nextafter(jumps[index], -np.inf)
+
             E = state["E"](z)
 
             if not np.all(np.isfinite(E)) or np.any(E <= 0.0):

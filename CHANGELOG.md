@@ -16,6 +16,28 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### A distance past a jump depended on the platform's maths library
+
+CI had been red on Linux and macOS since phase 4b, while every
+Windows run, and every run of the suite on the machine the library
+is developed on, was green. Three failures, all LsCDM's: distances
+just past the sign switch at `z_dagger` were off by 4e-5.
+
+The native distance table is split at a jump in `E(z)`, and each piece
+is integrated on its own side of it. The piece *above* the jump started
+from `nextafter(z_dagger, +inf)`, with a comment explaining that
+`expm1(log1p(z))` can round below `z`. The piece *below* had no such
+guard: its last node was `expm1(log1p(1.8))`. Which way that rounds is
+the platform's choice. Windows gives `1.7999999999999998`; glibc and
+macOS's libm round up, past the jump, so there the last slope below it
+was taken from above it. That end is now pinned to
+`nextafter(z_dagger, -inf)` too.
+
+One more test failed on one Linux runner only: an `f(R)` fit asserted
+scipy's `success` flag. L-BFGS-B reported a failed line search at
+`chi2 = 23.28`, a good minimum. The test now checks where the fit
+landed rather than what the optimizer said about it.
+
 ### `Fitter`'s own samplers are deprecated; the notebooks sample on the core
 
 `Fitter.run_mcmc`, `run_nested`, `profile` and `fisher` now raise a
