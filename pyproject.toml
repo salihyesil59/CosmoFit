@@ -103,6 +103,13 @@ dependencies = [
 # project page is a rendered README and nothing else -- no way to
 # reach the source, the issue tracker or the history.
 
+[project.scripts]
+
+# `cosmofit run input.yaml`, `cosmofit list`, `cosmofit doc NAME`.
+# `python -m cosmofit` is the same command, for an environment whose
+# scripts directory is not on PATH.
+cosmofit = "cosmofit.cli:main"
+
 [project.urls]
 
 Homepage = "https://github.com/salihyesil59/CosmoFit"

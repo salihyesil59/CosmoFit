@@ -16,6 +16,28 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 command line, phase 5b: `cosmofit run`, `list` and `doc`
+
+`pip install` now provides a `cosmofit` command (`python -m cosmofit`
+is the same):
+
+- **`cosmofit run input.yaml`** runs an input. An input with a `post`
+  block reweights a finished run instead. `-o` overrides the output
+  prefix, and `--force`, `--resume` and `--seed` do what their names
+  say. A summary is printed: the best fit and its chi2, the samples'
+  means and widths with `R - 1` or the autocorrelation time, `ln Z`,
+  or the effective sample size. Under `mpirun -n 4 cosmofit run ...`,
+  the `mcmc` chains are shared between the processes.
+- **`cosmofit list`** names every component an input can use without
+  an import path, with a one-line description each. The old dataset
+  names say which native likelihood to use instead.
+- **`cosmofit doc NAME`** describes one component: its documentation,
+  a sampler's options with their defaults, and a theory's or
+  likelihood's parameters, provided quantities and requirements.
+
+An error is one line naming the exception; `--debug` shows the full
+traceback.
+
 ### The 2.0 rename, phase 5a: the package is imported as `cosmofit`
 
 `src/CosmoFit` is now `src/cosmofit`, so the import name matches the
