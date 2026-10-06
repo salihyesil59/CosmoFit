@@ -1,0 +1,49 @@
+# Evolving dark energy, w(z) = w0 + wa z/(1+z), against DESI DR2 BAO,
+# DES-SN5YR supernovae and the Planck 2018 CMB distance priors: the
+# combination behind the w0-wa tension with a cosmological constant.
+#
+#   cosmofit run examples/yaml/cpl_bao_sn_cmb.yaml
+
+theory:
+  background:
+    dark_energy: cpl
+  early_universe:
+
+likelihood:
+  bao.desi:
+  sn.des_sn5yr:
+  cmb.distance_priors:
+
+params:
+  H0:
+    prior: {min: 55, max: 85}
+    ref: {dist: norm, loc: 67, scale: 1}
+    proposal: 0.5
+    latex: H_0
+  Omega_m:
+    prior: {min: 0.1, max: 0.6}
+    ref: {dist: norm, loc: 0.31, scale: 0.01}
+    proposal: 0.01
+    latex: \Omega_\mathrm{m}
+  Omega_b:
+    prior: {min: 0.03, max: 0.07}
+    ref: {dist: norm, loc: 0.049, scale: 0.001}
+    proposal: 0.001
+    latex: \Omega_\mathrm{b}
+  w0:
+    prior: {min: -3, max: 1}
+    ref: {dist: norm, loc: -0.8, scale: 0.05}
+    proposal: 0.05
+    latex: w_0
+  wa:
+    prior: {min: -3, max: 2}
+    ref: {dist: norm, loc: -0.6, scale: 0.1}
+    proposal: 0.1
+    latex: w_a
+
+sampler:
+  mcmc:
+    Rminus1_stop: 0.02
+    chains: 4
+
+output: chains/cpl_bao_sn_cmb

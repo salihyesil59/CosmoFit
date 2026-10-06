@@ -10,6 +10,25 @@ New here? Start with
 
 ---
 
+## YAML inputs (the 2.0 core)
+
+The same analyses written as inputs for `cosmofit run`, the command
+the 2.0 core runs from -- no Python needed. `cosmofit list` names every
+theory, likelihood and sampler they can use, and `cosmofit doc NAME`
+shows one.
+
+| | |
+|---|---|
+| [`yaml/lcdm_bao_sn_bbn.yaml`](yaml/lcdm_bao_sn_bbn.yaml) | Flat ΛCDM from DESI DR2 + Pantheon+ + BBN, with the sound horizon computed: adaptive MCMC, getdist-format chains. |
+| [`yaml/cpl_bao_sn_cmb.yaml`](yaml/cpl_bao_sn_cmb.yaml) | `w0`–`wa` dark energy against DESI DR2, DES-SN5YR and the Planck distance priors. |
+| [`yaml/lcdm_fisher.yaml`](yaml/lcdm_fisher.yaml) | The ΛCDM fit by its Fisher matrix, in a few dozen evaluations, written as a covmat an MCMC can start from. |
+| [`yaml/lcdm_post_sh0es.yaml`](yaml/lcdm_post_sh0es.yaml) | The ΛCDM chains reweighted by the SH0ES `H0`, without sampling again. |
+
+A `Fitter` from the notebooks becomes such an input with
+`fit.to_info()`.
+
+---
+
 ## 01 · Getting started
 
 | | |

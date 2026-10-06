@@ -16,6 +16,27 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Phase 5f: example inputs, CI on Windows and macOS, `.coverage` untracked
+
+- **`examples/yaml/`** holds inputs for `cosmofit run`:
+  - LCDM from DESI DR2 + Pantheon+ + BBN with the sound horizon
+    computed;
+  - CPL against DESI DR2, DES-SN5YR and the CMB distance priors;
+  - the LCDM fit by its Fisher matrix, which gives
+    `H0 = 68.74 +- 0.61` and `Omega_m = 0.306 +- 0.008`;
+  - a post-processing input that adds SH0ES to the LCDM chains.
+
+  A test builds and evaluates each one, so what the documentation
+  points to runs.
+- **CI runs the suite on Windows and macOS.** The test runs install
+  every extra but CAMB, whose PyPI release still has the lensing bug.
+  Two things are checked there and not on Linux: the `CosmoFit.py`
+  alias beside the `cosmofit` package on a case-insensitive
+  filesystem, and the `cosmofit` console script as each platform
+  installs it.
+- **`.coverage` is no longer tracked**: a local coverage database had
+  been committed. It is in `.gitignore` now, with `htmlcov/`.
+
 ### Phase 5e: the GUI is a package, started with `cosmofit gui`
 
 `app/streamlit_app.py` was one 4249-line script, outside the package,

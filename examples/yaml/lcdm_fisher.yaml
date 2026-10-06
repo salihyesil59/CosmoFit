@@ -1,0 +1,25 @@
+# The same LCDM fit as lcdm_bao_sn_bbn.yaml, by its Fisher matrix: the
+# best fit, then the curvature there, in a few dozen evaluations. The
+# inverse is written to chains/lcdm_fisher.covmat, where an MCMC can
+# start from it (sampler: {mcmc: {covmat: chains/lcdm_fisher.covmat}}).
+#
+#   cosmofit run examples/yaml/lcdm_fisher.yaml
+
+theory:
+  background:
+  early_universe:
+
+likelihood:
+  bao.desi:
+  sn.pantheonplus:
+  external.bbn:
+
+params:
+  H0: {prior: {min: 55, max: 85}, ref: 68, proposal: 0.5}
+  Omega_m: {prior: {min: 0.1, max: 0.6}, ref: 0.30, proposal: 0.01}
+  Omega_b: {prior: {min: 0.03, max: 0.07}, ref: 0.049, proposal: 0.001}
+
+sampler:
+  fisher:
+
+output: chains/lcdm_fisher

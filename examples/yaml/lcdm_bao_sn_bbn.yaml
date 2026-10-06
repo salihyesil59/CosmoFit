@@ -1,0 +1,43 @@
+# Flat LCDM from late-time data alone: DESI DR2 BAO with the sound
+# horizon computed from the early universe, Pantheon+ supernovae, and a
+# BBN prior on omega_b that the sound horizon needs.
+#
+#   cosmofit run examples/yaml/lcdm_bao_sn_bbn.yaml
+#   mpirun -n 4 cosmofit run examples/yaml/lcdm_bao_sn_bbn.yaml
+#
+# The chains land in chains/lcdm_bao_sn_bbn.*, in getdist's format.
+
+theory:
+  background:              # radiation and massive neutrinos included
+  early_universe:          # rd from the densities, not a free parameter
+
+likelihood:
+  bao.desi:
+  sn.pantheonplus:
+  external.bbn:
+
+params:
+  H0:
+    prior: {min: 55, max: 85}
+    ref: {dist: norm, loc: 68, scale: 1}
+    proposal: 0.5
+    latex: H_0
+  Omega_m:
+    prior: {min: 0.1, max: 0.6}
+    ref: {dist: norm, loc: 0.30, scale: 0.01}
+    proposal: 0.01
+    latex: \Omega_\mathrm{m}
+  Omega_b:
+    prior: {min: 0.03, max: 0.07}
+    ref: {dist: norm, loc: 0.049, scale: 0.001}
+    proposal: 0.001
+    latex: \Omega_\mathrm{b}
+  rdrag: {derived: true, latex: 'r_\mathrm{d}'}
+  omega_m: {derived: true, latex: '\omega_\mathrm{m}'}
+
+sampler:
+  mcmc:
+    Rminus1_stop: 0.01
+    chains: 4
+
+output: chains/lcdm_bao_sn_bbn

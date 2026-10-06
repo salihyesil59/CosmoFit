@@ -44,3 +44,7 @@ docs/api/generated/
 chains/
 *.h5
 outputs/
+# Coverage
+.coverage
+.coverage.*
+htmlcov/

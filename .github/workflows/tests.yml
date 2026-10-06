@@ -138,6 +138,54 @@ jobs:
         run: pytest -q --durations=10
 
   # ----------------------------------------------------------------
+  # Windows and macOS.
+  #
+  # What depends on the platform: the package lives at src/cosmofit
+  # beside the src/CosmoFit.py alias, which on a case-insensitive
+  # filesystem only works because one is a module and the other a
+  # directory; `cosmofit` is a console script, installed differently
+  # on each; and the MCMC's processes are started with `spawn`, which
+  # Linux tests too, but Windows is the platform where nothing else
+  # exists.
+  #
+  # Without the `cmb` extra: CAMB's PyPI release predates the fix to
+  # its lensing spline (cmbant/CAMB#211), which turned the lensed
+  # spectra NaN on Windows once a figure had been drawn. The CMB
+  # tests run in the Linux job above.
+  # ----------------------------------------------------------------
+  platforms:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,gui,evidence,theory]"
+
+      - name: The command, and the old name
+        run: |
+          cosmofit list sampler
+          python -W error::DeprecationWarning -c "import cosmofit"
+          python -c "import CosmoFit, cosmofit; assert CosmoFit is cosmofit"
+
+      - name: Tests
+        run: pytest -q --durations=10
+
+  # ----------------------------------------------------------------
   # Core dependencies only.
   #
   # Not redundant with the job above: CAMB and Streamlit are optional

@@ -1,0 +1,17 @@
+# What the local distance ladder does to lcdm_bao_sn_bbn.yaml's
+# posterior, without sampling again: its chains reweighted by the SH0ES
+# H0. Run that input first; this writes chains/lcdm_bao_sn_bbn.post.sh0es.*
+#
+#   cosmofit run examples/yaml/lcdm_post_sh0es.yaml
+#
+# Pantheon+ here is the supernova-only sample, so it does not already
+# contain the SH0ES calibration (see include_cepheid in its docs).
+
+output: chains/lcdm_bao_sn_bbn
+
+post:
+  suffix: sh0es
+  skip: 0.3
+  add:
+    likelihood:
+      external.h0:
