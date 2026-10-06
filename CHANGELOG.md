@@ -14,7 +14,48 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v2.0.0
+
+The rewrite the 1.x line grew towards: the library as components --
+**theories** that compute, **likelihoods** that compare, **samplers**
+that explore -- assembled from a YAML input, run with `cosmofit run`,
+and written as getdist chains. It takes its shape from cobaya, and
+depends on nothing of it.
+
+It came in six phases, each pushed on its own and each held to the
+results of the one before:
+
+0. **An audit before the rewrite.** Every model, likelihood and
+   statistic was checked against its source, and what was wrong was
+   fixed first, so the new core would be compared against correct
+   numbers. Some results move because of it: Pantheon+ is the
+   published sample, DES-SN5YR the Dovekie recalibration, the CC
+   covariance keeps its systematic correlations, and a computed
+   `r_d` sees each model's own early universe. Each fix is an entry
+   below, with how it was found.
+1. **The core:** parameters with priors, references and derived
+   values; components that declare what they need and provide; a
+   model that wires them; a parameter-keyed cache.
+2. **The theories:** one expansion history with radiation and massive
+   neutrinos in it, every model as a dark sector on it, growth of
+   structure, the early universe, CAMB.
+3. **The likelihoods:** all 21 datasets as native likelihoods, held to
+   the old `chi2` for every model, and one description of each from
+   which the pairs that must not be combined follow.
+4. **The samplers:** adaptive Metropolis-Hastings stopped by
+   Gelman-Rubin, emcee, dynesty, minimize, profile, Fisher, with fast
+   and slow parameter blocking, chains in several processes or under
+   `mpirun`, resumable getdist output, and reweighting a finished run.
+5. **The library around it:** the package imported as `cosmofit`,
+   the `cosmofit` command, the GUI as a package that samples on the
+   core, `Fitter.to_info()`, and the notebooks sampling on the core.
+
+**Breaking, with a release's warning:** `import CosmoFit` (now
+`cosmofit`), and `Fitter`'s own samplers -- `run_mcmc`, `run_nested`,
+`profile`, `fisher` -- in favour of the core's. Both keep working and
+say what to use instead; the README's "Upgrading from 1.x" has the
+whole list. The CMB likelihoods want a CAMB with cmbant/CAMB#211,
+merged but not yet released.
 
 ### A distance past a jump depended on the platform's maths library
 
@@ -172,7 +213,8 @@ and every number the page showed before, are unchanged.
     computed;
   - CPL against DESI DR2, DES-SN5YR and the CMB distance priors;
   - the LCDM fit by its Fisher matrix, which gives
-    `H0 = 68.74 +- 0.61` and `Omega_m = 0.306 +- 0.008`;
+    `H0 = 68.60 +- 0.60` and `Omega_m = 0.304 +- 0.008` (68.74 when
+    first run, before `minimize` learned to polish its best fit);
   - a post-processing input that adds SH0ES to the LCDM chains.
 
   A test builds and evaluates each one, so what the documentation

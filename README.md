@@ -1032,34 +1032,74 @@ deployment.
 
 ## Project Status
 
-**v1.0.0** is the first stable release, on
+**v2.0.0** turns the library into a set of components: theories,
+likelihoods and samplers assembled from a YAML input, run with
+`cosmofit run`, written as getdist chains -- see
+[Upgrading from 1.x](#upgrading-from-1x). It is on
 [PyPI](https://pypi.org/project/cosmofit/) with an
 [API reference](https://salihyesil59.github.io/CosmoFit/). The full
-release history -- 35 versions, what each one changed, and for
-several of them how the bug was found rather than only that it was
-fixed -- lives in **[CHANGELOG.md](CHANGELOG.md)**.
+release history -- what each version changed, and for many of them
+how the bug was found rather than only that it was fixed -- lives in
+**[CHANGELOG.md](CHANGELOG.md)**.
 
 Where it stands today:
 
 | | |
 |---|---|
-| datasets | **21**, from cosmic chronometers to the from-scratch CMB |
+| datasets | **21**, from cosmic chronometers to the from-scratch CMB, each a native likelihood |
 | models | **20** written out by hand, plus three routes to one that is not here |
-| tests | **697** at 93% coverage, on Python 3.11-3.13, with and without every optional extra |
-| notebooks | **17**, in five sections under [`examples/`](examples/) |
+| samplers | adaptive Metropolis-Hastings, emcee, dynesty, minimize, profile, Fisher, post-processing |
+| tests | **1360**, on Python 3.11-3.13 on Linux, Windows and macOS, with and without every optional extra |
+| notebooks | **17**, in five sections under [`examples/`](examples/), and YAML inputs beside them |
 
-`main` had been deliberately held at v0.22.0 while everything since
-was published as `-dev` pre-releases from the `dev` branch; it now
-carries all of it and tracks releases. What v1.0.0 meant, and what
-it took, is [its CHANGELOG entry](CHANGELOG.md).
+---
+
+## Upgrading from 1.x
+
+Most 1.x code keeps working, with warnings that say what to change.
+
+* **The import name is `cosmofit`**, the same as on PyPI. `import CosmoFit`
+  still works for this release, with a `DeprecationWarning`, and resolves
+  to the same modules; pickles and saved chains that name `CosmoFit.*`
+  load.
+* **`Fitter` stays; its samplers move to the core.** `run_mcmc`,
+  `run_nested`, `profile` and `fisher` warn and keep working. Their
+  replacements take the same fitter: `cosmofit.compat.sample_on_core(fit,
+  "mcmc", ...)`, `evidence_on_core`, `profile_on_core`, `fisher_on_core`.
+  Everything after them -- `summary()`, `convergence()`, the derived
+  posteriors, every `fit.plots.*` figure -- reads the result as before.
+* **Saved chains** are now the core's getdist output under an `output`
+  prefix. Chains 1.x saved as HDF5 still open with `Fitter.from_chain`;
+  the GUI does not reuse them and samples those fits again once.
+* **A `Fitter` becomes a 2.0 input** with `fit.to_info()` -- write it to
+  YAML, add a `sampler` block, and `cosmofit run` takes over.
+  `to_info(exact=True)` runs the fitter's own classes and gives its
+  `chi2` exactly; the default runs the native theories, which put
+  radiation into the late-time expansion and so move `chi2` by up to
+  about one. Four parameters are spelled differently there: GCG's `A_s`
+  and `alpha` are `A_gcg` and `alpha_gcg`, the power-law `f(T)`'s `n` is
+  `n_ft`, Hu-Sawicki's `n` is `n_hs`.
+* **Some numbers change because they were wrong.** Before the rewrite,
+  every model and likelihood was audited, and the fixes move results:
+  Pantheon+ is the published 1590-supernova sample (and its SH0ES
+  Cepheids now calibrate), DES-SN5YR is the Dovekie recalibration and
+  cited as one, the CC covariance keeps its systematic correlations,
+  the default `tau` prior no longer double-counts `plik_lite`, DESI
+  defaults to DR2, `f(R,T)`'s `H0` is the Hubble rate today, and a
+  computed `r_d` sees each model's own early universe. Each is a
+  CHANGELOG entry saying how it was found.
+* **CAMB**: the CMB likelihoods need a CAMB with cmbant/CAMB#211, which
+  fixed lensed spectra that turned NaN once a figure had been drawn. It
+  is merged but not yet released -- install CAMB from its `main` branch
+  until the next release.
 
 ---
 
 ## Roadmap
 
-What v1.0.0 meant, and what it took to get there, is the
-[v1.0.0 entry in CHANGELOG.md](CHANGELOG.md) rather than a section
-here -- a roadmap should say where the road goes next.
+What each release meant, and what it took to get there, is its
+entry in [CHANGELOG.md](CHANGELOG.md) rather than a section here --
+a roadmap should say where the road goes next.
 
 Most of what this section used to list has been built. What is left:
 
