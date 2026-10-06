@@ -459,3 +459,54 @@ def test_evaluate():
 
     with pytest.raises(ValueError, match="not sampled"):
         run(info)
+
+
+def test_a_cached_state_without_derived_parameters_is_not_reused_for_them():
+    """
+    A minimizer evaluates without derived parameters; asking for them
+    at a point it visited used to be served from the cache, empty --
+    the derived columns came out NaN.
+    """
+
+    info = toy_info(slope2={"derived": True})
+
+    model = get_model(info)
+
+    point = {"a": 3.0, "b": 1.0}
+
+    assert model.logposterior(point, want_derived=False).derived == {}
+    assert model.logposterior(point).derived == {"slope2": 9.0}
+
+    # And the other way round, the cache does serve.
+    calculations = model.theories["line"].n_calculations
+
+    model.logposterior(point, want_derived=False)
+
+    assert model.theories["line"].n_calculations == calculations
+
+
+class AskedLine(Line):
+    """Records whether it was asked for its derived parameters."""
+
+    def calculate(self, state, want_derived=True, **params):
+        self.asked = want_derived
+        return super().calculate(state, want_derived, **params)
+
+
+def test_a_sampler_asks_for_derived_parameters_only_if_declared():
+
+    info = toy_info(a={"prior": {"min": -5, "max": 5}, "ref": 2.0, "proposal": 0.1},
+                    b={"prior": {"min": -5, "max": 5}, "ref": 1.0, "proposal": 0.1})
+    info["theory"] = {"line": {"class": AskedLine}}
+    info["sampler"] = {"mcmc": {"max_samples": 10, "learn_every": 5}}
+
+    _, sampler = run(info, seed=0)
+
+    assert sampler.model.theories["line"].asked is False
+
+    info["params"]["slope2"] = {"derived": True}
+
+    _, sampler = run(info, seed=0)
+
+    assert sampler.model.theories["line"].asked is True
+    assert "slope2" in sampler.columns

@@ -586,7 +586,7 @@ def fisher_on_core(fitter, point: dict | None = None) -> dict:
     }
 
 
-def evidence_on_core(fitter, nlive: int = 400, seed: int | None = 42):
+def evidence_on_core(fitter, nlive: int = 400, dlogz: float = 0.05, seed: int | None = 42):
     """
     :func:`stats.nested.run_nested`, by the core's ``nested`` sampler,
     returned as the same :class:`~stats.nested.NestedResult`, so
@@ -596,7 +596,9 @@ def evidence_on_core(fitter, nlive: int = 400, seed: int | None = 42):
     from cosmofit.core import run
     from cosmofit.stats.nested import NestedResult
 
-    _, core = run(_core_info(fitter, "nested", {"nlive": int(nlive)}), seed=seed)
+    options = {"nlive": int(nlive), "dlogz": float(dlogz)}
+
+    _, core = run(_core_info(fitter, "nested", options), seed=seed)
 
     products = core.products()
 

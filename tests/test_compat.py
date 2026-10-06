@@ -322,3 +322,64 @@ def test_the_core_evidence_agrees_with_the_fitters():
     assert abs(new.log_evidence - old.log_evidence) < 4 * error
     assert new.prior_volume == pytest.approx(old.prior_volume)
     assert new.samples.shape[1] == 3
+
+
+# ============================================================
+# Fitter's own samplers, deprecated
+# ============================================================
+
+@pytest.mark.parametrize("call, replacement", [
+    (lambda f: f.run_mcmc(nwalkers=8, nsteps=20, burnin=0, progress=False), "sample_on_core"),
+    (lambda f: f.profile("Omega_m", [0.3]), "profile_on_core"),
+    (lambda f: f.fisher(theta=[68.0, 0.3, 147.0], check_steps=False), "fisher_on_core"),
+])
+def test_fitters_own_samplers_point_to_the_core(call, replacement):
+
+    fitter = quiet(
+        Fitter, model=cosmofit.LCDM, datasets=["cc", "desi"],
+        free_params=["H0", "Omega_m", "rd"],
+        initial={"H0": 68.0, "Omega_m": 0.3, "rd": 147.0},
+    )
+
+    with pytest.warns(DeprecationWarning, match=replacement):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            call(fitter)
+
+
+def test_run_nested_points_to_the_core():
+
+    pytest.importorskip("dynesty")
+
+    fitter = quiet(
+        Fitter, model=cosmofit.LCDM, datasets=["cc"],
+        free_params=["H0", "Omega_m"], initial={"H0": 68.0, "Omega_m": 0.3},
+    )
+
+    with pytest.warns(DeprecationWarning, match="evidence_on_core"):
+        fitter.run_nested(n_live=30, dlogz=5.0, progress=False)
+
+
+def test_a_profile_reaches_the_minimum_a_gradient_method_stops_short_of():
+    """
+    Profiling CPL's w0 on CC + DESI + Pantheon+, L-BFGS-B alone stopped
+    8 units of chi2 above the minimum at w0 = -0.7 (1440.9 against
+    1432.7), and the profile came out with a kink. The Nelder-Mead
+    polish after it finds the minimum, and the profile through the best
+    fit is the best fit's chi2.
+    """
+
+    fitter = quiet(
+        Fitter, model=cosmofit.CPL, datasets=["cc", "desi", "pantheon"],
+        free_params=["H0", "Omega_m", "w0", "wa", "rd"],
+        initial={"H0": 70.0, "Omega_m": 0.3, "w0": -1.0, "wa": 0.0, "rd": 147.0},
+    )
+
+    quiet(fitter.best_fit, restarts=3, seed=0)
+
+    w0 = fitter.best_fit_params["w0"]
+
+    profile = quiet(profile_on_core, fitter, "w0", [w0, -0.7])
+
+    assert profile["chi2"][0] == pytest.approx(fitter.best_fit_chi2, abs=0.05)
+    assert profile["chi2"][1] == pytest.approx(1432.7, abs=0.2)

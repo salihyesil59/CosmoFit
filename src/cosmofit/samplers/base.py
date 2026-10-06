@@ -139,6 +139,13 @@ class Sampler:
         self.likelihood_names = layout.likelihood_names
         self.columns = layout.columns
 
+        # Theories' derived parameters, at every point, only when a
+        # chain column needs them. Asked for regardless, the legacy
+        # model's sound horizon was evaluated at every step of fits that
+        # never use it -- and warned that omega_b h^2 was outside its
+        # calibration on a fit whose rd was fixed.
+        self.want_derived = bool(self.derived_names)
+
     def _columns_of(self, x, result) -> np.ndarray:
         """``x`` and its evaluation, in :attr:`columns` order."""
 

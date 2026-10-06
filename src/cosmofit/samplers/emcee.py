@@ -101,7 +101,7 @@ class Emcee(Sampler):
 
     def _log_prob(self, x):
 
-        result = self.model.logposterior(dict(zip(self.names, x)))
+        result = self.model.logposterior(dict(zip(self.names, x)), want_derived=self.want_derived)
 
         return result.logpost, self._columns_of(x, result)
 

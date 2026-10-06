@@ -424,6 +424,10 @@ def test_fisher_is_quiet_on_a_well_posed_problem():
 
         warnings.simplefilter("error")
 
+        # Fitter.fisher is itself deprecated in favour of the core's;
+        # what must be quiet here is the calculation.
+        warnings.simplefilter("ignore", DeprecationWarning)
+
         result = fit.fisher(theta=[68.0, 0.3])
 
     assert result["positive_definite"]

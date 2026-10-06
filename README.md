@@ -142,15 +142,20 @@ pip install cosmofit
     Planck lowE **tau** prior
 
 * Modular likelihood architecture
-* Bayesian parameter estimation with MCMC, with autocorrelation-time convergence diagnostics
-* **Bayesian evidence by nested sampling** (`fitter.run_nested()`, needs `pip install
+* Bayesian parameter estimation on the 2.0 core: adaptive Metropolis-Hastings stopped by the
+  Gelman-Rubin `R - 1`, or emcee's ensemble stopped by the autocorrelation time, with
+  getdist-format output, resuming, fast/slow parameter blocking and chains in several
+  processes or under `mpirun` (`cosmofit run`, or `cosmofit.compat.sample_on_core(fitter, ...)`)
+* **Bayesian evidence by nested sampling** (the core's `nested` sampler, or
+  `cosmofit.compat.evidence_on_core(fitter)`; needs `pip install
   "cosmofit[evidence]"`): `ln Z` and a proper Bayes factor, for the comparisons a
   likelihood-ratio test cannot make. `LsCDM` reduces to `LCDM` only as `z_dagger -> infinity`
   and `DGP` is not nested at all, so Wilks' theorem does not apply to either -- an evidence
   ratio is defined regardless, and integrates rather than maximizes, so it charges a model
   for prior volume it does not use. Validated against an analytically integrable Gaussian.
   Read `stats.evidence`'s note on prior sensitivity before quoting one
-* **Profile likelihood** (`fitter.profile("z_dagger", values)`): `chi2` minimized over every
+* **Profile likelihood** (the core's `profile` sampler, or
+  `cosmofit.compat.profile_on_core(fitter, "z_dagger", values)`): `chi2` minimized over every
   other parameter at each fixed value. The honest tool where Wilks fails, and where a marginal
   posterior would smooth over structure -- it is how `lscdm_mcmc.ipynb` found a 28-unit cliff
 * **Tension statistics** (`stats.tension`): the `np.hypot` this repo used to write by hand,
@@ -161,21 +166,15 @@ pip install cosmofit
   and `suspiciousness`, which divides out the prior dependence a Bayes factor carries.
   Checked against the published Hubble (4.85 sigma) and S8 (2.67 sigma) tensions, and
   against the analytic parameter-difference chi2
-* **Fisher matrix** (`fitter.fisher()`): parameter errors from the curvature at the best fit,
-  in `~2n^2` evaluations rather than a chain. What `s8_tension_cmb.ipynb` needed when every
+* **Fisher matrix** (the core's `fisher` sampler, or `cosmofit.compat.fisher_on_core(fitter)`):
+  parameter errors from the curvature at the best fit, in `~2n^2` evaluations rather than a
+  chain, with each step sized by the likelihood and checked by halving. What `s8_tension_cmb.ipynb` needed when every
   likelihood call is a CAMB call and a converged chain is thirteen hours
-* Dedicated sampling backend (`stats.sampler`), decoupled from `Fitter` and swappable (custom
-  `emcee` moves today, room for other backends later)
-* Multi-core MCMC (`fitter.run_mcmc(n_processes=...)`): evaluates walkers across multiple CPU
-  cores, each worker building its own `Fitter` once rather than repeatedly shipping the whole
-  (potentially large) likelihood across processes
 * Consolidated result object (`fitter.result`): best-fit + MCMC posterior in one printable,
   JSON-serializable snapshot
-* Saved MCMC chains (`fitter.run_mcmc(save="chains/fit.h5")`): the chain is written to HDF5 as
-  it is sampled and reused instead of re-sampled next time, so reopening a notebook, adding a
-  plot, or extending a run costs seconds rather than hours -- an interrupted run keeps every
-  step it had already taken, and `Fitter.from_chain(...)` reopens a finished one in a later
-  session with no configuration to retype
+* Saved chains (an `output` prefix): written as they are sampled, in getdist's format, and
+  read back instead of re-sampled next time -- a run that had met its stopping rule costs not
+  a single new step, an interrupted one continues -- see [Saved Chains](#saved-chains)
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
   extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
 * **Models from an action** (`cosmofit.theory`, `pip install -e ".[theory]"`): give a
@@ -345,13 +344,16 @@ fitter = Fitter(
     },
 )
 
-fitter.run_mcmc(
-    nwalkers=48,
-    nsteps=650,
-    burnin=100,
-)
-
 fitter.best_fit()
+
+# The 2.0 core samples it: adaptive Metropolis-Hastings, stopped once
+# its chains agree (R - 1 < 0.01), written to chains/cpl.* in getdist's
+# format. The chains become the fitter's own, so everything below reads
+# them.
+from cosmofit.compat import sample_on_core
+
+sample_on_core(fitter, "mcmc", {"Rminus1_stop": 0.01}, output="chains/cpl")
+
 fitter.summary()
 fitter.convergence()
 
@@ -362,102 +364,62 @@ fitter.plots.hubble_diagram()
 fitter.plots.w_of_z()
 ```
 
+The same fit with no Python at all -- the input the 2.0 core runs, which
+`fitter.to_info()` writes for you:
+
+```bash
+cosmofit run examples/yaml/cpl_bao_sn_cmb.yaml
+```
+
 ---
 
 ## Saved Chains
 
-The MCMC is the expensive part of a fit; everything built on top of it -- summaries,
+The sampling is the expensive part of a fit; everything built on top of it -- summaries,
 convergence diagnostics, corner plots, derived quantities, model comparison -- is seconds.
-Add `save=` and the chain goes to an HDF5 file as it is sampled, so the expensive part
-happens once:
+Give the 2.0 core an output prefix and the chains go to disk as they are sampled, so the
+expensive part happens once:
 
 ```python
-fitter.run_mcmc(
-    nwalkers=48,
-    nsteps=6000,
-    burnin=1000,
-    save="chains/cpl.h5",
-)
+from cosmofit.compat import sample_on_core
+
+sample_on_core(fitter, "mcmc", {"Rminus1_stop": 0.01}, output="chains/cpl")
 ```
 
 Run that same code again -- next week, in a new session, after adding three more plots below
-it -- and nothing is re-sampled: the stored chain is read back and `summary()`,
-`convergence()`, `best_fit()` and every `plots.*` figure work off it exactly as before.
-
-`nsteps` is the *total* chain length to end up with, which is what makes re-running a script
-or a notebook cell idempotent:
+it -- and nothing is re-sampled: the saved chains are read back, checked against their
+stopping rule, and `summary()`, `convergence()`, `best_fit()` and every `plots.*` figure work
+off them exactly as before.
 
 | what you do | what happens |
 |---|---|
-| run it again unchanged | nothing is sampled; the stored chain is loaded |
-| raise `nsteps` to 10000 | only the missing 4000 steps are sampled, continuing the same chain |
-| Ctrl-C halfway through | every step taken so far is already on disk; run again to carry on |
-| change the model, datasets, free parameters, or priors | refused, loudly, naming what differs -- samples from two different posteriors must never be merged |
+| run it again unchanged | the chains had met their rule: read back, not a single new step |
+| tighten `Rminus1_stop`, or raise `max_samples` | the saved chains continue from where they stopped |
+| Ctrl-C halfway through | every check's rows are already on disk; run again to carry on |
+| change the model, datasets, free parameters, or priors | refused, naming what differs -- samples from two different posteriors must never be merged |
 
-A resumed chain is bit-identical to the uninterrupted one it would have been: emcee's proposal
-RNG state travels in the file with the walkers, so `nsteps=6000` in one go and `1500 -> 6000`
-in four sittings give the same samples.
-
-### Reopening a chain later
-
-`Fitter.from_chain` rebuilds the whole fit from what the file records -- model, datasets, free
-parameters, priors, fixed values -- with nothing to retype and nothing that can drift out of
-sync with the samples:
+The files are getdist's format -- `chains/cpl.1.txt` to `.4.txt` (one per chain), with
+`.paramnames`, `.ranges`, the learned `.covmat`, the input as given and as run
+(`.input.yaml`, `.updated.yaml`) and a `.progress` log -- so getdist, or anything else that
+reads CosmoMC/cobaya chains, opens them directly:
 
 ```python
-from cosmofit import Fitter
+from getdist import loadMCSamples
 
-fit = Fitter.from_chain("chains/cpl.h5")
-
-fit.summary()
-fit.plots.corner()
-fit.best_fit()          # the datasets are live again, so this works too
+samples = loadMCSamples("chains/cpl", settings={"ignore_rows": 0.3})
 ```
 
-For posterior summaries alone, skip the fitter entirely -- this reads no dataset and evaluates
-no likelihood:
+The same holds for a run started from the command line (`cosmofit run input.yaml` with
+`output: chains/cpl`), and `resume: true` / `force: true` in an input say what to do with
+output already there. A finished run can be reweighted by another likelihood without
+sampling again -- a `post:` block, see `cosmofit.core.post`.
 
-```python
-from cosmofit.stats.chains import open_chain, chain_info
+### Chains saved by 1.x
 
-chain = open_chain("chains/cpl.h5")
-chain.summary()
-chain.samples_dict()["w0"]
-
-chain_info("chains/cpl.h5")   # model, datasets, parameters, steps, when it was run
-```
-
-### Details worth knowing
-
-* **The file is self-describing.** Alongside emcee's own `mcmc` group (plain
-  `h5py`/`emcee` can read it with or without CosmoFit) sits a `cosmofit` group recording the
-  model, datasets, free parameters, prior bounds, fixed parameter values, burn-in, seed and
-  versions. That record is what makes a resume safe, and what `from_chain` rebuilds from.
-* **`resume`** defaults to `"auto"` (continue if there's a chain, start one if not). Pass
-  `resume=True` to *require* an existing chain -- "analyze last night's run, don't quietly
-  start a fresh 12-hour one if the file moved" -- or `resume=False` to discard what's stored
-  and sample from scratch. That last one is the only destructive option and is never reached
-  by default.
-* **Naming files automatically.** `fitter.chain_id()` is a short, stable hash of the
-  posterior (`"CPL_3f9a1c04"`), identical across sessions and machines for the same fit and
-  different as soon as anything about it changes:
-
-  ```python
-  fit.run_mcmc(nsteps=6000, save=f"chains/{fit.chain_id(nwalkers=48)}.h5")
-  ```
-
-  Saving under it reuses a chain exactly when reuse is correct, and starts a separate file --
-  rather than colliding with, or overwriting, the old one -- when it isn't. This is how the
-  GUI keeps one chain per configuration.
-* **Several chains in one file.** Pass a `ChainFile` instead of a path to put a model
-  comparison's chains side by side:
-
-  ```python
-  from cosmofit.stats.chains import ChainFile
-
-  fit_cpl.run_mcmc(nsteps=6000, save=ChainFile("chains/comparison.h5", name="CPL"))
-  fit_lcdm.run_mcmc(nsteps=6000, save=ChainFile("chains/comparison.h5", name="LCDM"))
-  ```
+`Fitter.run_mcmc(save="chains/cpl.h5")` -- emcee, written to HDF5 -- still works for one
+release, with a `DeprecationWarning`, and the files it wrote stay readable:
+`Fitter.from_chain("chains/cpl.h5")` rebuilds the whole fit from what the file records, and
+`cosmofit.stats.chains.open_chain` reads the samples without evaluating a likelihood.
 
 ---
 
@@ -476,7 +438,9 @@ fit = Fitter(
     free_params=["H0", "Omega_m", "w0", "wa"],
     initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "wa": 0.0, "rd": 147.1},
 )
-fit.run_mcmc(nwalkers=32, nsteps=15000, burnin=3000, save="chains/cpl.h5")
+from cosmofit.compat import sample_on_core
+
+sample_on_core(fit, "mcmc", {"Rminus1_stop": 0.005}, output="chains/cpl")
 
 fit.plots.w0_wa_plane()
 ```
@@ -593,8 +557,8 @@ fit = Fitter(
     free_params=["H0", "Omega_m", "w0", "beta"],
     initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "beta": 0.0},
 )
-fit.run_mcmc(nwalkers=48, nsteps=3000, burnin=500)
 fit.best_fit()
+sample_on_core(fit, "mcmc", {"Rminus1_stop": 0.01})   # from cosmofit.compat
 print(fit.result)
 fit.plots.corner()
 ```

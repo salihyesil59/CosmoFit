@@ -223,14 +223,22 @@ class Theory(Component):
 
         self.current_key = key
 
-        if key in self._cache:
+        cached = self._cache.get(key, False)
+
+        # A state computed without its derived parameters does not
+        # answer a request for them: it is computed again. Served from
+        # the cache instead, the derived parameters of a point a
+        # minimizer had just visited came out NaN.
+        if cached is not False and not (
+            want_derived and cached is not None and not cached["with_derived"]
+        ):
 
             self._cache.move_to_end(key)
-            self.current_state = self._cache[key]
+            self.current_state = cached
 
             return self.current_state is not None
 
-        state = {"params": dict(params), "derived": {}}
+        state = {"params": dict(params), "derived": {}, "with_derived": bool(want_derived)}
 
         self.n_calculations += 1
 

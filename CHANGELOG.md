@@ -16,6 +16,93 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### `Fitter`'s own samplers are deprecated; the notebooks sample on the core
+
+`Fitter.run_mcmc`, `run_nested`, `profile` and `fisher` now raise a
+`DeprecationWarning` that names their replacement on the 2.0 core:
+`cosmofit.compat.sample_on_core`, `evidence_on_core`,
+`profile_on_core` and `fisher_on_core`. They keep working for a
+release. `Fitter` itself stays, as the model, the datasets and the
+figures. The core has no plotting or analysis layer of its own yet,
+and deprecating the fitter whole would have put the warning on every
+notebook and on the GUI.
+
+The notebooks now do their calculations on the core:
+
+- **Re-executed (10):** `quickstart`, `model_zoo_comparison`,
+  `holographic_family`, `modified_gravity_growth`, `custom_models`,
+  `models_from_an_action`, `profile_likelihood_and_fisher`,
+  `evidence_and_model_selection`, `tension_statistics` and
+  `cpl_mcmc_analysis`. Their text was checked against the new outputs.
+  Short demonstration chains that used to say "not converged" now run
+  to `R - 1 < 0.01`, or 0.02 for the GCG's slowly mixing degeneracy,
+  and the text that apologised for them is gone.
+- **Code only (4):** `cmb_from_scratch`, `scalar_field_models`,
+  `cpl_mcmc_tfd42` and `lscdm_mcmc`. Each would take from most of an
+  hour to many hours to re-execute: CAMB calls, a field integration
+  per step, Planck priors in every step. Their code samples on the
+  core, and a note at the top says their outputs came from the old
+  engine.
+- **Untouched (3):** `dataset_zoo`, `s8_tension_cmb` and
+  `dark_energy_evidence_audit` never called a sampler.
+
+Several of the re-executed notebooks turned out to carry outputs older
+than the phase-0 fixes. They predated Pantheon+'s `z > 0.01` cut, for
+instance: 1668 data points where there are now 1635. Their text was
+brought in line with what the data now give. `evidence_and_model_selection`
+now reads `Delta chi2 = 4.5`, `p = 0.034`, `2.1 sigma` where it had
+`3.5`, `0.063`, `1.5 sigma`; ADE's `n` sits 1% above the published
+range, not 2%. Every qualitative claim still held: the three model
+comparisons still disagree in the same directions, and HDE's
+`c` is still split between supernovae and BAO.
+
+`profile_likelihood_and_fisher` samples with the core's `emcee`, and
+says why. With `rd` free, CPL on CC + DESI + Pantheon+ has a long,
+curved tail to low `Omega_m` and positive `wa` that reaches the prior
+edge. The adaptive Metropolis-Hastings chains wandered into it one at
+a time and had not agreed after 100 000 steps each; the ensemble
+converges in five minutes. The old emcee run, 3000 steps and flagged
+unconverged, had not explored that tail.
+
+**`minimize` could stop well short of the minimum.** The same notebook
+showed it. Its `w0` profile had a kink: at `w0 = -0.7`, L-BFGS-B
+reported convergence at `chi2 = 1440.9`, where Nelder-Mead and Powell
+both find 1432.7. A gradient taken by finite differences, on a
+`chi2` of ~1500, stops when a step no longer reduces it by a relative
+`1e-9`. `minimize`, and through it `profile` and `fisher`'s search for
+the best fit, now polishes every gradient-based result with
+Nelder-Mead from where it stopped, and keeps the better (`polish:
+true`, the default). The profile is now smooth through the best fit's
+`chi2`, and a test holds it there.
+
+Two things that had gone stale were corrected on the way:
+
+- `profile_likelihood_and_fisher` said that freeing `MB` made the
+  Fisher matrix raise `LinAlgError`. That stopped being true when the
+  Fisher matrix learned to name a flat direction and return a NaN
+  error. The cell now shows that instead.
+- `cpl_mcmc_analysis` still said the library had four datasets.
+
+The README, the API reference's front page and the package docstring
+now sample on the core. "Saved Chains" describes the core's getdist
+output, with a short note on reopening chains 1.x saved as HDF5.
+
+**A derived parameter could come back NaN from the cache.** A
+theory's cache is keyed on its inputs, not on whether derived
+parameters were asked for. A point first evaluated without them, as
+every minimizer step is, was then served from the cache, empty, when
+they were wanted. Minimizing and then reporting at the same point
+could therefore give a NaN derived column. A cached state now records
+whether it holds its derived parameters, and is recomputed if not.
+
+Running the notebooks also showed a warning that should not have
+been there. The `mcmc`, `emcee` and `nested` samplers now ask the
+theories for derived parameters only when a chain column needs one.
+A model evaluated directly still computes them when asked. The legacy model's sound horizon had been
+evaluated at every step, including for fits that never use it, and
+warned that `omega_b h^2` was outside its calibration on a fit where
+`rd` was fixed.
+
 ### The GUI samples on the 2.0 core
 
 The GUI still builds a `Fitter`, for its checks, its warnings and its

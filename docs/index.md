@@ -14,10 +14,16 @@ fit = Fitter(
     free_params=["H0", "Omega_m", "w0", "wa"],
     initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "wa": 0.0, "rd": 147.1},
 )
-fit.run_mcmc(nwalkers=48, nsteps=6000, burnin=1000)
+fit.best_fit()
+
+from cosmofit.compat import sample_on_core   # the 2.0 core samples it
+sample_on_core(fit, "mcmc", {"Rminus1_stop": 0.01}, output="chains/cpl")
+
 fit.summary()
 fit.plots.corner()
 ```
+
+Or with no Python: `cosmofit run examples/yaml/cpl_bao_sn_cmb.yaml`.
 
 ## Where to read what
 

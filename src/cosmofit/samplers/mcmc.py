@@ -297,7 +297,7 @@ class MCMC(Sampler):
         covariance[np.ix_(cols, cols)] = matrix[np.ix_(rows, rows)]
 
     def _evaluate(self, x):
-        return self.model.logposterior(dict(zip(self.names, x)))
+        return self.model.logposterior(dict(zip(self.names, x)), want_derived=self.want_derived)
 
     # ---------------------------------------------------------
     # Processes

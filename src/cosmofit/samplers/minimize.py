@@ -31,6 +31,9 @@ from .base import Sampler
 __all__ = ["Minimize"]
 
 
+#: Methods that follow a (finite-difference) gradient, and are polished.
+_GRADIENT = {"L-BFGS-B", "TNC", "SLSQP", "BFGS", "CG", "trust-constr"}
+
 #: A finite stand-in for -inf, so an optimizer that steps outside the
 #: allowed region sees a wall rather than a NaN gradient.
 _WALL = 1.0e30
@@ -52,6 +55,9 @@ class Minimize(Sampler):
         Evaluation budget per start (``maxfun``/``maxfev``).
     tol : float, optional
         Passed to ``scipy.optimize.minimize``.
+    polish : bool
+        After a gradient-based method, go on from where it stopped with
+        Nelder-Mead and keep the better of the two. Default True.
     """
 
     defaults = {
@@ -60,6 +66,7 @@ class Minimize(Sampler):
         "ignore_prior": False,
         "max_evals": None,
         "tol": None,
+        "polish": True,
     }
 
     def initialize(self) -> None:
@@ -144,11 +151,38 @@ class Minimize(Sampler):
     # ---------------------------------------------------------
 
     def _minimize_from(self, theta0):
-        """One optimization over the free parameters, from ``theta0``."""
+        """
+        One optimization over the free parameters, from ``theta0``, then
+        polished (see :attr:`polish`).
+
+        Why the polish: a gradient-based method differentiates ``chi2``
+        by finite differences, and stops when a step no longer reduces
+        it by a relative ``~1e-9``. On a likelihood whose ``chi2`` is
+        ~1500 and not quite smooth at that level, it can stop well short
+        -- profiling CPL's ``w0`` on CC + DESI + Pantheon+, L-BFGS-B
+        reported convergence 8 units of ``chi2`` above the minimum
+        Nelder-Mead and Powell both found, and the profile came out
+        with a kink a marginal posterior would never show.
+        """
+
+        result = self._optimize(theta0, self.options["method"])
+
+        if self.options["polish"] and self.options["method"] in _GRADIENT:
+
+            polished = self._optimize(self._to_theta(result.x), "Nelder-Mead")
+
+            polished.nfev += result.nfev
+
+            if polished.fun < result.fun:
+                return polished
+
+            result.nfev = polished.nfev
+
+        return result
+
+    def _optimize(self, theta0, method):
 
         from scipy.optimize import minimize
-
-        method = self.options["method"]
 
         options = {}
 

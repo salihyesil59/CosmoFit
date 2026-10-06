@@ -79,7 +79,7 @@ class Nested(Sampler):
 
     def _loglike(self, x):
 
-        result = self.model.logposterior(dict(zip(self.names, x)))
+        result = self.model.logposterior(dict(zip(self.names, x)), want_derived=self.want_derived)
 
         value = result.loglike if result.rejected is None else -math.inf
 

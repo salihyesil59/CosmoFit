@@ -7,6 +7,14 @@ to combine, pick which parameters are free, and get an MCMC
 posterior, a best-fit point, and the usual diagnostic plots
 back out.
 
+Since 2.0 the sampling is the core's (:mod:`cosmofit.core`):
+:func:`cosmofit.compat.sample_on_core` runs it on a fitter and
+hands the chains back, and the profile, Fisher matrix and evidence
+have their ``*_on_core`` counterparts there too. ``Fitter``'s own
+samplers -- ``run_mcmc``, ``run_nested``, ``profile``, ``fisher``
+-- are deprecated; the fitter itself stays, as the model, the
+datasets and the figures.
+
 Example
 -------
 >>> from cosmofit import CPL, Fitter
@@ -18,23 +26,18 @@ Example
 ...     initial={"H0": 67.4, "Omega_m": 0.315,
 ...              "w0": -1.0, "wa": 0.0, "rd": 147.1},
 ... )
->>> fit.run_mcmc(nwalkers=48, nsteps=6500, burnin=1000)
 >>> fit.best_fit()
+>>>
+>>> from cosmofit.compat import sample_on_core
+>>> sample_on_core(fit, "mcmc", {"Rminus1_stop": 0.01}, output="chains/cpl")
+>>>
 >>> fit.summary()
 >>> fit.plots.corner()
 
-Add ``save=`` to that MCMC call and the chain is written to
-disk as it is sampled, and picked back up instead of re-sampled
-the next time the same code runs::
-
->>> fit.run_mcmc(nwalkers=48, nsteps=6500, burnin=1000,
-...              save="chains/cpl.h5")
-
-...or reopened later without setting the fit up again at all::
-
->>> fit = Fitter.from_chain("chains/cpl.h5")
-
-See :mod:`stats.chains`.
+With ``output``, the chains are written in getdist's format as they
+are sampled, and read back instead of re-sampled the next time the
+same code runs. A chain saved by 1.x (``run_mcmc(save="...h5")``)
+reopens with ``Fitter.from_chain``; see :mod:`stats.chains`.
 """
 
 from __future__ import annotations
@@ -625,6 +628,23 @@ def _warn_tau_counted_twice(likelihoods) -> None:
             stacklevel=3,
 
         )
+
+
+def _deprecated_engine(method: str, replacement: str) -> None:
+    """
+    Warn that one of `Fitter`'s own samplers is called. The 2.0 core
+    runs each of them now; `Fitter` remains the model, the data and the
+    figures.
+    """
+
+    warnings.warn(
+        f"Fitter.{method}() is deprecated: the 2.0 core runs it now -- "
+        f"use {replacement}. Fitter itself stays, as the model, the "
+        f"datasets and the figures; its own samplers will be removed in "
+        f"a later release.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
 def dataset_label(names) -> str:
@@ -1332,6 +1352,12 @@ class Fitter:
             :meth:`summary`, :meth:`convergence`,
             :meth:`best_fit` and the plots work off it the same.
         """
+
+        _deprecated_engine(
+            "run_mcmc",
+            "cosmofit.compat.sample_on_core(fit, 'mcmc', ...), which makes "
+            "the core's chains this fitter's own",
+        )
 
         chain, chain_backend, steps_to_run = self._prepare_chain(
             save, resume,
@@ -2456,6 +2482,8 @@ class Fitter:
         stats.nested.NestedResult
         """
 
+        _deprecated_engine("run_nested", "cosmofit.compat.evidence_on_core(fit, nlive=...)")
+
         from cosmofit.stats.nested import run_nested as _run
 
         self.nested = _run(
@@ -2527,6 +2555,8 @@ class Fitter:
             minimum), and ``params`` -- the re-optimized values of
             the other parameters at each point.
         """
+
+        _deprecated_engine("profile", "cosmofit.compat.profile_on_core(fit, name, values)")
 
         if name not in self.free_params:
 
@@ -2640,6 +2670,8 @@ class Fitter:
             ``covariance`` is the pseudo-inverse, and the error of any
             parameter it leaves without a positive variance is NaN.
         """
+
+        _deprecated_engine("fisher", "cosmofit.compat.fisher_on_core(fit)")
 
         if theta is None:
 

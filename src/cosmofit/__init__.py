@@ -14,15 +14,18 @@ directly from the top-level package:
 ...     initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "wa": 0.0,
 ...              "rd": 147.1},
 ... )
->>> fit.run_mcmc(nwalkers=48, nsteps=6000, burnin=1000)
 >>> fit.best_fit()
+>>>
+>>> from cosmofit.compat import sample_on_core
+>>> sample_on_core(fit, "mcmc", {"Rminus1_stop": 0.01}, output="chains/cpl")
+>>>
 >>> fit.summary()
 >>> fit.plots.corner()
 
-Pass ``save="chains/cpl.h5"`` to ``run_mcmc`` and the chain is
-written as it is sampled, then reused instead of re-sampled the
-next time -- or reopened in a later session with
-``Fitter.from_chain("chains/cpl.h5")``. See ``cosmofit.stats.chains``.
+The sampling is the 2.0 core's (``cosmofit.core``, ``cosmofit run``),
+which writes getdist-format chains under ``output`` and reads them back
+instead of re-sampling the next time. ``Fitter`` is the model, the
+datasets and the figures; its own ``run_mcmc`` is deprecated.
 
 The underlying subpackages (``cosmofit.cosmology``, ``cosmofit.data``,
 ``cosmofit.likelihoods``, ``cosmofit.stats``, ``cosmofit.plots``) are
