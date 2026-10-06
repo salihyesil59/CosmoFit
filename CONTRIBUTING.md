@@ -7,7 +7,7 @@ a finished change.
 ## Getting set up
 
 ```bash
-git clone https://github.com/salihyesil59/CosmoFit.git
+git clone https://github.com/salihyesil59/cosmofit.git
 cd CosmoFit
 pip install -e ".[dev,cmb,theory,evidence,speed,docs]"
 pytest -q
@@ -58,7 +58,7 @@ callable is fully annotated, and every annotation resolves. **Adding
 a public method without annotating it fails the suite**, which is
 deliberate.
 
-Use the aliases in `CosmoFit.typing` for anything taking a redshift
+Use the aliases in `cosmofit.typing` for anything taking a redshift
 and returning a number per redshift -- `z: Redshift` in and
 `-> Array` out. `Array` is `np.float64 | NDArray[np.float64]` because
 that is the truth: a scalar in gives a scalar out.
@@ -73,7 +73,7 @@ not pay it.
 `mypy` is in the `dev` extra:
 
 ```bash
-mypy src/CosmoFit --ignore-missing-imports
+mypy src/cosmofit --ignore-missing-imports
 ```
 
 It currently reports around eighty errors, all inside function bodies
@@ -130,7 +130,7 @@ and one of them is probably what you want:
 |---|---|
 | `define_model` | you have `E(z)` as a Python function |
 | `model_from_expression` | you have `E(z)` as a string |
-| `CosmoFit.theory.Action` | you have an *action*, and want the Friedmann equation derived from it |
+| `cosmofit.theory.Action` | you have an *action*, and want the Friedmann equation derived from it |
 
 See `examples/03-building-models/`. A model belongs in
 `cosmology/models/` when it is established enough that somebody else

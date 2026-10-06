@@ -5,9 +5,9 @@ This capability worked when it was built and nothing pinned it,
 which is the state a parameter is in just before it silently stops
 working. It has two consumers that never talk to each other:
 
-* :mod:`CosmoFit.cosmology.calculators.sound_horizon`, where the
+* :mod:`cosmofit.cosmology.calculators.sound_horizon`, where the
   neutrinos are relativistic at the drag epoch and raise ``r_d``;
-* :mod:`CosmoFit.cosmology.boltzmann`, where they free-stream out of
+* :mod:`cosmofit.cosmology.boltzmann`, where they free-stream out of
   the small-scale power and lower ``sigma8``.
 
 Both of them read the *same* ``Omega_m``, and both have to agree on
@@ -32,8 +32,8 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.cosmology.calculators.sound_horizon import SoundHorizon
+from cosmofit import LCDM, Fitter
+from cosmofit.cosmology.calculators.sound_horizon import SoundHorizon
 
 
 
@@ -81,7 +81,7 @@ def test_the_two_backends_subtract_the_same_neutrino_density():
     the derived constant and the round number, not slack.
     """
 
-    from CosmoFit.cosmology.boltzmann import NEUTRINO_MASS_DENOM
+    from cosmofit.cosmology.boltzmann import NEUTRINO_MASS_DENOM
 
     for m_nu in (0.06, 0.3, 0.6):
 
@@ -152,7 +152,7 @@ def test_neutrino_mass_suppresses_sigma8():
 
     pytest.importorskip("camb", reason="CAMB not installed (optional 'cmb' extra)")
 
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     sigma8 = []
     for m_nu in (0.0, 0.06, 0.3):
@@ -179,7 +179,7 @@ def test_the_free_sigma8_ignores_the_neutrino_mass():
 
     pytest.importorskip("camb", reason="CAMB not installed (optional 'cmb' extra)")
 
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     light, heavy = model(m_nu=0.0), model(m_nu=0.3)
 
@@ -205,7 +205,7 @@ def test_neutrino_mass_is_part_of_the_cache_key():
 
     pytest.importorskip("camb", reason="CAMB not installed (optional 'cmb' extra)")
 
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     cosmo = model(m_nu=0.06)
     backend = CAMBBackend.shared(cosmo)
@@ -228,7 +228,7 @@ def test_a_neutrino_mass_heavier_than_the_matter_budget_is_refused():
 
     pytest.importorskip("camb", reason="CAMB not installed (optional 'cmb' extra)")
 
-    from CosmoFit.cosmology.boltzmann import BoltzmannError, CAMBBackend
+    from cosmofit.cosmology.boltzmann import BoltzmannError, CAMBBackend
 
     # Omega_m h^2 = 0.143; at ~13 eV the neutrinos exhaust it.
     cosmo = model(m_nu=15.0)

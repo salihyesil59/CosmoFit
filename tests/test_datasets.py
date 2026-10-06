@@ -22,9 +22,9 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CosmologyParameters
-from CosmoFit.data.loader import available_datasets, available_versions
-from CosmoFit.stats.fitter import DATASET_REGISTRY, CONFLICTING_DATASETS
+from cosmofit import LCDM, CosmologyParameters
+from cosmofit.data.loader import available_datasets, available_versions
+from cosmofit.stats.fitter import DATASET_REGISTRY, CONFLICTING_DATASETS
 
 
 #: A concordance cosmology. Every likelihood here should be
@@ -262,7 +262,7 @@ def test_desi_dr2_differs_from_dr1_but_has_the_same_structure():
     with the same observable types, and different numbers.
     """
 
-    from CosmoFit.data.loader import load_desi
+    from cosmofit.data.loader import load_desi
 
     dr1 = load_desi("desi2024")
     dr2 = load_desi("desi2025")
@@ -301,7 +301,7 @@ def test_sixdfgs_rescale_is_applied():
     that the two predictions differ by exactly the rescale factor.
     """
 
-    from CosmoFit.likelihoods.bao_lowz import BAOLowZLikelihood
+    from cosmofit.likelihoods.bao_lowz import BAOLowZLikelihood
 
     model = LCDM(CosmologyParameters(**FIDUCIAL))
 
@@ -336,7 +336,7 @@ def test_sixdfgs_rescale_is_applied():
 
 def test_union3_is_binned_and_offset_marginalized():
 
-    from CosmoFit.likelihoods.union3 import Union3Likelihood
+    from cosmofit.likelihoods.union3 import Union3Likelihood
 
     model = LCDM(CosmologyParameters(**FIDUCIAL))
 
@@ -373,7 +373,7 @@ def test_prior_values_are_as_published(dataset, version, value, sigma):
     hardest to notice. Pin them.
     """
 
-    from CosmoFit.data.loader import load_gaussian_prior
+    from cosmofit.data.loader import load_gaussian_prior
 
     data = load_gaussian_prior(dataset, version)
 
@@ -388,7 +388,7 @@ def test_prior_likelihood_recovers_its_own_measurement():
     (``omega_b h^2``, not ``Omega_b``) is right.
     """
 
-    from CosmoFit.likelihoods.priors import OmegaBLikelihood
+    from cosmofit.likelihoods.priors import OmegaBLikelihood
 
     target = 0.02218
 
@@ -427,7 +427,7 @@ def test_conflicting_datasets_warn(pair):
     bars -- has no other symptom.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     if set(pair) & NEEDS_CAMB and not _has_camb():
 
@@ -471,7 +471,7 @@ def _cc_systematic_covariance(data):
     fully correlated across redshift on its own.
     """
 
-    from CosmoFit.data.loader import DATA_DIR
+    from cosmofit.data.loader import DATA_DIR
 
     table = np.loadtxt(DATA_DIR / "cc" / "favale2023" / "data_MM20.dat")
 
@@ -493,7 +493,7 @@ def test_cc_diagonal_is_the_tabulated_errors():
     errors in quadrature, so the systematic is not added to them again.
     """
 
-    from CosmoFit.data.loader import load_cc
+    from cosmofit.data.loader import load_cc
 
     data = load_cc()
 
@@ -513,7 +513,7 @@ def test_cc_off_diagonal_is_the_full_systematic_correlation():
     wrong whichever reading of ``sigma`` is right.
     """
 
-    from CosmoFit.data.loader import DATA_DIR, load_cc
+    from cosmofit.data.loader import DATA_DIR, load_cc
 
     data = load_cc()
 
@@ -555,7 +555,7 @@ def test_cc_h0_error_with_correlated_systematics():
 
     from scipy.optimize import minimize
 
-    from CosmoFit.data.loader import load_cc
+    from cosmofit.data.loader import load_cc
 
     data = load_cc()
 

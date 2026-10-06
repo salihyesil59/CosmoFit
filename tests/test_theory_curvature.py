@@ -33,14 +33,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import Fitter
-from CosmoFit.cosmology.models import LCDM
+from cosmofit import Fitter
+from cosmofit.cosmology.models import LCDM
 
 
 sympy = pytest.importorskip("sympy")
 
-from CosmoFit.theory import Action  # noqa: E402
-from CosmoFit.theory.curvature import is_higher_order  # noqa: E402
+from cosmofit.theory import Action  # noqa: E402
+from cosmofit.theory.curvature import is_higher_order  # noqa: E402
 
 
 Z = np.array([0.0, 0.1, 0.5, 1.0, 2.0, 3.0])
@@ -136,8 +136,8 @@ def test_the_derived_constraint_is_the_textbook_one():
     defined up to.
     """
 
-    from CosmoFit.theory.curvature import multiplier_lagrangian
-    from CosmoFit.theory.minisuperspace import (
+    from cosmofit.theory.curvature import multiplier_lagrangian
+    from cosmofit.theory.minisuperspace import (
         Minisuperspace, fluid_lagrangian, friedmann_constraint, reduce_order,
     )
 

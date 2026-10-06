@@ -15,8 +15,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import FRHuSawicki
-from CosmoFit.cosmology.core.utils import SOLAR_SYSTEM_BOUND
+from cosmofit import FRHuSawicki
+from cosmofit.cosmology.core.utils import SOLAR_SYSTEM_BOUND
 
 
 def build(f_R0=-1e-6, n=1.0):

@@ -1,7 +1,7 @@
-``CosmoFit.cosmology``
+``cosmofit.cosmology``
 ======================
 
-.. automodule:: CosmoFit.cosmology
+.. automodule:: cosmofit.cosmology
 
 Calculators
 -----------
@@ -24,11 +24,11 @@ supplies ``E(z)``; these supply everything derived from it.
 Custom models
 -------------
 
-.. automodule:: CosmoFit.cosmology.custom
+.. automodule:: cosmofit.cosmology.custom
    :members:
 
 The Boltzmann backend
 ---------------------
 
-.. automodule:: CosmoFit.cosmology.boltzmann
+.. automodule:: cosmofit.cosmology.boltzmann
    :members:

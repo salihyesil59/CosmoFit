@@ -20,7 +20,7 @@ Run with:
 Local use only: the custom-model expression box below is evaluated
 with ``eval()`` (builtins stripped, only whitelisted numpy math and
 the model's own parameter names reach it -- see
-``CosmoFit.cosmology.custom._compile_expression``). That is a
+``cosmofit.cosmology.custom._compile_expression``). That is a
 reasonable trust boundary for a tool you run on your own machine,
 not for a public, multi-tenant deployment.
 """
@@ -37,7 +37,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from CosmoFit import (
+from cosmofit import (
     __version__,
     LCDM, WCDM, CPL, JBP, BA, GCG,
     LogarithmicDE, PEDE, GEDE, LsCDM,
@@ -60,14 +60,14 @@ from CosmoFit import (
     EBOSSELGLikelihood,
     EBOSSLyaLikelihood,
 )
-from CosmoFit import available_versions, dataset_reference
+from cosmofit import available_versions, dataset_reference
 
-# `CosmoFit.theory` needs sympy, which is an optional extra. The GUI
+# `cosmofit.theory` needs sympy, which is an optional extra. The GUI
 # offers the "From an action" model route only when it is installed,
 # and says how to get it when it is not -- rather than presenting a
 # dropdown entry that fails the moment it is chosen.
 try:
-    from CosmoFit.theory import Action, GEOMETRIES, STANDARD_FLUIDS
+    from cosmofit.theory import Action, GEOMETRIES, STANDARD_FLUIDS
 
     HAVE_THEORY = True
 
@@ -77,11 +77,11 @@ except ModuleNotFoundError:
     GEOMETRIES = ()
     STANDARD_FLUIDS = {}
     HAVE_THEORY = False
-from CosmoFit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
-from CosmoFit.stats.chains import ChainFile, StoredSampler
-from CosmoFit.stats.results import _json_default
-from CosmoFit.stats.fitter import CONFLICTING_DATASETS, usable_cpu_count
-from CosmoFit.data.metadata import DATASETS, FAMILIES
+from cosmofit.stats import DATASET_REGISTRY, model_comparison, cpl_diagnostics
+from cosmofit.stats.chains import ChainFile, StoredSampler
+from cosmofit.stats.results import _json_default
+from cosmofit.stats.fitter import CONFLICTING_DATASETS, usable_cpu_count
+from cosmofit.data.metadata import DATASETS, FAMILIES
 
 
 # ============================================================
@@ -136,14 +136,14 @@ MODEL_GROUPS = [
 #: The two routes to a model the library does not ship. `Custom`
 #: takes an ``E(z)`` -- the *result* of a derivation somebody did by
 #: hand. `From an action` takes the input instead: a gravitational
-#: Lagrangian, from which `CosmoFit.theory` derives the Friedmann
+#: Lagrangian, from which `cosmofit.theory` derives the Friedmann
 #: equation itself.
 CUSTOM_CHOICE = "Custom"
 ACTION_CHOICE = "From an action"
 
 #: Worked actions offered as starting points, so the box is never
 #: blank. Each is (label, gravity, geometry, params, closure, growth,
-#: fields) -- the same arguments `CosmoFit.theory.Action` takes.
+#: fields) -- the same arguments `cosmofit.theory.Action` takes.
 ACTION_PRESETS = {
     "— start blank —": None,
     "General Relativity + Λ (rederives ΛCDM)": dict(
@@ -1075,8 +1075,8 @@ def _model_capabilities(model_cls) -> dict:
     GR's at the same background.
     """
 
-    from CosmoFit.cosmology.core.base import Cosmology
-    from CosmoFit.cosmology.boltzmann import supports_cmb_spectra
+    from cosmofit.cosmology.core.base import Cosmology
+    from cosmofit.cosmology.boltzmann import supports_cmb_spectra
 
     cmb_ok, cmb_reason = supports_cmb_spectra(model_cls)
 
@@ -1305,7 +1305,7 @@ def _parse_fields(text: str) -> dict:
 
         phi = X - V0*exp(-lam*phi)
 
-    into the ``fields`` dict :class:`CosmoFit.theory.Action` takes:
+    into the ``fields`` dict :class:`cosmofit.theory.Action` takes:
     field name -> Lagrangian density ``L(X, phi)``, with ``X`` the
     kinetic scalar. More than one line is more than one field.
     """
@@ -1357,7 +1357,7 @@ def _action_and_model(
     background: str,
 ):
     """
-    Build an :class:`~CosmoFit.theory.Action` and the model class it
+    Build an :class:`~cosmofit.theory.Action` and the model class it
     derives, returning both.
 
     Cached on the definition itself, because Streamlit re-runs the
@@ -1850,14 +1850,14 @@ def _equivalent_script(
     here rather than a difference the reader has to notice.
     """
 
-    lines = ["from CosmoFit import Fitter"]
+    lines = ["from cosmofit import Fitter"]
 
     action_specs = [spec for spec in action_specs if spec]
 
     if action_specs:
-        lines.append("from CosmoFit.theory import Action")
+        lines.append("from cosmofit.theory import Action")
     elif model_names:
-        lines.append(f"from CosmoFit import {', '.join(sorted(set(model_names)))}")
+        lines.append(f"from cosmofit import {', '.join(sorted(set(model_names)))}")
 
     lines.append("")
 
@@ -2083,7 +2083,7 @@ def _render_posterior(fit: Fitter) -> None:
         )
 
         try:
-            from CosmoFit.stats import derived
+            from cosmofit.stats import derived
 
             rows = []
 
@@ -2449,8 +2449,8 @@ def _render_evidence(fits: list[Fitter], labels: list[str]) -> None:
     """
 
     try:
-        from CosmoFit.stats.nested import run_nested
-        from CosmoFit.stats import evidence as evidence_mod
+        from cosmofit.stats.nested import run_nested
+        from cosmofit.stats import evidence as evidence_mod
     except ModuleNotFoundError:
         st.warning(
             "Nested sampling needs **dynesty**, an optional "
@@ -2562,7 +2562,7 @@ def _render_tension(fits: list[Fitter], labels: list[str]) -> None:
 
     import numpy as np
 
-    from CosmoFit.stats import tension as tension_mod
+    from cosmofit.stats import tension as tension_mod
 
     with_chains = [
         (label, fit) for label, fit in zip(labels, fits)
@@ -3352,7 +3352,7 @@ for i in range(n_models):
             else:
 
                 st.caption(
-                    "Give the **action**, not the answer. `CosmoFit.theory` "
+                    "Give the **action**, not the answer. `cosmofit.theory` "
                     "writes FLRW with an explicit lapse, reduces the action "
                     "to a point-like Lagrangian, varies the lapse to get the "
                     "Friedmann *constraint*, and solves it for `E(z)`. What "

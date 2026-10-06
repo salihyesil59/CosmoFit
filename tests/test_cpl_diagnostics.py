@@ -20,7 +20,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit.stats.cpl_diagnostics import (
+from cosmofit.stats.cpl_diagnostics import (
     REGIONS,
     classify_region,
     crossing_direction,

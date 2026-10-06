@@ -32,7 +32,7 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CosmologyParameters
+from cosmofit import LCDM, CosmologyParameters
 
 
 def _has_camb() -> bool:
@@ -73,7 +73,7 @@ def backend():
     if not _has_camb():
         pytest.skip("CAMB not installed")
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     likelihood = PlanckLensingLikelihood(
 
@@ -127,7 +127,7 @@ def test_the_call_is_made_once(backend):
     backend._run_once = counted
     backend._cache_key = None
 
-    from CosmoFit.cosmology.boltzmann import BoltzmannError
+    from cosmofit.cosmology.boltzmann import BoltzmannError
 
     with pytest.raises(BoltzmannError):
 
@@ -139,7 +139,7 @@ def test_the_call_is_made_once(backend):
 @requires_camb
 def test_a_persistent_nan_raises_and_names_the_point(backend):
 
-    from CosmoFit.cosmology.boltzmann import BoltzmannError
+    from cosmofit.cosmology.boltzmann import BoltzmannError
 
     real = backend._run_once
 
@@ -170,7 +170,7 @@ def test_sigma8_alone_is_enough_to_reject(backend):
     finite spectrum with a NaN sigma8 is still unusable.
     """
 
-    from CosmoFit.cosmology.boltzmann import BoltzmannError
+    from cosmofit.cosmology.boltzmann import BoltzmannError
 
     real = backend._run_once
 
@@ -231,9 +231,9 @@ def test_a_healthy_call_is_untouched(backend):
 
 def _posterior_over(likelihood, cosmology):
 
-    from CosmoFit.likelihoods.joint import JointLikelihood
-    from CosmoFit.stats.posterior import LogPosterior
-    from CosmoFit.stats.priors import UniformPrior
+    from cosmofit.likelihoods.joint import JointLikelihood
+    from cosmofit.stats.posterior import LogPosterior
+    from cosmofit.stats.priors import UniformPrior
 
     return LogPosterior(
 
@@ -255,7 +255,7 @@ def test_a_solver_failure_is_counted_not_just_rejected():
     difference has to survive into something the caller can read.
     """
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     cosmology = LCDM(CosmologyParameters(**PLANCK_BEST_FIT))
     likelihood = PlanckLensingLikelihood(cosmology)
@@ -300,7 +300,7 @@ def test_an_unphysical_point_is_not_counted_as_a_solver_failure():
     the solver, and must not inflate the number that is.
     """
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     cosmology = LCDM(CosmologyParameters(**PLANCK_BEST_FIT))
     likelihood = PlanckLensingLikelihood(cosmology)

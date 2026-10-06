@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit.stats.tension import (
+from cosmofit.stats.tension import (
     gaussian_tension,
     gaussian_tension_nd,
     sample_tension,
@@ -197,8 +197,8 @@ def test_suspiciousness_recovers_the_analytic_chi2(ndim, separation):
     ``ln S`` does not.
     """
 
-    from CosmoFit.stats.nested import run_nested
-    from CosmoFit.stats.priors import UniformPrior
+    from cosmofit.stats.nested import run_nested
+    from cosmofit.stats.priors import UniformPrior
 
     class Gaussians:
 
@@ -284,7 +284,7 @@ def test_suspiciousness_counts_only_constrained_parameters():
     look smaller.
     """
 
-    from CosmoFit.stats.nested import NestedResult
+    from cosmofit.stats.nested import NestedResult
 
     def run(log_z, info, dim):
 

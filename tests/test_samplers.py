@@ -12,8 +12,8 @@ import numpy as np
 import pytest
 import yaml
 
-from CosmoFit.core import run
-from CosmoFit.core.output import OutputError, load_covmat
+from cosmofit.core import run
+from cosmofit.core.output import OutputError, load_covmat
 
 from test_mcmc import COV, CORR, MEAN, SIGMA, Gaussian, gaussian_input, moments
 

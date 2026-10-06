@@ -1,0 +1,212 @@
+"""
+CosmoFit: a modular Python library for cosmological parameter
+estimation.
+
+Unified public API -- everything most users need is importable
+directly from the top-level package:
+
+>>> from cosmofit import CPL, Fitter
+>>>
+>>> fit = Fitter(
+...     model=CPL,
+...     datasets=["cc", "desi", "pantheon"],
+...     free_params=["H0", "Omega_m", "w0", "wa"],
+...     initial={"H0": 67.4, "Omega_m": 0.315, "w0": -1.0, "wa": 0.0,
+...              "rd": 147.1},
+... )
+>>> fit.run_mcmc(nwalkers=48, nsteps=6000, burnin=1000)
+>>> fit.best_fit()
+>>> fit.summary()
+>>> fit.plots.corner()
+
+Pass ``save="chains/cpl.h5"`` to ``run_mcmc`` and the chain is
+written as it is sampled, then reused instead of re-sampled the
+next time -- or reopened in a later session with
+``Fitter.from_chain("chains/cpl.h5")``. See ``cosmofit.stats.chains``.
+
+The underlying subpackages (``cosmofit.cosmology``, ``cosmofit.data``,
+``cosmofit.likelihoods``, ``cosmofit.stats``, ``cosmofit.plots``) are
+still available for anything not re-exported here -- e.g.
+``cosmofit.stats.model_comparison``, ``cosmofit.stats.cpl_diagnostics``,
+or ``cosmofit.data.loader.load_pantheon`` for direct dataset access.
+
+``cosmofit.theory`` is deliberately *not* imported here. It derives a
+Friedmann equation from an action symbolically and so needs sympy,
+which is an optional dependency -- importing it from this module would
+make ``import cosmofit`` fail for everyone who did not install it.
+Import it directly instead::
+
+    from cosmofit.theory import Action    # pip install "cosmofit[theory]"
+"""
+
+from __future__ import annotations
+
+from importlib.metadata import PackageNotFoundError, version
+
+# ============================================================
+# Cosmological models and parameters
+# ============================================================
+
+from cosmofit.cosmology import (
+    Cosmology,
+    CosmologyParameters,
+    ModelConfigurationError,
+    constants,
+    LCDM,
+    WCDM,
+    CPL,
+    JBP,
+    BA,
+    LogarithmicDE,
+    PEDE,
+    GEDE,
+    LsCDM,
+    GCG,
+    IDE,
+    RunningVacuum,
+    Cardassian,
+    HDE,
+    ADE,
+    RDE,
+    DGP,
+    FQExponential,
+    FTPowerLaw,
+    FRTLinear,
+    FRHuSawicki,
+    define_model,
+    model_from_expression,
+)
+
+# ============================================================
+# Likelihoods
+# ============================================================
+
+from cosmofit.likelihoods import (
+    BaseLikelihood,
+    CCLikelihood,
+    DESILikelihood,
+    SDSSBAOLikelihood,
+    SDSSFullShapeLikelihood,
+    EBOSSELGLikelihood,
+    EBOSSELGFullShapeLikelihood,
+    EBOSSLyaLikelihood,
+    BAOLowZLikelihood,
+    PantheonLikelihood,
+    DESSN5YRLikelihood,
+    Union3Likelihood,
+    PlanckLikelihood,
+    PlanckLiteLikelihood,
+    PlanckLensingLikelihood,
+    PlanckLowEELikelihood,
+    ACTDR6LensingLikelihood,
+    H0Likelihood,
+    OmegaBLikelihood,
+    TauLikelihood,
+    FSigma8Likelihood,
+    S8Likelihood,
+    JointLikelihood,
+)
+
+# ============================================================
+# Fitting and plotting
+# ============================================================
+
+from cosmofit.stats.fitter import Fitter
+from cosmofit.stats.sampler import BaseSampler, EnsembleSampler
+from cosmofit.stats.results import FitResult, BestFitResult, MCMCResult
+from cosmofit.stats.chains import ChainFile, StoredSampler, open_chain, chain_info
+from cosmofit.plots import FitPlotter
+
+# ============================================================
+# Dataset discovery
+# ============================================================
+
+from cosmofit.data.loader import (
+    available_datasets,
+    available_versions,
+    dataset_reference,
+)
+
+# ============================================================
+# Version
+# ============================================================
+
+try:
+    __version__ = version("cosmofit")
+except PackageNotFoundError:
+    # Package not installed (e.g. running from a source checkout
+    # without `pip install -e .`).
+    __version__ = "0.0.0+unknown"
+
+__all__ = [
+    "__version__",
+    # Cosmology
+    "Cosmology",
+    "CosmologyParameters",
+    "ModelConfigurationError",
+    "constants",
+    "LCDM",
+    "WCDM",
+    "CPL",
+    "JBP",
+    "BA",
+    "LogarithmicDE",
+    "PEDE",
+    "GEDE",
+    "LsCDM",
+    "GCG",
+    "IDE",
+    "RunningVacuum",
+    "Cardassian",
+    "HDE",
+    "ADE",
+    "RDE",
+    "DGP",
+    "FQExponential",
+    "FTPowerLaw",
+    "FRTLinear",
+    "FRHuSawicki",
+    "define_model",
+    "model_from_expression",
+    # Likelihoods
+    "BaseLikelihood",
+    "CCLikelihood",
+    "DESILikelihood",
+    "SDSSBAOLikelihood",
+    "SDSSFullShapeLikelihood",
+    "EBOSSELGLikelihood",
+    "EBOSSELGFullShapeLikelihood",
+    "EBOSSLyaLikelihood",
+    "BAOLowZLikelihood",
+    "PantheonLikelihood",
+    "DESSN5YRLikelihood",
+    "Union3Likelihood",
+    "PlanckLikelihood",
+    "PlanckLiteLikelihood",
+    "PlanckLensingLikelihood",
+    "PlanckLowEELikelihood",
+    "ACTDR6LensingLikelihood",
+    "H0Likelihood",
+    "OmegaBLikelihood",
+    "TauLikelihood",
+    "FSigma8Likelihood",
+    "S8Likelihood",
+    "JointLikelihood",
+    # Fitting / plotting
+    "Fitter",
+    "BaseSampler",
+    "EnsembleSampler",
+    "FitResult",
+    "BestFitResult",
+    "MCMCResult",
+    "FitPlotter",
+    # Saved chains
+    "ChainFile",
+    "StoredSampler",
+    "open_chain",
+    "chain_info",
+    # Datasets
+    "available_datasets",
+    "available_versions",
+    "dataset_reference",
+]

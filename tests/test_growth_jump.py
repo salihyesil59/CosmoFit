@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-from CosmoFit import LCDM, LsCDM
+from cosmofit import LCDM, LsCDM
 
 
 def _lscdm(z_dagger=1.8, Omega_m=0.3):

@@ -28,7 +28,7 @@ import pytest
 
 from scipy.integrate import cumulative_trapezoid
 
-from CosmoFit import HDE
+from cosmofit import HDE
 
 
 def build(Omega_m=0.30, c_hde=0.80, H0=68.0):
@@ -255,7 +255,7 @@ def test_it_fits():
     End to end through a Fitter, with ``c_hde`` free.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     fit = Fitter(
         model=HDE,
@@ -283,7 +283,7 @@ def test_camb_refuses_it():
     something plausible-looking.
     """
 
-    from CosmoFit.cosmology.boltzmann import supports_cmb_spectra
+    from cosmofit.cosmology.boltzmann import supports_cmb_spectra
 
     supported, reason = supports_cmb_spectra(HDE)
 
@@ -410,7 +410,7 @@ def test_reproduces_the_published_late_time_constraint():
     than computed: nothing in this combination calibrates it.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     fit = Fitter(
         model=HDE,
@@ -444,7 +444,7 @@ def test_supernovae_and_bao_pull_c_in_opposite_directions():
     averaging over.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     def best_c(datasets, free, initial):
 

@@ -98,7 +98,7 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 
-# `CosmoFit.theory` needs sympy, and the CMB path needs CAMB. Neither
+# `cosmofit.theory` needs sympy, and the CMB path needs CAMB. Neither
 # is a hard dependency, so the docs build must not fail without them.
 autodoc_mock_imports = ["camb"]
 

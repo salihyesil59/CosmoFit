@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from CosmoFit.data.loader import dataset_reference, load_des_sn5yr
+from cosmofit.data.loader import dataset_reference, load_des_sn5yr
 
 
 def test_bundled_sample_is_the_dovekie_one():

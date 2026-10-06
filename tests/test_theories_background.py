@@ -19,8 +19,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import CosmoFit
-from CosmoFit.core import ComponentError, Likelihood, get_model
+import cosmofit
+from cosmofit.core import ComponentError, Likelihood, get_model
 
 
 class Probe(Likelihood):
@@ -83,7 +83,7 @@ def test_radiation_free_background_is_the_old_model(name, Omega_k):
 
     background = model.theories["background"]
 
-    old_cls = getattr(CosmoFit, old_name)
+    old_cls = getattr(cosmofit, old_name)
     values = dict(old_cls.PARAMS_CLASS.defaults())
     values.update({k: v for k, v in params.items()
                    if k in old_cls.PARAMS_CLASS.names()})
@@ -214,7 +214,7 @@ def test_rdrag_matches_the_old_sound_horizon():
     model = build(params, early=True)
     model.logposterior({})
 
-    old = CosmoFit.LCDM(CosmoFit.CosmologyParameters(**params))
+    old = cosmofit.LCDM(cosmofit.CosmologyParameters(**params))
 
     assert model.theories["early_universe"].current_state["rdrag"] == pytest.approx(
         old.sound_horizon.rd_computed(), rel=1e-8,

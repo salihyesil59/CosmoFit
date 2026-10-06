@@ -133,7 +133,7 @@ Datasets
 Types
 -----
 
-.. automodule:: CosmoFit.typing
+.. automodule:: cosmofit.typing
    :members:
    :no-index:
 

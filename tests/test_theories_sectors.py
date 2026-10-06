@@ -19,9 +19,9 @@ import numpy as np
 import pytest
 from scipy.integrate import quad, solve_ivp
 
-import CosmoFit
-from CosmoFit.core import ComponentError, Likelihood, get_model
-from CosmoFit.theories.background import Background
+import cosmofit
+from cosmofit.core import ComponentError, Likelihood, get_model
+from cosmofit.theories.background import Background
 
 
 def background(sector, radiation=True, **params):
@@ -83,7 +83,7 @@ OLD = {
 
 def old_model(name, Omega_k, **params):
 
-    cls = getattr(CosmoFit, name)
+    cls = getattr(cosmofit, name)
     values = dict(cls.PARAMS_CLASS.defaults())
     values.update(H0=68.0, Omega_m=0.31, Omega_b=0.049, Omega_k=Omega_k, **params)
 
@@ -161,7 +161,7 @@ def test_sign_switching_distances_are_exact_across_the_jump():
         else:
             reference = below + quad(inverse, 1.8, z, epsrel=1e-13)[0]
 
-        assert float(theory.get_comoving_distance(z)) * 68.0 / CosmoFit.cosmology.core.constants.c == pytest.approx(reference, rel=1e-11)
+        assert float(theory.get_comoving_distance(z)) * 68.0 / cosmofit.cosmology.core.constants.c == pytest.approx(reference, rel=1e-11)
 
     assert theory.get_background_jumps() == (1.8,)
 

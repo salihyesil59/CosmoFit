@@ -17,8 +17,8 @@ import warnings
 import numpy as np
 import pytest
 
-import CosmoFit
-from CosmoFit.core import ComponentError, Likelihood, get_model
+import cosmofit
+from cosmofit.core import ComponentError, Likelihood, get_model
 
 camb = pytest.importorskip("camb")
 
@@ -111,13 +111,13 @@ def test_spectra_are_the_old_backends():
     93.14 eV and the background integrates exactly.
     """
 
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     m = model()
     evaluate(m)
 
-    cls = CosmoFit.LCDM.PARAMS_CLASS
-    old = CAMBBackend(CosmoFit.LCDM(cls(**{**cls.defaults(), **BASE})))
+    cls = cosmofit.LCDM.PARAMS_CLASS
+    old = CAMBBackend(cosmofit.LCDM(cls(**{**cls.defaults(), **BASE})))
 
     reference = old.cls(lmin=2)
     Cl = m.provider.get_Cl()

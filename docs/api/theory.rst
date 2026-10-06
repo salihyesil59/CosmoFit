@@ -1,34 +1,34 @@
-``CosmoFit.theory``
+``cosmofit.theory``
 ===================
 
-.. automodule:: CosmoFit.theory
+.. automodule:: cosmofit.theory
 
 The action
 ----------
 
-.. automodule:: CosmoFit.theory.action
+.. automodule:: cosmofit.theory.action
    :members: Action, Fluid
 
 The reduction
 -------------
 
-.. automodule:: CosmoFit.theory.minisuperspace
+.. automodule:: cosmofit.theory.minisuperspace
    :members:
 
 Solving the constraint
 ----------------------
 
-.. automodule:: CosmoFit.theory.solve
+.. automodule:: cosmofit.theory.solve
    :members:
 
 Dynamical fields
 ----------------
 
-.. automodule:: CosmoFit.theory.fields
+.. automodule:: cosmofit.theory.fields
    :members:
 
 Fourth-order actions
 --------------------
 
-.. automodule:: CosmoFit.theory.curvature
+.. automodule:: cosmofit.theory.curvature
    :members:

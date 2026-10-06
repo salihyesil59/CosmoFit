@@ -15,8 +15,8 @@ import os
 import numpy as np
 import pytest
 
-from CosmoFit.core import run
-from CosmoFit.core.mpi import Serial, WorkerError, world
+from cosmofit.core import run
+from cosmofit.core.mpi import Serial, WorkerError, world
 
 from test_mcmc import Gaussian, gaussian_input
 
@@ -162,8 +162,8 @@ def test_under_mpirun_only_parallel_samplers_run(monkeypatch):
 
     import sys
 
-    # The module, not the function `CosmoFit.core.run` it exports.
-    monkeypatch.setattr(sys.modules["CosmoFit.core.run"], "world", _World)
+    # The module, not the function `cosmofit.core.run` it exports.
+    monkeypatch.setattr(sys.modules["cosmofit.core.run"], "world", _World)
 
     info = short()
     info["sampler"] = {"minimize": None}
@@ -174,7 +174,7 @@ def test_under_mpirun_only_parallel_samplers_run(monkeypatch):
 
 def test_under_mpirun_every_process_needs_a_chain(monkeypatch):
 
-    import CosmoFit.samplers.mcmc as mcmc
+    import cosmofit.samplers.mcmc as mcmc
 
     monkeypatch.setattr(mcmc, "world", _World)
 

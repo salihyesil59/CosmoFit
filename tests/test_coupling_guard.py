@@ -28,8 +28,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import FQExponential, FTPowerLaw
-from CosmoFit.cosmology.core.utils import coupling_from_derivative
+from cosmofit import FQExponential, FTPowerLaw
+from cosmofit.cosmology.core.utils import coupling_from_derivative
 
 
 Z = np.array([0.0, 0.5, 1.0, 2.0])
@@ -152,7 +152,7 @@ def test_the_compiled_teleparallel_path_agrees_with_the_written_one():
 
     pytest.importorskip("sympy")
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     model = Action(
         "T + A0*(-T)**b",
@@ -249,7 +249,7 @@ def test_the_compiled_path_gives_the_same_verdict():
 
     pytest.importorskip("sympy")
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     model = Action(
         "T + A0*(-T)**b",

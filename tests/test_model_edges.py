@@ -23,8 +23,8 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-from CosmoFit import DGP, IDE
-from CosmoFit.cosmology.models.rvm import RunningVacuum
+from cosmofit import DGP, IDE
+from cosmofit.cosmology.models.rvm import RunningVacuum
 
 
 def _build(model, **values):

@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit.stats.model_comparison import likelihood_ratio_test
+from cosmofit.stats.model_comparison import likelihood_ratio_test
 
 # ============================================================
 # An impossible nested comparison
@@ -112,8 +112,8 @@ def test_model_comparison_and_tension_agree_on_sigma():
 
     from scipy import stats
 
-    from CosmoFit.stats import cpl_diagnostics, tension
-    from CosmoFit.stats.significance import p_to_sigma
+    from cosmofit.stats import cpl_diagnostics, tension
+    from cosmofit.stats.significance import p_to_sigma
 
     assert tension._sigma_from_p is p_to_sigma
 

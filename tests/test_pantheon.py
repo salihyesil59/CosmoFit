@@ -18,10 +18,10 @@ import numpy as np
 import pytest
 from scipy.optimize import minimize
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.cosmology.core.parameters import CosmologyParameters
-from CosmoFit.data.loader import load_pantheon
-from CosmoFit.likelihoods.pantheon import PantheonLikelihood
+from cosmofit import LCDM, Fitter
+from cosmofit.cosmology.core.parameters import CosmologyParameters
+from cosmofit.data.loader import load_pantheon
+from cosmofit.likelihoods.pantheon import PantheonLikelihood
 
 
 def _cosmology(**overrides):

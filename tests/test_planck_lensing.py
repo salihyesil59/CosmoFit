@@ -21,8 +21,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CPL, CosmologyParameters
-from CosmoFit.data.loader import load_planck_lensing
+from cosmofit import LCDM, CPL, CosmologyParameters
+from cosmofit.data.loader import load_planck_lensing
 
 
 def _has_camb() -> bool:
@@ -70,7 +70,7 @@ def likelihood():
     if not _has_camb():
         pytest.skip("CAMB not installed")
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     return PlanckLensingLikelihood(
 
@@ -345,7 +345,7 @@ def test_fitter_warns_about_the_double_amplitude():
 
     import warnings
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with warnings.catch_warnings(record=True) as caught:
 
@@ -373,9 +373,9 @@ def test_fitter_warns_about_the_double_amplitude():
 @requires_camb
 def test_modified_gravity_is_refused():
 
-    from CosmoFit import FRHuSawicki
-    from CosmoFit.cosmology.boltzmann import BoltzmannError
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit import FRHuSawicki
+    from cosmofit.cosmology.boltzmann import BoltzmannError
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     model = FRHuSawicki(
 
@@ -396,7 +396,7 @@ def test_works_for_a_w_of_z_model():
     LCDM's answer.
     """
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     lcdm = PlanckLensingLikelihood(
 

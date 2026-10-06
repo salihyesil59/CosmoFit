@@ -20,8 +20,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CosmologyParameters
-from CosmoFit.data.loader import load_planck_lowe
+from cosmofit import LCDM, CosmologyParameters
+from cosmofit.data.loader import load_planck_lowe
 
 
 def _has_camb() -> bool:
@@ -68,7 +68,7 @@ def likelihood():
     if not _has_camb():
         pytest.skip("CAMB not installed")
 
-    from CosmoFit.likelihoods.planck_lowe import PlanckLowEELikelihood
+    from cosmofit.likelihoods.planck_lowe import PlanckLowEELikelihood
 
     return PlanckLowEELikelihood(
 
@@ -190,8 +190,8 @@ def test_profiling_tau_recovers_the_published_constraint():
 
     from scipy.optimize import minimize_scalar
 
-    from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
-    from CosmoFit.likelihoods.planck_lowe import PlanckLowEELikelihood
+    from cosmofit.likelihoods.planck_lite import PlanckLiteLikelihood
+    from cosmofit.likelihoods.planck_lowe import PlanckLowEELikelihood
 
     model = LCDM(CosmologyParameters(**PLANCK_BEST_FIT))
 
@@ -260,7 +260,7 @@ def test_fitter_refuses_lowe_together_with_the_tau_prior():
 
     import warnings
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with warnings.catch_warnings(record=True) as caught:
 
@@ -294,9 +294,9 @@ def test_shares_one_camb_backend_with_the_bandpower_likelihood():
     call per step.
     """
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
-    from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
-    from CosmoFit.likelihoods.planck_lowe import PlanckLowEELikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lite import PlanckLiteLikelihood
+    from cosmofit.likelihoods.planck_lowe import PlanckLowEELikelihood
 
     model = LCDM(CosmologyParameters(**PLANCK_BEST_FIT))
 

@@ -15,9 +15,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.stats.evidence import bayes_factor, interpret
-from CosmoFit.stats.priors import UniformPrior
+from cosmofit import LCDM, Fitter
+from cosmofit.stats.evidence import bayes_factor, interpret
+from cosmofit.stats.priors import UniformPrior
 
 
 
@@ -85,7 +85,7 @@ def test_evidence_matches_an_analytic_integral(sigma):
     being measured.
     """
 
-    from CosmoFit.stats.nested import run_nested
+    from cosmofit.stats.nested import run_nested
 
     sigma = np.asarray(sigma, dtype=float)
     mu = np.zeros(len(sigma))
@@ -132,7 +132,7 @@ def test_evidence_moves_with_the_prior_volume():
     fit completely unchanged.
     """
 
-    from CosmoFit.stats.nested import run_nested
+    from cosmofit.stats.nested import run_nested
 
     sigma = np.array([0.3, 0.5])
     mu = np.zeros(2)
@@ -176,7 +176,7 @@ def test_bayes_factor_reports_the_prior_volumes():
     a reproducible number.
     """
 
-    from CosmoFit.stats.nested import NestedResult
+    from cosmofit.stats.nested import NestedResult
 
     def fake(log_z, volume):
         return NestedResult(
@@ -207,7 +207,7 @@ def test_profile_reproduces_the_lscdm_cliff():
     Same number through the API.
     """
 
-    from CosmoFit.cosmology.models.lscdm import LsCDM
+    from cosmofit.cosmology.models.lscdm import LsCDM
 
     fit = Fitter(
         model=LsCDM,
@@ -363,7 +363,7 @@ def test_warm_start_does_not_change_the_profile():
     hundred CAMB calls.
     """
 
-    from CosmoFit.cosmology.models.lscdm import LsCDM
+    from cosmofit.cosmology.models.lscdm import LsCDM
 
     def profile_with(warm_start):
 

@@ -21,8 +21,8 @@ import math
 import warnings
 from pathlib import Path
 
-import CosmoFit
-from CosmoFit.stats.fitter import DATASET_REGISTRY
+import cosmofit
+from cosmofit.stats.fitter import DATASET_REGISTRY
 
 
 #: Datasets that call CAMB: excluded, since their values move at the
@@ -70,7 +70,7 @@ def main() -> None:
 
     for name in MODELS:
 
-        model_cls = getattr(CosmoFit, name)
+        model_cls = getattr(cosmofit, name)
 
         values = point_for(model_cls)
 
@@ -105,7 +105,7 @@ def main() -> None:
                     "original likelihood classes; see "
                     "tools/make_golden_chi2.py."
                 ),
-                "cosmofit_version": CosmoFit.__version__,
+                "cosmofit_version": cosmofit.__version__,
                 "models": table,
             },
             indent=1,

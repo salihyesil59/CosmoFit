@@ -24,8 +24,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import CosmoFit as C
-from CosmoFit.cosmology.core.errors import ModelConfigurationError
+import cosmofit as C
+from cosmofit.cosmology.core.errors import ModelConfigurationError
 
 
 H0 = 67.4
@@ -264,9 +264,9 @@ _ACTION_NS = [-2.0, -1.0, -0.5, 0.0, 0.25, 0.45]
 @pytest.mark.parametrize("n", _ACTION_NS)
 def test_matches_the_action_derivation(n):
 
-    pytest.importorskip("sympy", reason="CosmoFit.theory needs sympy")
+    pytest.importorskip("sympy", reason="cosmofit.theory needs sympy")
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     derived = Action(
         "T + A0*(-T)**b",

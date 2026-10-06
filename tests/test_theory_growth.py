@@ -30,13 +30,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import FRHuSawicki
+from cosmofit import FRHuSawicki
 
 
 pytest.importorskip("sympy", reason="theory.Action needs sympy")
 
-from CosmoFit.theory import Action  # noqa: E402
-from CosmoFit.theory.curvature import quasi_static_mu  # noqa: E402
+from cosmofit.theory import Action  # noqa: E402
+from cosmofit.theory.curvature import quasi_static_mu  # noqa: E402
 
 
 H0 = 70.0
@@ -346,7 +346,7 @@ def test_the_gr_boundary_is_not_reported_as_a_failure():
     f(R) has to pass through.
     """
 
-    from CosmoFit.theory.curvature import viability_failures
+    from cosmofit.theory.curvature import viability_failures
 
     assert viability_failures(1.0, 0.0) == []
 

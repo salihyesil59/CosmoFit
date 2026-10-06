@@ -15,8 +15,8 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.stats.diagnostics import (
+from cosmofit import LCDM, Fitter
+from cosmofit.stats.diagnostics import (
     hpd_interval,
     one_sided_limit,
     posterior_summary,

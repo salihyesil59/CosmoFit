@@ -31,8 +31,8 @@ repository.
   CC covariance is built from it (`data.loader._cc_covariance`), and
   `CC_32_Favale2023_Moresco2020_correlation.txt` is kept as the check
   on that construction.
-- Used by: [`data/cc/favale2023/`](src/CosmoFit/data/cc/favale2023/),
-  [`likelihoods/cc.py`](src/CosmoFit/likelihoods/cc.py)
+- Used by: [`data/cc/favale2023/`](src/cosmofit/data/cc/favale2023/),
+  [`likelihoods/cc.py`](src/cosmofit/likelihoods/cc.py)
 
 ### DESI 2024 BAO
 
@@ -43,8 +43,8 @@ repository.
 - Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
   (also linked from DESI's own
   [official likelihood repository](https://github.com/cosmodesi/desi-kp-cosmological-likelihoods))
-- Used by: [`data/bao/desi2024/`](src/CosmoFit/data/bao/desi2024/),
-  [`likelihoods/desi.py`](src/CosmoFit/likelihoods/desi.py)
+- Used by: [`data/bao/desi2024/`](src/cosmofit/data/bao/desi2024/),
+  [`likelihoods/desi.py`](src/cosmofit/likelihoods/desi.py)
 
 ### DESI DR2 BAO (2025)
 
@@ -60,8 +60,8 @@ repository.
   DR1 galaxy.
 - Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
   (`desi_bao_dr2/`)
-- Used by: [`data/bao/desi_dr2/`](src/CosmoFit/data/bao/desi_dr2/),
-  [`likelihoods/desi.py`](src/CosmoFit/likelihoods/desi.py)
+- Used by: [`data/bao/desi_dr2/`](src/cosmofit/data/bao/desi_dr2/),
+  [`likelihoods/desi.py`](src/cosmofit/likelihoods/desi.py)
 
 ### Low-redshift BAO (6dFGS + SDSS DR7 MGS)
 
@@ -82,8 +82,8 @@ repository.
   (`bao.sixdf_2011_bao`, `bao.sdss_dr7_mgs`). The MGS release is a
   tabulated non-Gaussian likelihood; the Gaussian compression used
   here is the standard one.
-- Used by: [`data/bao/lowz/`](src/CosmoFit/data/bao/lowz/),
-  [`likelihoods/bao_lowz.py`](src/CosmoFit/likelihoods/bao_lowz.py)
+- Used by: [`data/bao/lowz/`](src/cosmofit/data/bao/lowz/),
+  [`likelihoods/bao_lowz.py`](src/cosmofit/likelihoods/bao_lowz.py)
 
 ### SDSS BAO (BOSS DR12 + eBOSS DR16 LRG/QSO)
 
@@ -101,8 +101,8 @@ repository.
 - Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
   (data as originally distributed with
   [CosmoMC](https://github.com/cmbant/CosmoMC))
-- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
-  [`likelihoods/sdss_bao.py`](src/CosmoFit/likelihoods/sdss_bao.py)
+- Used by: [`data/bao/sdss/`](src/cosmofit/data/bao/sdss/),
+  [`likelihoods/sdss_bao.py`](src/cosmofit/likelihoods/sdss_bao.py)
 - **Note:** BOSS DR12's usual third bin (z=0.61) is deliberately
   omitted from this combination -- see the module docstring in
   `data/loader.py` for why.
@@ -115,8 +115,8 @@ repository.
   0.698 and 1.48, with the covariance between them.
   [arXiv:2007.08991](https://arxiv.org/abs/2007.08991)
 - Data source: [CobayaSampler/bao_data](https://github.com/CobayaSampler/bao_data)
-- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
-  [`likelihoods/sdss_bao.py`](src/CosmoFit/likelihoods/sdss_bao.py)
+- Used by: [`data/bao/sdss/`](src/cosmofit/data/bao/sdss/),
+  [`likelihoods/sdss_bao.py`](src/cosmofit/likelihoods/sdss_bao.py)
 - **Note:** this supersedes `sdss_bao` + `fsigma8` for these
   surveys. Those two are built from the same galaxies and are
   correlated (0.19 to 0.64 between D_M/r_d and f*sigma8 within a
@@ -148,8 +148,8 @@ mean and a covariance, because a Gaussian would misrepresent them.
   (-2.1/+2.2), f*sigma8 = 0.315 +- 0.095 at z_eff = 0.85, from the
   consensus of the Fourier- and configuration-space analyses.
   [arXiv:2007.09008](https://arxiv.org/abs/2007.09008)
-- Used by: [`data/bao/sdss/`](src/CosmoFit/data/bao/sdss/),
-  [`likelihoods/eboss_dr16.py`](src/CosmoFit/likelihoods/eboss_dr16.py)
+- Used by: [`data/bao/sdss/`](src/cosmofit/data/bao/sdss/),
+  [`likelihoods/eboss_dr16.py`](src/cosmofit/likelihoods/eboss_dr16.py)
 - **Note on the full-shape grid:** it is the one dataset in this
   package that is *not* shipped as released. The original is 60 MB
   of ASCII with 10.3% of its probabilities underflowed to exact
@@ -175,8 +175,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 - **Gao, Chen, Shen & Saridakis (2009)**, *Holographic Dark Energy
   Model from Ricci Scalar Curvature*, Phys. Rev. D 79, 043511.
   [arXiv:0712.1394](https://arxiv.org/abs/0712.1394)
-- Used by: [`cosmology/models/ade.py`](src/CosmoFit/cosmology/models/ade.py),
-  [`cosmology/models/rde.py`](src/CosmoFit/cosmology/models/rde.py)
+- Used by: [`cosmology/models/ade.py`](src/cosmofit/cosmology/models/ade.py),
+  [`cosmology/models/rde.py`](src/cosmofit/cosmology/models/rde.py)
 - **Validated against a published constraint.** On cosmic
   chronometers + DESI DR2 BAO + Pantheon+, RDE reproduces
   `gamma = 0.538` and `Omega_m0 = 0.217` against the
@@ -196,7 +196,7 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 - **Wang, Mortsell, et al. (2017)**, *Holographic Dark Energy*,
   Phys. Rept. 696, 1 (review).
   [arXiv:1612.00345](https://arxiv.org/abs/1612.00345)
-- Used by: [`cosmology/models/hde.py`](src/CosmoFit/cosmology/models/hde.py)
+- Used by: [`cosmology/models/hde.py`](src/cosmofit/cosmology/models/hde.py)
 - **Validated against a published constraint** as well as against
   its own definition: on cosmic chronometers + DESI DR2 BAO +
   Pantheon+ (late-time only, no CMB) this reproduces
@@ -221,8 +221,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   [arXiv:2202.04077](https://arxiv.org/abs/2202.04077)
 - Data source: [PantheonPlusSH0ES/DataRelease](https://github.com/PantheonPlusSH0ES/DataRelease)
   (official data release)
-- Used by: [`data/sn/pantheon-plus-sh0es/`](src/CosmoFit/data/sn/pantheon-plus-sh0es/),
-  [`likelihoods/pantheon.py`](src/CosmoFit/likelihoods/pantheon.py)
+- Used by: [`data/sn/pantheon-plus-sh0es/`](src/cosmofit/data/sn/pantheon-plus-sh0es/),
+  [`likelihoods/pantheon.py`](src/cosmofit/likelihoods/pantheon.py)
 
 ### DES-SN5YR (Type Ia Supernovae)
 
@@ -241,8 +241,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 - Data source: [des-science/DES-SN5YR](https://github.com/des-science/DES-SN5YR)
   (official data release; `4_DISTANCES_COVMAT/DES-Dovekie_HD.csv` and
   `STAT+SYS.npz`)
-- Used by: [`data/sn/des-sn5yr/`](src/CosmoFit/data/sn/des-sn5yr/),
-  [`likelihoods/des_sn5yr.py`](src/CosmoFit/likelihoods/des_sn5yr.py)
+- Used by: [`data/sn/des-sn5yr/`](src/cosmofit/data/sn/des-sn5yr/),
+  [`likelihoods/des_sn5yr.py`](src/cosmofit/likelihoods/des_sn5yr.py)
 - **Note:** don't combine with Pantheon+ in the same fit -- see the
   module docstring for the sample overlap this would double-count.
 
@@ -262,16 +262,16 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   supernova overlap with both.
 - Data source: [CobayaSampler/sn_data](https://github.com/CobayaSampler/sn_data)
   (`Union3/`)
-- Used by: [`data/sn/union3/`](src/CosmoFit/data/sn/union3/),
-  [`likelihoods/union3.py`](src/CosmoFit/likelihoods/union3.py)
+- Used by: [`data/sn/union3/`](src/cosmofit/data/sn/union3/),
+  [`likelihoods/union3.py`](src/cosmofit/likelihoods/union3.py)
 
 ### Planck 2018 CMB distance priors
 
 - **Chen, Huang & Wang (2019)**, *Distance Priors from Planck Final
   Release*, JCAP 02 (2019) 028.
   [arXiv:1808.05724](https://arxiv.org/abs/1808.05724)
-- Used by: [`data/cmb/planck2018/`](src/CosmoFit/data/cmb/planck2018/),
-  [`likelihoods/planck.py`](src/CosmoFit/likelihoods/planck.py)
+- Used by: [`data/cmb/planck2018/`](src/cosmofit/data/cmb/planck2018/),
+  [`likelihoods/planck.py`](src/cosmofit/likelihoods/planck.py)
 
 ### Planck 2018 plik_lite TT/TE/EE bandpowers
 
@@ -305,9 +305,9 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   `planck-lite-py`'s published log-likelihood values exactly for all
   four selections -- TT and TTTEEE, each with and without the low-l
   bins ([`tests/test_planck_lite.py`](tests/test_planck_lite.py)).
-- Used by: [`data/cmb/plik_lite/`](src/CosmoFit/data/cmb/plik_lite/),
-  [`likelihoods/planck_lite.py`](src/CosmoFit/likelihoods/planck_lite.py),
-  [`cosmology/boltzmann.py`](src/CosmoFit/cosmology/boltzmann.py)
+- Used by: [`data/cmb/plik_lite/`](src/cosmofit/data/cmb/plik_lite/),
+  [`likelihoods/planck_lite.py`](src/cosmofit/likelihoods/planck_lite.py),
+  [`cosmology/boltzmann.py`](src/cosmofit/cosmology/boltzmann.py)
 
 ### Planck 2018 low-multipole EE (SimAll)
 
@@ -333,8 +333,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   (release v1, `planck_2018_lowE.zip`), a Python translation of the
   public Planck `clik` likelihood
   `simall_100x143_offlike5_EE_Aplanck_B.clik`.
-- Used by: [`data/cmb/lowE2018/`](src/CosmoFit/data/cmb/lowE2018/),
-  [`likelihoods/planck_lowe.py`](src/CosmoFit/likelihoods/planck_lowe.py)
+- Used by: [`data/cmb/lowE2018/`](src/cosmofit/data/cmb/lowE2018/),
+  [`likelihoods/planck_lowe.py`](src/cosmofit/likelihoods/planck_lowe.py)
 
 ### Planck 2018 CMB lensing
 
@@ -358,8 +358,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 - Data source: [CobayaSampler/planck_supp_data_and_covmats](https://github.com/CobayaSampler/planck_supp_data_and_covmats)
   (`lensing/2018/`), redistributing the Planck Legacy Archive PR3
   release.
-- Used by: [`data/cmb/lensing2018/`](src/CosmoFit/data/cmb/lensing2018/),
-  [`likelihoods/planck_lensing.py`](src/CosmoFit/likelihoods/planck_lensing.py)
+- Used by: [`data/cmb/lensing2018/`](src/cosmofit/data/cmb/lensing2018/),
+  [`likelihoods/planck_lensing.py`](src/cosmofit/likelihoods/planck_lensing.py)
 
 ### ACT DR6 CMB lensing
 
@@ -393,8 +393,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 - Data source: [NASA LAMBDA](https://lambda.gsfc.nasa.gov/product/act/actadv_prod_table.html),
   `ACT_dr6_likelihood_v1.2.tgz`. The reference implementation is
   [ACTCollaboration/act_dr6_lenslike](https://github.com/ACTCollaboration/act_dr6_lenslike).
-- Used by: [`data/cmb/act_dr6_lensing/`](src/CosmoFit/data/cmb/act_dr6_lensing/),
-  [`likelihoods/act_lensing.py`](src/CosmoFit/likelihoods/act_lensing.py)
+- Used by: [`data/cmb/act_dr6_lensing/`](src/cosmofit/data/cmb/act_dr6_lensing/),
+  [`likelihoods/act_lensing.py`](src/cosmofit/likelihoods/act_lensing.py)
 
 ### External single-number priors (H0, BBN, tau)
 
@@ -421,8 +421,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
 - **Planck Collaboration (2020)**, A&A 641, A6, Table 1
   (tau = 0.0544 +- 0.0073, the lowE constraint).
   [arXiv:1807.06209](https://arxiv.org/abs/1807.06209)
-- Used by: [`data/priors/`](src/CosmoFit/data/priors/),
-  [`likelihoods/priors.py`](src/CosmoFit/likelihoods/priors.py)
+- Used by: [`data/priors/`](src/cosmofit/data/priors/),
+  [`likelihoods/priors.py`](src/cosmofit/likelihoods/priors.py)
 
 ### fsigma8 growth-rate compilation ("Gold-2018")
 
@@ -450,8 +450,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   VIPERS); Okumura et al. (2016, arXiv:1511.08083, FastSound);
   Zhao et al. (2018, arXiv:1801.03043, eBOSS DR14 quasars,
   correlated tomographic bins).
-- Used by: [`data/growth/gold2018/`](src/CosmoFit/data/growth/gold2018/),
-  [`likelihoods/fsigma8.py`](src/CosmoFit/likelihoods/fsigma8.py)
+- Used by: [`data/growth/gold2018/`](src/cosmofit/data/growth/gold2018/),
+  [`likelihoods/fsigma8.py`](src/cosmofit/likelihoods/fsigma8.py)
 
 ### S8 weak-lensing prior
 
@@ -464,8 +464,8 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   Clustering and Weak Lensing*, Phys. Rev. D 105, 023520.
   S8 = 0.776 +/- 0.017.
   [arXiv:2105.13549](https://arxiv.org/abs/2105.13549)
-- Used by: [`data/s8/`](src/CosmoFit/data/s8/),
-  [`likelihoods/s8.py`](src/CosmoFit/likelihoods/s8.py)
+- Used by: [`data/s8/`](src/cosmofit/data/s8/),
+  [`likelihoods/s8.py`](src/cosmofit/likelihoods/s8.py)
 
 ---
 
@@ -488,7 +488,7 @@ w(z) = w0 + wa z/(1+z)
 - **Linder (2003)**, *Exploring the Expansion History of the
   Universe*, Phys. Rev. Lett. 90, 091301.
   [arXiv:astro-ph/0208512](https://arxiv.org/abs/astro-ph/0208512)
-- Implemented in: [`cosmology/models/cpl.py`](src/CosmoFit/cosmology/models/cpl.py)
+- Implemented in: [`cosmology/models/cpl.py`](src/cosmofit/cosmology/models/cpl.py)
 
 ### JBP (Jassal-Bagla-Padmanabhan)
 
@@ -497,7 +497,7 @@ w(z) = w0 + wa z/(1+z)^2
 - **Jassal, Bagla & Padmanabhan (2005)**, *WMAP constraints on low
   redshift evolution of dark energy*, MNRAS 356, L11.
   [arXiv:astro-ph/0404378](https://arxiv.org/abs/astro-ph/0404378)
-- Implemented in: [`cosmology/models/jbp.py`](src/CosmoFit/cosmology/models/jbp.py)
+- Implemented in: [`cosmology/models/jbp.py`](src/cosmofit/cosmology/models/jbp.py)
 
 ### BA (Barboza-Alcaniz)
 
@@ -506,7 +506,7 @@ w(z) = w0 + wa z(1+z)/(1+z^2)
 - **Barboza & Alcaniz (2008)**, *A parametric model for dark energy*,
   Phys. Lett. B 666, 415.
   [arXiv:0805.1713](https://arxiv.org/abs/0805.1713)
-- Implemented in: [`cosmology/models/ba.py`](src/CosmoFit/cosmology/models/ba.py)
+- Implemented in: [`cosmology/models/ba.py`](src/cosmofit/cosmology/models/ba.py)
 
 ### LogarithmicDE (logarithmic w(z))
 
@@ -518,7 +518,7 @@ w(z) = w0 + wa z(1+z)/(1+z^2)
   *not* saturate at high z, which makes it the control case for
   asking whether a measured `wa` reflects the data or the assumed
   shape.
-- Used by: [`cosmology/models/logarithmic.py`](src/CosmoFit/cosmology/models/logarithmic.py)
+- Used by: [`cosmology/models/logarithmic.py`](src/cosmofit/cosmology/models/logarithmic.py)
 
 ### PEDE (Phenomenologically Emergent Dark Energy)
 
@@ -527,7 +527,7 @@ w(z) = w0 + wa z(1+z)/(1+z^2)
   [arXiv:1906.08275](https://arxiv.org/abs/1906.08275)
 - Omega_de(z) = Omega_de0 [1 - tanh(log10(1+z))], with **no free
   dark-energy parameter** -- the same parameter count as LCDM.
-- Used by: [`cosmology/models/pede.py`](src/CosmoFit/cosmology/models/pede.py)
+- Used by: [`cosmology/models/pede.py`](src/cosmofit/cosmology/models/pede.py)
 
 ### GEDE (Generalized Emergent Dark Energy)
 
@@ -537,7 +537,7 @@ w(z) = w0 + wa z(1+z)/(1+z^2)
 - Contains both LCDM (`Delta -> 0`) and PEDE (`Delta = 1, z_t = 0`)
   as limits, so `Delta` is a continuous measure of the distance from
   a cosmological constant.
-- Used by: [`cosmology/models/gede.py`](src/CosmoFit/cosmology/models/gede.py)
+- Used by: [`cosmology/models/gede.py`](src/cosmofit/cosmology/models/gede.py)
 
 ### LsCDM (sign-switching cosmological constant)
 
@@ -554,7 +554,7 @@ w(z) = w0 + wa z(1+z)/(1+z^2)
   shrinks the sound horizon `r_d` and so raises the BAO-inferred H0 --
   a route to the H0 tension that late-time-only dark-energy models
   cannot take.
-- Used by: [`cosmology/models/lscdm.py`](src/CosmoFit/cosmology/models/lscdm.py)
+- Used by: [`cosmology/models/lscdm.py`](src/cosmofit/cosmology/models/lscdm.py)
 
 ### GCG (Generalized Chaplygin Gas)
 
@@ -567,7 +567,7 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
   Accelerated Expansion and Dark Energy-Matter Unification*, Phys.
   Rev. D 66, 043507.
   [arXiv:gr-qc/0202064](https://arxiv.org/abs/gr-qc/0202064)
-- Implemented in: [`cosmology/models/gcg.py`](src/CosmoFit/cosmology/models/gcg.py)
+- Implemented in: [`cosmology/models/gcg.py`](src/cosmofit/cosmology/models/gcg.py)
 
 ### IDE (Interacting Dark Energy)
 
@@ -582,7 +582,7 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
 - Q = 3 xi H rho_de, solved in closed form. Changes how *matter*
   dilutes, which no w(z) parametrization does -- so it has its own
   growth-of-structure signature.
-- Used by: [`cosmology/models/ide.py`](src/CosmoFit/cosmology/models/ide.py)
+- Used by: [`cosmology/models/ide.py`](src/cosmofit/cosmology/models/ide.py)
 
 ### RunningVacuum (Lambda(H) = c0 + 3 nu H^2)
 
@@ -596,7 +596,7 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
 - One of the few dark-energy extensions whose extra parameter has a
   *predicted* magnitude (`|nu| ~ 10^-3`, from a one-loop
   renormalization-group estimate) rather than an arbitrary one.
-- Used by: [`cosmology/models/rvm.py`](src/CosmoFit/cosmology/models/rvm.py)
+- Used by: [`cosmology/models/rvm.py`](src/cosmofit/cosmology/models/rvm.py)
 
 ### Cardassian (modified polytropic)
 
@@ -611,7 +611,7 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
 - Acceleration from matter alone, via an extra term in the Friedmann
   equation. The modified polytropic form is used rather than the
   original, which is degenerate with wCDM at w = n - 1.
-- Used by: [`cosmology/models/cardassian.py`](src/CosmoFit/cosmology/models/cardassian.py)
+- Used by: [`cosmology/models/cardassian.py`](src/cosmofit/cosmology/models/cardassian.py)
 
 ### DGP (braneworld gravity, self-accelerating branch)
 
@@ -630,7 +630,7 @@ p = -A/rho^alpha, a unified dark matter/dark energy fluid.
   observational handle on it. Implemented as the historically
   important benchmark it is -- the self-accelerating branch is known
   to carry a ghost instability.
-- Used by: [`cosmology/models/dgp.py`](src/CosmoFit/cosmology/models/dgp.py)
+- Used by: [`cosmology/models/dgp.py`](src/cosmofit/cosmology/models/dgp.py)
 
 ### FQExponential (f(Q) gravity, exponential model)
 
@@ -658,7 +658,7 @@ limit (lambda=0).
   gravity with redshift space distortions*, Phys. Dark Univ. 30,
   100616.
   [arXiv:2004.07867](https://arxiv.org/abs/2004.07867)
-- Implemented in: [`cosmology/models/fq.py`](src/CosmoFit/cosmology/models/fq.py)
+- Implemented in: [`cosmology/models/fq.py`](src/cosmofit/cosmology/models/fq.py)
 
 ### FTPowerLaw (f(T) gravity, power-law model)
 
@@ -701,7 +701,7 @@ exactly luminal, so GW170817 does not constrain it.
   *Viable f(T) models are practically indistinguishable from
   LCDM*, Phys. Rev. D 88, 103010.
   [arXiv:1308.6142](https://arxiv.org/abs/1308.6142)
-- Implemented in: [`cosmology/models/ft.py`](src/CosmoFit/cosmology/models/ft.py)
+- Implemented in: [`cosmology/models/ft.py`](src/cosmofit/cosmology/models/ft.py)
 
 ### FRTLinear (f(R,T) gravity, linear model)
 
@@ -724,7 +724,7 @@ derivation; see the class docstring.
 - **Asghari & Sheykhi (2025)**, *Growth of cosmic perturbations in
   the modified f(R,T) gravity*, Phys. Dark Univ. 48.
   [arXiv:2405.11840](https://arxiv.org/abs/2405.11840)
-- Implemented in: [`cosmology/models/frt.py`](src/CosmoFit/cosmology/models/frt.py)
+- Implemented in: [`cosmology/models/frt.py`](src/cosmofit/cosmology/models/frt.py)
 
 ### FRHuSawicki (f(R) gravity, Hu-Sawicki model)
 
@@ -749,13 +749,13 @@ not silently overstated either.
 - **Pogosian & Silvestri (2008)**, *The pattern of growth in viable
   f(R) cosmologies*, Phys. Rev. D 77, 023503.
   [arXiv:0709.0296](https://arxiv.org/abs/0709.0296)
-- Implemented in: [`cosmology/models/fr.py`](src/CosmoFit/cosmology/models/fr.py)
+- Implemented in: [`cosmology/models/fr.py`](src/cosmofit/cosmology/models/fr.py)
 
 ---
 
 ### Deriving a model from its action
 
-`CosmoFit.theory` takes a gravitational action on an FLRW metric and
+`cosmofit.theory` takes a gravitational action on an FLRW metric and
 derives `E(z)` from it, rather than being handed one. The reduction
 itself is the standard minisuperspace construction -- write the
 metric with an explicit lapse, substitute it into the action, and
@@ -787,7 +787,7 @@ one.
   about perturbations that a background action does not by itself
   determine, which is why it is opt-in -- and why `Fitter` warns
   when growth data meet such a model with `mu` still 1.
-- Used by: [`theory/action.py`](src/CosmoFit/theory/action.py)
+- Used by: [`theory/action.py`](src/cosmofit/theory/action.py)
 
 - **Bengochea & Ferraro (2009)**, *Dark torsion as the cosmic
   speed-up*, Phys. Rev. D 79, 124019.
@@ -808,7 +808,7 @@ one.
 - **Hu & Sugiyama (1996)**, *Small-Scale Cosmological Perturbations:
   An Analytic Approach*, ApJ 471, 542, Eq. (E-1).
   [arXiv:astro-ph/9510117](https://arxiv.org/abs/astro-ph/9510117)
-- Implemented in: [`cosmology/calculators/recombination.py`](src/CosmoFit/cosmology/calculators/recombination.py)
+- Implemented in: [`cosmology/calculators/recombination.py`](src/cosmofit/cosmology/calculators/recombination.py)
   (`z_star()`)
 
 ### Sound-horizon fitting formula (comparison only)
@@ -816,7 +816,7 @@ one.
 - **Eisenstein & Hu (1998)**, *Baryonic Features in the Matter
   Transfer Function*, ApJ 496, 605, Eq. (26).
   [arXiv:astro-ph/9709112](https://arxiv.org/abs/astro-ph/9709112)
-- Implemented in: [`cosmology/calculators/recombination.py`](src/CosmoFit/cosmology/calculators/recombination.py)
+- Implemented in: [`cosmology/calculators/recombination.py`](src/cosmofit/cosmology/calculators/recombination.py)
   (`sound_horizon_eh98()` -- CosmoFit's primary sound-horizon
   calculation is a direct radiation-aware integral, not this fit; see
   that module's docstring)
@@ -827,10 +827,10 @@ one.
   Uncertainties from the First 3 Years of the Supernova Legacy
   Survey*, ApJS 192, 1, Appendix (Eq. A9-A12).
   [arXiv:1104.1443](https://arxiv.org/abs/1104.1443)
-- Implemented in: [`likelihoods/base.py`](src/CosmoFit/likelihoods/base.py)
+- Implemented in: [`likelihoods/base.py`](src/cosmofit/likelihoods/base.py)
   (`AnalyticOffsetMixin`), used by
-  [`likelihoods/pantheon.py`](src/CosmoFit/likelihoods/pantheon.py) and
-  [`likelihoods/des_sn5yr.py`](src/CosmoFit/likelihoods/des_sn5yr.py)
+  [`likelihoods/pantheon.py`](src/cosmofit/likelihoods/pantheon.py) and
+  [`likelihoods/des_sn5yr.py`](src/cosmofit/likelihoods/des_sn5yr.py)
 
 ### Linear growth of structure
 
@@ -843,7 +843,7 @@ Schmidt, *Modern Cosmology*, 2nd ed., Ch. 7); see each
 modified-gravity model's own section above for its `mu(a,k)`'s
 citation.
 
-- Implemented in: [`cosmology/calculators/growth.py`](src/CosmoFit/cosmology/calculators/growth.py)
+- Implemented in: [`cosmology/calculators/growth.py`](src/cosmofit/cosmology/calculators/growth.py)
   (`GrowthCalculator`)
 
 ### Sound horizon at the drag epoch (`r_d`)
@@ -870,7 +870,7 @@ citation.
   `z_star` is: it needs a full recombination history. Validated
   end-to-end against CAMB's `rdrag` to 5e-5 over a 5850-point grid --
   see [`tests/test_sound_horizon.py`](tests/test_sound_horizon.py).
-- Used by: [`cosmology/calculators/sound_horizon.py`](src/CosmoFit/cosmology/calculators/sound_horizon.py)
+- Used by: [`cosmology/calculators/sound_horizon.py`](src/cosmofit/cosmology/calculators/sound_horizon.py)
 
 ### CMB power spectra from a Boltzmann code
 
@@ -884,7 +884,7 @@ citation.
   JBP posteriors routinely visit and where a quintessence-fluid
   treatment develops a gradient instability. Modified-gravity models
   are refused rather than silently given GR perturbations.
-- Used by: [`cosmology/boltzmann.py`](src/CosmoFit/cosmology/boltzmann.py)
+- Used by: [`cosmology/boltzmann.py`](src/cosmofit/cosmology/boltzmann.py)
 
 ### MCMC
 

@@ -6,7 +6,7 @@ routes to one that is not here, and the sampling, evidence and tension
 machinery to judge between them.
 
 ```python
-from CosmoFit import CPL, Fitter
+from cosmofit import CPL, Fitter
 
 fit = Fitter(
     model=CPL,

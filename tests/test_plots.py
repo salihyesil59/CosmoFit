@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 
-from CosmoFit import CPL, LCDM, Fitter  # noqa: E402
+from cosmofit import CPL, LCDM, Fitter  # noqa: E402
 
 
 INITIAL = {
@@ -524,7 +524,7 @@ def test_w0_wa_plane_can_print_the_region_probabilities(cpl_fit):
     partition, so they have to sum to one however the contours fall.
     """
 
-    from CosmoFit.stats.cpl_diagnostics import region_fractions
+    from cosmofit.stats.cpl_diagnostics import region_fractions
 
     fig = cpl_fit.plots.w0_wa_plane(show_fractions=True)
 

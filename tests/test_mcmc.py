@@ -13,10 +13,10 @@ import numpy as np
 import pytest
 import yaml
 
-from CosmoFit.core import Likelihood, run
-from CosmoFit.core.output import OutputError, load_covmat
-from CosmoFit.core.parameters import parse_param
-from CosmoFit.samplers.mcmc import gelman_rubin
+from cosmofit.core import Likelihood, run
+from cosmofit.core.output import OutputError, load_covmat
+from cosmofit.core.parameters import parse_param
+from cosmofit.samplers.mcmc import gelman_rubin
 
 
 MEAN = np.array([1.0, -2.0, 0.5])

@@ -1,136 +1,136 @@
-``CosmoFit.core`` and ``CosmoFit.samplers``
+``cosmofit.core`` and ``cosmofit.samplers``
 ===========================================
 
 The core of the 2.0 rewrite: theories, likelihoods and samplers
 assembled from an input. See the module docstring below for what runs
 on it today.
 
-.. automodule:: CosmoFit.core
+.. automodule:: cosmofit.core
 
 Priors
 ------
 
-.. automodule:: CosmoFit.core.priors
+.. automodule:: cosmofit.core.priors
    :members:
 
 Parameters
 ----------
 
-.. automodule:: CosmoFit.core.parameters
+.. automodule:: cosmofit.core.parameters
    :members:
 
 Components
 ----------
 
-.. automodule:: CosmoFit.core.component
+.. automodule:: cosmofit.core.component
    :members:
 
 The model
 ---------
 
-.. automodule:: CosmoFit.core.model
+.. automodule:: cosmofit.core.model
    :members:
 
 Input and registry
 ------------------
 
-.. automodule:: CosmoFit.core.info
+.. automodule:: cosmofit.core.info
    :members:
 
-.. automodule:: CosmoFit.core.registry
+.. automodule:: cosmofit.core.registry
    :members:
 
-.. automodule:: CosmoFit.core.run
+.. automodule:: cosmofit.core.run
    :members:
 
-.. automodule:: CosmoFit.core.output
+.. automodule:: cosmofit.core.output
    :members:
 
-.. automodule:: CosmoFit.core.mpi
+.. automodule:: cosmofit.core.mpi
    :members:
 
-.. automodule:: CosmoFit.core.post
+.. automodule:: cosmofit.core.post
    :members:
 
 The existing models and datasets
 --------------------------------
 
-.. automodule:: CosmoFit.core.legacy
+.. automodule:: cosmofit.core.legacy
    :members:
 
 Samplers
 --------
 
-.. automodule:: CosmoFit.samplers
+.. automodule:: cosmofit.samplers
    :no-index:
 
-.. automodule:: CosmoFit.samplers.base
+.. automodule:: cosmofit.samplers.base
    :members:
 
-.. automodule:: CosmoFit.samplers.evaluate
+.. automodule:: cosmofit.samplers.evaluate
    :members:
 
-.. automodule:: CosmoFit.samplers.minimize
+.. automodule:: cosmofit.samplers.minimize
    :members:
 
-.. automodule:: CosmoFit.samplers.mcmc
+.. automodule:: cosmofit.samplers.mcmc
    :members:
 
-.. automodule:: CosmoFit.samplers.profile
+.. automodule:: cosmofit.samplers.profile
    :members:
 
-.. automodule:: CosmoFit.samplers.fisher
+.. automodule:: cosmofit.samplers.fisher
    :members:
 
-.. automodule:: CosmoFit.samplers.emcee
+.. automodule:: cosmofit.samplers.emcee
    :members:
 
-.. automodule:: CosmoFit.samplers.nested
+.. automodule:: cosmofit.samplers.nested
    :members:
 
 Native theories
 ---------------
 
-.. automodule:: CosmoFit.theories
+.. automodule:: cosmofit.theories
 
-.. automodule:: CosmoFit.theories.background
+.. automodule:: cosmofit.theories.background
    :members:
 
-.. automodule:: CosmoFit.theories.dark_sector
+.. automodule:: cosmofit.theories.dark_sector
    :members:
 
-.. automodule:: CosmoFit.theories.sectors
+.. automodule:: cosmofit.theories.sectors
    :members:
 
-.. automodule:: CosmoFit.theories.dark_energy
+.. automodule:: cosmofit.theories.dark_energy
    :members:
 
-.. automodule:: CosmoFit.theories.modified_gravity
+.. automodule:: cosmofit.theories.modified_gravity
    :members:
 
-.. automodule:: CosmoFit.theories.holographic
+.. automodule:: cosmofit.theories.holographic
    :members:
 
-.. automodule:: CosmoFit.theories.running_vacuum
+.. automodule:: cosmofit.theories.running_vacuum
    :members:
 
-.. automodule:: CosmoFit.theories.legacy_expansion
+.. automodule:: cosmofit.theories.legacy_expansion
    :members:
 
-.. automodule:: CosmoFit.theories.early
+.. automodule:: cosmofit.theories.early
    :members:
 
-.. automodule:: CosmoFit.theories.growth
+.. automodule:: cosmofit.theories.growth
    :members:
 
-.. automodule:: CosmoFit.theories.boltzmann
+.. automodule:: cosmofit.theories.boltzmann
    :members:
 
 Native likelihoods
 ------------------
 
-.. automodule:: CosmoFit.likelihoods.native
+.. automodule:: cosmofit.likelihoods.native
    :members:
 
-.. automodule:: CosmoFit.data.metadata
+.. automodule:: cosmofit.data.metadata
    :members: DatasetInfo, conflicts

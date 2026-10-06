@@ -1,7 +1,7 @@
 """
 Actions with dynamical scalar fields.
 
-``CosmoFit.theory`` reduces these correctly whether or not it can
+``cosmofit.theory`` reduces these correctly whether or not it can
 integrate them -- ``tests/test_theory.py`` checks that the
 Klein-Gordon and Friedmann equations come out right. What is
 checked here is the *history*: solving the coupled system for
@@ -29,14 +29,14 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import Fitter
-from CosmoFit.cosmology.core import ModelConfigurationError
-from CosmoFit.cosmology.models import LCDM
+from cosmofit import Fitter
+from cosmofit.cosmology.core import ModelConfigurationError
+from cosmofit.cosmology.models import LCDM
 
 
 sympy = pytest.importorskip("sympy")
 
-from CosmoFit.theory import Action  # noqa: E402
+from cosmofit.theory import Action  # noqa: E402
 
 
 Z = np.array([0.0, 0.1, 0.5, 1.0, 2.0, 5.0, 100.0, 2000.0])
@@ -414,7 +414,7 @@ def test_the_non_minimal_constraint_is_the_textbook_one():
     a rescaled General Relativity instead.
     """
 
-    from CosmoFit.theory.minisuperspace import friedmann_constraint
+    from cosmofit.theory.minisuperspace import friedmann_constraint
 
     action = Action(
         "(1 + xi*phi**2)*R",

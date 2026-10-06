@@ -1,7 +1,7 @@
 """
 Deriving a cosmological model from its action.
 
-``CosmoFit.theory`` inverts how every other model in this library
+``cosmofit.theory`` inverts how every other model in this library
 was written: instead of an ``E(z)`` transcribed from a paper, it
 takes the action and does the variational calculus. That makes it
 testable in a way a hand-written model is not -- it must
@@ -30,15 +30,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import Fitter
-from CosmoFit.cosmology.models import LCDM, FQExponential
+from cosmofit import Fitter
+from cosmofit.cosmology.models import LCDM, FQExponential
 
 
 sympy = pytest.importorskip("sympy")
 
-from CosmoFit.theory import Action
-from CosmoFit.theory.action import _SAFE_FUNCTIONS  # noqa: E402
-from CosmoFit.theory.minisuperspace import (  # noqa: E402
+from cosmofit.theory import Action
+from cosmofit.theory.action import _SAFE_FUNCTIONS  # noqa: E402
+from cosmofit.theory.minisuperspace import (  # noqa: E402
     GEOMETRIES,
     GEOMETRY_SCALAR,
     Minisuperspace,

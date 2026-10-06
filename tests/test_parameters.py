@@ -18,8 +18,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import CosmologyParameters
-from CosmoFit.cosmology.core.parameters import (
+from cosmofit import CosmologyParameters
+from cosmofit.cosmology.core.parameters import (
     Parameter,
     ParameterSet,
     build_params_class,

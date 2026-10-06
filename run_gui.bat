@@ -5,7 +5,7 @@ REM your browser. Safe to run again any time -- just launches the app.
 
 cd /d "%~dp0"
 
-python -c "import CosmoFit" >nul 2>&1
+python -c "import cosmofit" >nul 2>&1
 if errorlevel 1 (
     echo Installing CosmoFit...
     python -m pip install -e . --quiet

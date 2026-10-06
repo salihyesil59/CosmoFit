@@ -29,7 +29,7 @@ def pytest_configure(config):
 
     import numpy as np
 
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     original = CAMBBackend._run_once
     counter = {"n": 0}

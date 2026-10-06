@@ -178,7 +178,7 @@ pip install cosmofit
   session with no configuration to retype
 * Custom models (`define_model`): fit a brand-new, not-in-the-library `E(z)` -- with its own
   extra parameters -- against every built-in dataset/likelihood/MCMC, no library changes needed
-* **Models from an action** (`CosmoFit.theory`, `pip install -e ".[theory]"`): give a
+* **Models from an action** (`cosmofit.theory`, `pip install -e ".[theory]"`): give a
   gravitational action on an FLRW metric and the library does the variational calculus --
   reduces it to a point-like Lagrangian, varies the lapse for the Friedmann constraint,
   solves or integrates it, and hands back an ordinary model every dataset already works on
@@ -218,7 +218,7 @@ pip install cosmofit
 * Model comparison plots (`fitter.plots.compare_*`): any of the figures above, overlaying this
   fit's curve with one or more other models' curves on the same data/axes -- defaults to this
   model vs. a quick LCDM reference, or an arbitrary N-model comparison via `other_fits=[...]`
-* Derived-quantity posteriors (`CosmoFit.stats.derived`): the acceleration transition
+* Derived-quantity posteriors (`cosmofit.stats.derived`): the acceleration transition
   redshift `z_t` (where q(z) changes sign) and today's deceleration parameter `q0`, with
   proper error bars -- every posterior sample is pushed back through the model's own
   E(z)/dE(z)dz rather than the quantity being evaluated once at the best fit, and it works
@@ -247,13 +247,13 @@ pip install "cosmofit[speed]"     # numba: ~1.7x on growth-heavy fits, nothing e
 Everything is importable from the top-level package:
 
 ```python
-from CosmoFit import CPL, Fitter
+from cosmofit import CPL, Fitter
 ```
 
 To work on the library itself, clone it instead:
 
 ```bash
-git clone https://github.com/salihyesil59/CosmoFit.git
+git clone https://github.com/salihyesil59/cosmofit.git
 cd CosmoFit
 pip install -e ".[dev,cmb,theory,evidence,speed,docs]"
 ```
@@ -265,17 +265,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Project Structure
 
 CosmoFit uses a standard `src` layout. The importable package
-(`CosmoFit`) is separate from the repository root, which keeps the
-package import path unambiguous and matches how the library is meant
-to be used -- `pip install`ed, then imported by name, not by adding
-the repo root to `sys.path`.
+(`cosmofit`, the same name as on PyPI) is separate from the repository
+root, which keeps the package import path unambiguous and matches how
+the library is meant to be used -- `pip install`ed, then imported by
+name, not by adding the repo root to `sys.path`.
+
+Before 2.0 the package was imported as `CosmoFit`. That name still
+works for one release -- `import CosmoFit` and every
+`from CosmoFit.<module> import ...` resolve to the same `cosmofit`
+modules -- with a `DeprecationWarning` saying to switch.
 
 ```text
 CosmoFit/
-├── src/CosmoFit/
-│   ├── __init__.py    # unified public API: from CosmoFit import ...
+├── src/cosmofit/
+│   ├── __init__.py    # unified public API: from cosmofit import ...
 │   ├── core/          # 2.0 core: theories, likelihoods, parameters, priors, YAML inputs
-│   ├── samplers/      # 2.0 samplers: evaluate, minimize
+│   ├── samplers/      # 2.0 samplers: evaluate, minimize, profile, fisher, mcmc, emcee, nested
 │   ├── theories/      # 2.0 theories: background (radiation, neutrinos), early universe
 │   ├── cosmology/     # models (LCDM, wCDM, CPL), parameters, distances, background
 │   ├── data/          # dataset loaders + bundled CC/DESI/Pantheon+/Planck data files
@@ -291,8 +296,8 @@ CosmoFit/
 ```
 
 The subpackages remain directly importable too
-(`CosmoFit.stats.model_comparison`, `CosmoFit.data.loader`, ...) for
-anything not re-exported at the top level -- `from CosmoFit import ...`
+(`cosmofit.stats.model_comparison`, `cosmofit.data.loader`, ...) for
+anything not re-exported at the top level -- `from cosmofit import ...`
 is a convenience layer over them, not a replacement.
 
 ---
@@ -317,7 +322,7 @@ setup.
 ## Quick Example
 
 ```python
-from CosmoFit import CPL, Fitter
+from cosmofit import CPL, Fitter
 
 fitter = Fitter(
     model=CPL,
@@ -399,7 +404,7 @@ parameters, priors, fixed values -- with nothing to retype and nothing that can 
 sync with the samples:
 
 ```python
-from CosmoFit import Fitter
+from cosmofit import Fitter
 
 fit = Fitter.from_chain("chains/cpl.h5")
 
@@ -412,7 +417,7 @@ For posterior summaries alone, skip the fitter entirely -- this reads no dataset
 no likelihood:
 
 ```python
-from CosmoFit.stats.chains import open_chain, chain_info
+from cosmofit.stats.chains import open_chain, chain_info
 
 chain = open_chain("chains/cpl.h5")
 chain.summary()
@@ -447,7 +452,7 @@ chain_info("chains/cpl.h5")   # model, datasets, parameters, steps, when it was 
   comparison's chains side by side:
 
   ```python
-  from CosmoFit.stats.chains import ChainFile
+  from cosmofit.stats.chains import ChainFile
 
   fit_cpl.run_mcmc(nsteps=6000, save=ChainFile("chains/comparison.h5", name="CPL"))
   fit_lcdm.run_mcmc(nsteps=6000, save=ChainFile("chains/comparison.h5", name="LCDM"))
@@ -462,7 +467,7 @@ evolving-dark-energy literature is built around: the 2D posterior of the CPL par
 four dark-energy regions of the (w0, wa) plane, with ΛCDM marked at (-1, 0).
 
 ```python
-from CosmoFit import CPL, Fitter
+from cosmofit import CPL, Fitter
 
 fit = Fitter(
     model=CPL,
@@ -505,7 +510,7 @@ samples), not sigmas -- in two dimensions the familiar "1σ"/"2σ" contours encl
 The same numbers without the picture:
 
 ```python
-from CosmoFit.stats import cpl_diagnostics
+from cosmofit.stats import cpl_diagnostics
 
 cpl_diagnostics.region_fractions(*[fit.samples_dict()[k] for k in ("w0", "wa")])
 # {'phantom': 0.004, 'quintessence': 0.221, 'quintom-a': 0.012, 'quintom-b': 0.763}
@@ -569,7 +574,7 @@ parameter it needs beyond the standard set (`H0`, `Omega_m`,
 and prior bounds:
 
 ```python
-from CosmoFit import define_model, Fitter
+from cosmofit import define_model, Fitter
 import numpy as np
 
 MyModel = define_model(
@@ -598,7 +603,7 @@ For more control, the same mechanism is available by subclassing
 `define_model` is a thin convenience wrapper around exactly this:
 
 ```python
-from CosmoFit import Cosmology
+from cosmofit import Cosmology
 
 class MyModel(Cosmology):
     EXTRA_PARAMS = {"beta": {"default": 0.0, "bounds": (-2.0, 2.0)}}
@@ -628,7 +633,7 @@ about four orders of magnitude of accuracy in every distance.
 ## Models From an Action
 
 `define_model` still asks for `E(z)`, which means somebody has
-already done the variational calculus by hand. `CosmoFit.theory`
+already done the variational calculus by hand. `cosmofit.theory`
 takes the other end: give it a gravitational action on an FLRW
 metric and it derives `E(z)` itself.
 
@@ -642,8 +647,8 @@ Setting `N = 1` afterwards recovers the familiar form. Writing
 `N = 1` from the start would lose the equation altogether.
 
 ```python
-from CosmoFit import Fitter
-from CosmoFit.theory import Action
+from cosmofit import Fitter
+from cosmofit.theory import Action
 
 # Power-law f(T) gravity (Bengochea & Ferraro 2009).
 model = Action(

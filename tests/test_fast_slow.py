@@ -14,7 +14,7 @@ import time
 import numpy as np
 import pytest
 
-from CosmoFit.core import Likelihood, Theory, get_model, run
+from cosmofit.core import Likelihood, Theory, get_model, run
 
 
 MEAN = np.array([1.0, -2.0, 0.5])

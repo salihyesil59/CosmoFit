@@ -27,7 +27,7 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, Fitter
+from cosmofit import LCDM, Fitter
 
 
 CHEAP = dict(

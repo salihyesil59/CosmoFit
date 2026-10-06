@@ -20,8 +20,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import CPL, LCDM, ChainFile, Fitter, chain_info, open_chain
-from CosmoFit.stats.chains import (
+from cosmofit import CPL, LCDM, ChainFile, Fitter, chain_info, open_chain
+from cosmofit.stats.chains import (
     build_metadata,
     compare_signatures,
     list_chains,
@@ -473,7 +473,7 @@ def test_resuming_a_chain_from_another_version_warns(saved):
     most releases change no likelihood -- but said.
     """
 
-    from CosmoFit.stats.chains import ChainFile
+    from cosmofit.stats.chains import ChainFile
 
     _, path = saved
 

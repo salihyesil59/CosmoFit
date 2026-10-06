@@ -34,7 +34,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import CosmoFit as C
+import cosmofit as C
 
 
 #: Every model, by name.
@@ -142,7 +142,7 @@ def test_frt_omega_l_is_derived_not_sampled():
 
         warnings.simplefilter("always")
 
-        from CosmoFit.stats.fitter import _warn_derived_parameters
+        from cosmofit.stats.fitter import _warn_derived_parameters
 
         _warn_derived_parameters(C.FRTLinear, ["Omega_m", "Omega_L"])
 

@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit.data.covariance import (
+from cosmofit.data.covariance import (
     DenseCovariance,
     DiagonalCovariance,
     PrecisionCovariance,
@@ -150,7 +150,7 @@ def test_an_inverse_that_fails_its_own_accuracy_check_is_not_used(monkeypatch):
     to put in a test.
     """
 
-    from CosmoFit.data import covariance as module
+    from cosmofit.data import covariance as module
 
     original = module.cho_solve
 

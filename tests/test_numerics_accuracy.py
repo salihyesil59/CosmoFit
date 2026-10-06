@@ -24,7 +24,7 @@ import pytest
 
 from scipy.integrate import quad, solve_ivp
 
-from CosmoFit import LCDM, CPL
+from cosmofit import LCDM, CPL
 
 
 def lcdm(**kwargs):
@@ -175,7 +175,7 @@ def test_growth_matches_for_a_modified_gravity_model():
     along the grid rather than only through ``Omega_m(a)``.
     """
 
-    from CosmoFit import FRHuSawicki
+    from cosmofit import FRHuSawicki
 
     model = FRHuSawicki(
         FRHuSawicki.PARAMS_CLASS(
@@ -244,7 +244,7 @@ def test_fast_hermite_matches_scipys_constructor():
 
     from scipy.interpolate import CubicHermiteSpline
 
-    from CosmoFit.cosmology.numerics.hermite import hermite_spline
+    from cosmofit.cosmology.numerics.hermite import hermite_spline
 
     rng = np.random.default_rng(0)
 
@@ -297,7 +297,7 @@ def test_the_distance_table_still_refuses_to_extrapolate():
 def without_numba(monkeypatch):
     """Force the NumPy stepping path regardless of what is installed."""
 
-    from CosmoFit.cosmology.numerics import kernels
+    from cosmofit.cosmology.numerics import kernels
 
     monkeypatch.setattr(kernels, "HAVE_NUMBA", False)
 
@@ -326,7 +326,7 @@ def test_the_two_stepping_paths_agree(without_numba):
     ways.
     """
 
-    from CosmoFit.cosmology.numerics import kernels
+    from cosmofit.cosmology.numerics import kernels
 
     fallback_D, fallback_f = growth_at(Z_GROWTH)
 
@@ -380,8 +380,8 @@ def test_the_reference_loop_agrees_with_both():
     produce the same numbers.
     """
 
-    from CosmoFit.cosmology.calculators import growth as growth_module
-    from CosmoFit.cosmology.numerics import kernels
+    from cosmofit.cosmology.calculators import growth as growth_module
+    from cosmofit.cosmology.numerics import kernels
 
     model = lcdm()
 
@@ -424,7 +424,7 @@ def test_cube_matches_the_power_operator_to_one_ulp():
     general ``pow`` -- which is why the helper exists.
     """
 
-    from CosmoFit.cosmology.numerics.powers import cube
+    from cosmofit.cosmology.numerics.powers import cube
 
     rng = np.random.default_rng(0)
 
@@ -443,7 +443,7 @@ def test_reciprocal_powers_match_the_negative_exponents():
     grid spanning eight decades; both were ``pow`` calls.
     """
 
-    from CosmoFit.cosmology.numerics.powers import reciprocal_powers
+    from cosmofit.cosmology.numerics.powers import reciprocal_powers
 
     x = np.logspace(-11.0, 0.0, 4096)
 
@@ -472,9 +472,9 @@ def test_every_model_still_closes_the_friedmann_equation(name):
     would break it immediately.
     """
 
-    import CosmoFit
+    import cosmofit
 
-    cls = getattr(CosmoFit, name)
+    cls = getattr(cosmofit, name)
 
     model = cls(cls.PARAMS_CLASS(H0=68.0, Omega_m=0.31, rd=147.1))
 
@@ -496,7 +496,7 @@ def test_simpson_uniform_matches_scipy():
 
     from scipy.integrate import simpson
 
-    from CosmoFit.cosmology.numerics.quadrature import simpson_uniform
+    from cosmofit.cosmology.numerics.quadrature import simpson_uniform
 
     rng = np.random.default_rng(0)
 
@@ -515,7 +515,7 @@ def test_odd_grid_rounds_up_only():
     up never costs accuracy; rounding down could.
     """
 
-    from CosmoFit.cosmology.numerics.quadrature import odd_grid
+    from cosmofit.cosmology.numerics.quadrature import odd_grid
 
     assert odd_grid(400) == 401
     assert odd_grid(401) == 401
@@ -571,7 +571,7 @@ def test_distances_beyond_the_default_table_extend_it():
 
     from scipy.integrate import quad
 
-    from CosmoFit import LCDM
+    from cosmofit import LCDM
 
     model = LCDM(LCDM.PARAMS_CLASS(H0=70.0, Omega_m=0.3))
 

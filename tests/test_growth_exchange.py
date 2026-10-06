@@ -21,8 +21,8 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-from CosmoFit import IDE, LCDM
-from CosmoFit.cosmology.models.rvm import RunningVacuum
+from cosmofit import IDE, LCDM
+from cosmofit.cosmology.models.rvm import RunningVacuum
 
 
 def _build(model, **extra):

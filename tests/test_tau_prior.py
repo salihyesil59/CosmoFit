@@ -17,10 +17,10 @@ import warnings
 
 import pytest
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.cosmology.core.parameters import CosmologyParameters
-from CosmoFit.data.loader import load_gaussian_prior
-from CosmoFit.likelihoods.priors import TauLikelihood
+from cosmofit import LCDM, Fitter
+from cosmofit.cosmology.core.parameters import CosmologyParameters
+from cosmofit.data.loader import load_gaussian_prior
+from cosmofit.likelihoods.priors import TauLikelihood
 
 
 def test_default_is_the_low_l_constraint():

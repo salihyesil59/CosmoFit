@@ -20,12 +20,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import CosmoFit
-from CosmoFit.core import ComponentError, get_model
-from CosmoFit.core.legacy import LegacyLikelihood
-from CosmoFit.core.registry import resolve
-from CosmoFit.likelihoods import PlanckLikelihood
-from CosmoFit.likelihoods.native import NATIVE_LIKELIHOODS
+import cosmofit
+from cosmofit.core import ComponentError, get_model
+from cosmofit.core.legacy import LegacyLikelihood
+from cosmofit.core.registry import resolve
+from cosmofit.likelihoods import PlanckLikelihood
+from cosmofit.likelihoods.native import NATIVE_LIKELIHOODS
 
 
 GOLDEN = json.loads(
@@ -111,7 +111,7 @@ def test_lscdm_distances_are_exact_where_the_old_were_not():
     from scipy.integrate import quad
 
     point = GOLDEN["LsCDM"]["point"]
-    old = CosmoFit.LsCDM(CosmoFit.LsCDM.PARAMS_CLASS(**point))
+    old = cosmofit.LsCDM(cosmofit.LsCDM.PARAMS_CLASS(**point))
 
     m, _ = evaluate({
         "theory": {"background": {
@@ -235,9 +235,9 @@ def test_external_priors_read_the_background():
         "params": {**BASE, "tau_reio": 0.06},
     })
 
-    sh0es = CosmoFit.likelihoods.H0Likelihood(None).data
-    bbn = CosmoFit.likelihoods.OmegaBLikelihood(None).data
-    tau = CosmoFit.likelihoods.TauLikelihood(None).data
+    sh0es = cosmofit.likelihoods.H0Likelihood(None).data
+    bbn = cosmofit.likelihoods.OmegaBLikelihood(None).data
+    tau = cosmofit.likelihoods.TauLikelihood(None).data
 
     expected = (
         ((67.5 - sh0es.value) / sh0es.sigma) ** 2
@@ -284,8 +284,8 @@ def test_distance_priors_keep_their_own_conventions():
         "params": PLANCK,
     })
 
-    cls = CosmoFit.LCDM.PARAMS_CLASS
-    old = PlanckLikelihood(CosmoFit.LCDM(cls(**{**cls.defaults(), **PLANCK})))
+    cls = cosmofit.LCDM.PARAMS_CLASS
+    old = PlanckLikelihood(cosmofit.LCDM(cls(**{**cls.defaults(), **PLANCK})))
 
     assert chi2(point) == pytest.approx(old.chi2(), rel=1e-6)
     assert chi2(point) < 1.0
@@ -348,15 +348,15 @@ def test_cmb_spectra_give_the_old_chi2(name, dataset):
     in the spectra.
     """
 
-    from CosmoFit.stats.fitter import DATASET_REGISTRY
+    from cosmofit.stats.fitter import DATASET_REGISTRY
 
     _, point = _cmb({name: None})
 
     if point.rejected is not None:
         pytest.skip(f"CAMB returned NaN spectra ({point.rejected}), a known CAMB failure")
 
-    cls = CosmoFit.LCDM.PARAMS_CLASS
-    old = DATASET_REGISTRY[dataset](CosmoFit.LCDM(cls(**{**cls.defaults(), **PLANCK})))
+    cls = cosmofit.LCDM.PARAMS_CLASS
+    old = DATASET_REGISTRY[dataset](cosmofit.LCDM(cls(**{**cls.defaults(), **PLANCK})))
 
     assert chi2(point) == pytest.approx(old.chi2(), abs=0.01)
 
@@ -395,7 +395,7 @@ def test_A_planck_is_shared_and_carries_its_prior():
 
     assert m.sampled_params == ["A_planck"]
 
-    from CosmoFit.likelihoods.planck_lite import A_PLANCK_PRIOR
+    from cosmofit.likelihoods.planck_lite import A_PLANCK_PRIOR
 
     mean, sigma = A_PLANCK_PRIOR
 

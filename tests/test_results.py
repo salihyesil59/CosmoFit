@@ -16,7 +16,7 @@ import json
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, BestFitResult, FitResult, Fitter, MCMCResult
+from cosmofit import LCDM, BestFitResult, FitResult, Fitter, MCMCResult
 
 
 # ============================================================

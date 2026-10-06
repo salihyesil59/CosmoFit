@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from scipy import integrate
 
-from CosmoFit.core import (
+from cosmofit.core import (
     ComponentError,
     Gaussian,
     Likelihood,
@@ -304,14 +304,14 @@ def test_input_from_yaml():
 
 def test_registry_resolves_import_paths():
 
-    from CosmoFit.core.legacy import LegacyCosmology
+    from cosmofit.core.legacy import LegacyCosmology
 
     assert resolve("theory", "x", {"class": Line}) is Line
     assert resolve(
-        "theory", "x", {"class": "CosmoFit.core.legacy:LegacyCosmology"},
+        "theory", "x", {"class": "cosmofit.core.legacy:LegacyCosmology"},
     ) is LegacyCosmology
     assert resolve(
-        "theory", "CosmoFit.core.legacy.LegacyCosmology",
+        "theory", "cosmofit.core.legacy.LegacyCosmology",
     ) is LegacyCosmology
     assert resolve("sampler", "minimize").__name__ == "Minimize"
 

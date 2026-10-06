@@ -31,9 +31,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM
-from CosmoFit.data.loader import load_eboss_table
-from CosmoFit.likelihoods.eboss_dr16 import (
+from cosmofit import LCDM
+from cosmofit.data.loader import load_eboss_table
+from cosmofit.likelihoods.eboss_dr16 import (
     EBOSSELGLikelihood,
     EBOSSLyaLikelihood,
 )
@@ -402,7 +402,7 @@ def test_grid_shape_must_match_the_axes():
 
     with pytest.raises(ValueError, match="does not match"):
 
-        from CosmoFit.data.dataset import TabulatedBAODataset
+        from cosmofit.data.dataset import TabulatedBAODataset
 
         TabulatedBAODataset(
 
@@ -419,7 +419,7 @@ def test_grid_shape_must_match_the_axes():
 
 def test_observables_and_axes_must_agree_in_number():
 
-    from CosmoFit.data.dataset import TabulatedBAODataset
+    from cosmofit.data.dataset import TabulatedBAODataset
 
     with pytest.raises(ValueError, match="grid axes"):
 
@@ -444,7 +444,7 @@ def test_a_minus_infinity_in_the_grid_is_refused():
     construction instead of poisoning every evaluation.
     """
 
-    from CosmoFit.data.dataset import TabulatedBAODataset
+    from cosmofit.data.dataset import TabulatedBAODataset
 
     log_prob = np.zeros(5)
     log_prob[2] = -np.inf
@@ -555,7 +555,7 @@ def test_lya_is_only_moderately_non_gaussian(lya, cosmology):
 @pytest.fixture(scope="module")
 def elg_fs(cosmology):
 
-    from CosmoFit.likelihoods.eboss_dr16 import EBOSSELGFullShapeLikelihood
+    from cosmofit.likelihoods.eboss_dr16 import EBOSSELGFullShapeLikelihood
 
     return EBOSSELGFullShapeLikelihood(cosmology)
 
@@ -704,7 +704,7 @@ def test_the_two_elg_analyses_are_registered_as_conflicting():
     ``eboss_elg`` and ``eboss_elg_fs`` are the same galaxies twice.
     """
 
-    from CosmoFit.stats.fitter import CONFLICTING_DATASETS
+    from cosmofit.stats.fitter import CONFLICTING_DATASETS
 
     pairs = {frozenset(pair) for pair in CONFLICTING_DATASETS}
 
@@ -750,7 +750,7 @@ def test_a_full_shape_fit_runs_end_to_end():
     to, unlike every other BAO dataset in the library.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     fit = Fitter(
         model=LCDM,

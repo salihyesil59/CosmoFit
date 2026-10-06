@@ -21,9 +21,9 @@ from pathlib import Path
 
 import pytest
 
-import CosmoFit
-from CosmoFit import Fitter
-from CosmoFit.core import ComponentError, get_model, run
+import cosmofit
+from cosmofit import Fitter
+from cosmofit.core import ComponentError, get_model, run
 
 
 GOLDEN = json.loads(
@@ -108,7 +108,7 @@ def test_core_matches_fitter(case):
 
     model_name, datasets, point, fixed, theory_options, lk_options = case
 
-    model_cls = getattr(CosmoFit, model_name)
+    model_cls = getattr(cosmofit, model_name)
 
     params = {
         name: {"prior": {"min": value - 1.0, "max": value + 1.0}}
@@ -240,7 +240,7 @@ def test_minimize_agrees_with_best_fit():
     new = sampler.products()
 
     fitter = _quiet(
-        Fitter, model=CosmoFit.LCDM, datasets=["cc", "desi"],
+        Fitter, model=cosmofit.LCDM, datasets=["cc", "desi"],
         free_params=["H0", "Omega_m", "rd"],
         initial={"H0": 70.0, "Omega_m": 0.3, "rd": 147.0},
     )

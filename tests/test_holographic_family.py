@@ -18,7 +18,7 @@ import pytest
 
 from scipy.integrate import cumulative_trapezoid
 
-from CosmoFit import ADE, RDE, Fitter
+from cosmofit import ADE, RDE, Fitter
 
 
 # ============================================================
@@ -54,7 +54,7 @@ def test_rde_reduces_to_a_cosmological_constant_at_gamma_one_half():
     there.
     """
 
-    from CosmoFit import LCDM
+    from cosmofit import LCDM
 
     model = rde(Omega_m=0.30, gamma=0.5)
 

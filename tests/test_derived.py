@@ -16,8 +16,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from CosmoFit import HDE, LCDM
-from CosmoFit.stats import derived
+from cosmofit import HDE, LCDM
+from cosmofit.stats import derived
 
 
 class _Chain:

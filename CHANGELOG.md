@@ -16,6 +16,28 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The 2.0 rename, phase 5a: the package is imported as `cosmofit`
+
+`src/CosmoFit` is now `src/cosmofit`, so the import name matches the
+PyPI name. Every import in the library, the tests, the GUI, the
+notebooks and the API reference changed with it. Prose still calls
+the project CosmoFit, and the repository URL is unchanged.
+
+`import CosmoFit` keeps working for one release, with a
+`DeprecationWarning`. The alias is complete:
+
+- every `CosmoFit.<module>` is the `cosmofit.<module>` object itself,
+  not a copy, so a class imported either way is one class;
+- pickles that name the old modules load;
+- saved chains, whose metadata records the model's module as
+  `CosmoFit.cosmology...`, reopen.
+
+The alias is a single module, `src/CosmoFit.py`, rather than a
+directory. On Windows and macOS a directory `CosmoFit` and a directory
+`cosmofit` are the same directory, and the rename could not have
+been made at all with both. That is also why the move went through a
+temporary name.
+
 ### The 2.0 core, phase 4c: reweighting a finished run
 
 An input with a `post` block reweights the run its `output` names

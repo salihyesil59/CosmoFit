@@ -21,8 +21,8 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.data.loader import load_sdss_fsbao
+from cosmofit import LCDM, Fitter
+from cosmofit.data.loader import load_sdss_fsbao
 
 
 FIDUCIAL = dict(
@@ -192,7 +192,7 @@ def test_fsigma8_is_predicted_without_an_AP_correction():
     `likelihoods/fsigma8.py` applies would count it twice.
     """
 
-    from CosmoFit.stats.fitter import DATASET_REGISTRY
+    from cosmofit.stats.fitter import DATASET_REGISTRY
 
     cosmology = LCDM(LCDM.PARAMS_CLASS(**FIDUCIAL))
 

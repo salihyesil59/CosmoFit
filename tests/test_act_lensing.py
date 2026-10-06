@@ -21,8 +21,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CosmologyParameters
-from CosmoFit.data.loader import load_act_lensing
+from cosmofit import LCDM, CosmologyParameters
+from cosmofit.data.loader import load_act_lensing
 
 
 def _has_camb() -> bool:
@@ -63,7 +63,7 @@ def likelihood():
     if not _has_camb():
         pytest.skip("CAMB not installed")
 
-    from CosmoFit.likelihoods.act_lensing import ACTDR6LensingLikelihood
+    from cosmofit.likelihoods.act_lensing import ACTDR6LensingLikelihood
 
     return ACTDR6LensingLikelihood(
 
@@ -160,11 +160,11 @@ def test_hartlap_correction_widens_the_covariance():
 
     from pathlib import Path
 
-    import CosmoFit
+    import cosmofit
 
     released = np.loadtxt(
 
-        Path(CosmoFit.__file__).parent
+        Path(cosmofit.__file__).parent
         / "data" / "cmb" / "act_dr6_lensing" / "covmat_act_cmbmarg.txt",
 
     )
@@ -237,7 +237,7 @@ def test_agrees_with_planck_lensing_on_the_same_cosmology(likelihood):
     tautology.
     """
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     planck = PlanckLensingLikelihood(likelihood.cosmology)
 
@@ -280,8 +280,8 @@ def test_amplitude_responds_to_the_primordial_amplitude(likelihood):
 @requires_camb
 def test_shares_the_camb_backend_with_planck_lensing():
 
-    from CosmoFit.likelihoods.act_lensing import ACTDR6LensingLikelihood
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.act_lensing import ACTDR6LensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     model = LCDM(CosmologyParameters(**PLANCK_BEST_FIT))
 
@@ -301,7 +301,7 @@ def test_fitter_warns_about_combining_the_two_reconstructions():
 
     import warnings
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with warnings.catch_warnings(record=True) as caught:
 

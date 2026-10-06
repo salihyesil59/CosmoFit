@@ -19,10 +19,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CosmologyParameters, Fitter, JointLikelihood
-from CosmoFit.likelihoods import CCLikelihood
-from CosmoFit.stats.posterior import LogPosterior
-from CosmoFit.stats.priors import UniformPrior
+from cosmofit import LCDM, CosmologyParameters, Fitter, JointLikelihood
+from cosmofit.likelihoods import CCLikelihood
+from cosmofit.stats.posterior import LogPosterior
+from cosmofit.stats.priors import UniformPrior
 
 
 BOUNDS = {"H0": (60.0, 80.0), "Omega_m": (0.1, 0.5)}

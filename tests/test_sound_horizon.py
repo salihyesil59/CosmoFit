@@ -19,8 +19,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CPL
-from CosmoFit.cosmology.calculators.sound_horizon import (
+from cosmofit import LCDM, CPL
+from cosmofit.cosmology.calculators.sound_horizon import (
     NU_ENERGY_FACTOR,
     neutrino_density_ratio,
 )
@@ -358,7 +358,7 @@ def _extra_matter_model(epsilon):
     ``Omega_m`` does not say so.
     """
 
-    from CosmoFit.cosmology.custom import define_model
+    from cosmofit.cosmology.custom import define_model
 
     def E(p, z):
 
@@ -404,7 +404,7 @@ def test_running_vacuum_rd_depends_on_nu():
     early universe -- and r_d -- move with ``nu``. They did not.
     """
 
-    from CosmoFit.cosmology.models.rvm import RunningVacuum
+    from cosmofit.cosmology.models.rvm import RunningVacuum
 
     cosmology = build(
         PLANCK_OMEGA_B, PLANCK_OMEGA_CB, model=RunningVacuum, nu=0.0,
@@ -435,7 +435,7 @@ def test_holographic_dark_energy_still_integrates():
     so r_d moves by a few parts in 1e5 and must stay finite.
     """
 
-    from CosmoFit import HDE
+    from cosmofit import HDE
 
     rd = build(
         PLANCK_OMEGA_B, PLANCK_OMEGA_CB, model=HDE,
@@ -519,7 +519,7 @@ def test_compute_rd_is_off_by_default():
 
 def test_fitter_refuses_rd_as_a_free_parameter_when_computing_it():
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with pytest.raises(ValueError, match="cannot also be a free parameter"):
 
@@ -544,7 +544,7 @@ def test_compute_rd_reaches_the_bao_likelihood():
     nothing reads. Checked through the likelihood's own model vector.
     """
 
-    from CosmoFit.likelihoods.desi import DESILikelihood
+    from cosmofit.likelihoods.desi import DESILikelihood
 
     model = build(PLANCK_OMEGA_B, PLANCK_OMEGA_CB)
 
@@ -573,7 +573,7 @@ def test_compute_rd_is_part_of_the_chain_signature(tmp_path):
     posteriors, so one's chain must not be resumable as the other's.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     common = dict(
 
@@ -595,7 +595,7 @@ def test_compute_rd_is_part_of_the_chain_signature(tmp_path):
 
     assert fitted.chain_id() != computed.chain_id()
 
-    from CosmoFit.stats.chains import compare_signatures
+    from cosmofit.stats.chains import compare_signatures
 
     differences = compare_signatures(
 
@@ -636,7 +636,7 @@ def test_free_rd_next_to_the_cmb_warns():
     those data are there to supply.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with pytest.warns(UserWarning, match="compute_rd=True"):
 
@@ -651,7 +651,7 @@ def test_free_rd_with_bao_alone_is_quiet():
 
     import warnings
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with warnings.catch_warnings():
 

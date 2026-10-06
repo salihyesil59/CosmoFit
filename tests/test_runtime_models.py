@@ -3,7 +3,7 @@ Models built at runtime, and the two things they cannot do.
 
 Three routes produce a ``Cosmology`` subclass that exists only in
 the session that made it -- ``define_model``,
-``model_from_expression`` and ``CosmoFit.theory.Action.build``.
+``model_from_expression`` and ``cosmofit.theory.Action.build``.
 Everything about fitting works on them, with two exceptions, both
 for the same underlying reason: such a class cannot be pickled *by
 reference*, because there is no importable name to pickle it to.
@@ -28,7 +28,7 @@ import pickle
 import numpy as np
 import pytest
 
-from CosmoFit import Fitter, LCDM, define_model, model_from_expression
+from cosmofit import Fitter, LCDM, define_model, model_from_expression
 
 
 INITIAL = {"H0": 70.0, "Omega_m": 0.3, "rd": 147.0}
@@ -56,7 +56,7 @@ def flat_lcdm_action():
 
     pytest.importorskip("sympy")
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     return Action("R - 2*Lam", closure="Lam").build("RuntimeAction")
 
@@ -206,8 +206,8 @@ def test_worker_solver_failures_reach_the_parent(monkeypatch):
     import multiprocessing as mp
     import warnings
 
-    from CosmoFit.cosmology.boltzmann import BoltzmannError
-    from CosmoFit.stats import fitter as fitter_module
+    from cosmofit.cosmology.boltzmann import BoltzmannError
+    from cosmofit.stats import fitter as fitter_module
 
     worker = Fitter(
         model=LCDM, datasets=["cc"], free_params=["H0", "Omega_m"],

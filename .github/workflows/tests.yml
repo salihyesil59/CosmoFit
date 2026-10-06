@@ -127,7 +127,7 @@ jobs:
 
       - name: Show what is installed
         run: |
-          python -c "import CosmoFit; print('CosmoFit', CosmoFit.__version__)"
+          python -c "import cosmofit; print('CosmoFit', cosmofit.__version__)"
           python -c "import camb; print('CAMB', camb.__version__)"
           python -c "import streamlit; print('streamlit', streamlit.__version__)"
           python -c "import numba; print('numba', numba.__version__)"
@@ -184,8 +184,8 @@ jobs:
       - name: Importing the library must not need them
         run: |
           python -c "
-          import CosmoFit
-          from CosmoFit import Fitter, LCDM, PlanckLensingLikelihood
+          import cosmofit
+          from cosmofit import Fitter, LCDM, PlanckLensingLikelihood
           print('imports fine without CAMB')
           "
 

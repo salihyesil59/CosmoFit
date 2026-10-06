@@ -26,15 +26,15 @@ from pathlib import Path
 
 import pytest
 
-import CosmoFit
-from CosmoFit import LCDM, Fitter
+import cosmofit
+from cosmofit import LCDM, Fitter
 
 
 # ============================================================
 # The top-level surface
 # ============================================================
 #
-# `from CosmoFit import X` for every X here is the contract almost
+# `from cosmofit import X` for every X here is the contract almost
 # every user relies on -- the README, the notebooks and the GUI all
 # import this way.
 
@@ -121,7 +121,7 @@ def test_top_level_all_is_exactly_this():
     is public, and taking it back out is then itself a break.
     """
 
-    assert set(CosmoFit.__all__) == TOP_LEVEL
+    assert set(cosmofit.__all__) == TOP_LEVEL
 
 
 def test_every_exported_name_actually_exists():
@@ -129,24 +129,24 @@ def test_every_exported_name_actually_exists():
     ``__all__`` is a list of strings and nothing validates it.
 
     A rename that misses this list leaves an entry pointing at
-    nothing, and the only symptom is ``from CosmoFit import *``
+    nothing, and the only symptom is ``from cosmofit import *``
     raising ``AttributeError`` -- which almost nobody writes, so it
     would be found by a user rather than here.
     """
 
-    for name in CosmoFit.__all__:
-        assert hasattr(CosmoFit, name), f"{name} is exported but missing"
+    for name in cosmofit.__all__:
+        assert hasattr(cosmofit, name), f"{name} is exported but missing"
 
 
 def test_star_import_gives_exactly_the_public_names():
 
     namespace: dict = {}
 
-    exec("from CosmoFit import *", namespace)  # noqa: S102
+    exec("from cosmofit import *", namespace)  # noqa: S102
 
     namespace.pop("__builtins__", None)
 
-    assert set(namespace) == set(CosmoFit.__all__)
+    assert set(namespace) == set(cosmofit.__all__)
 
 
 def test_no_duplicate_entries():
@@ -155,7 +155,7 @@ def test_no_duplicate_entries():
     in two places at once.
     """
 
-    assert len(CosmoFit.__all__) == len(set(CosmoFit.__all__))
+    assert len(cosmofit.__all__) == len(set(cosmofit.__all__))
 
 
 # ============================================================
@@ -163,14 +163,14 @@ def test_no_duplicate_entries():
 # ============================================================
 
 SUBPACKAGES = [
-    "CosmoFit.cosmology",
-    "CosmoFit.cosmology.core",
-    "CosmoFit.cosmology.models",
-    "CosmoFit.cosmology.calculators",
-    "CosmoFit.cosmology.numerics",
-    "CosmoFit.likelihoods",
-    "CosmoFit.stats",
-    "CosmoFit.plots",
+    "cosmofit.cosmology",
+    "cosmofit.cosmology.core",
+    "cosmofit.cosmology.models",
+    "cosmofit.cosmology.calculators",
+    "cosmofit.cosmology.numerics",
+    "cosmofit.likelihoods",
+    "cosmofit.stats",
+    "cosmofit.plots",
 ]
 
 
@@ -189,10 +189,10 @@ def test_subpackage_exports_resolve(module_name):
 # releases -- reachable only by importing the private module path,
 # while every one of their siblings was not.
 COSMOLOGY_LAYERS = [
-    "CosmoFit.cosmology.core",
-    "CosmoFit.cosmology.models",
-    "CosmoFit.cosmology.calculators",
-    "CosmoFit.cosmology.numerics",
+    "cosmofit.cosmology.core",
+    "cosmofit.cosmology.models",
+    "cosmofit.cosmology.calculators",
+    "cosmofit.cosmology.numerics",
 ]
 
 
@@ -201,13 +201,13 @@ def test_cosmology_re_exports_its_whole_layer(module_name):
 
     child = importlib.import_module(module_name)
 
-    from CosmoFit import cosmology
+    from cosmofit import cosmology
 
     missing = set(child.__all__) - set(cosmology.__all__)
 
     assert not missing, (
         f"{module_name} exports {sorted(missing)}, which "
-        f"CosmoFit.cosmology does not re-export"
+        f"cosmofit.cosmology does not re-export"
     )
 
 
@@ -221,7 +221,7 @@ OPTIONAL_BACKENDS = ["sympy", "camb", "streamlit", "dynesty", "numba"]
 def test_importing_the_library_does_not_import_the_optional_backends():
     """
     Every one of these is an extra, and the point of an extra is that
-    somebody who did not install it can still ``import CosmoFit``.
+    somebody who did not install it can still ``import cosmofit``.
 
     A subprocess rather than a check of ``sys.modules``: by the time
     this test runs, another test has almost certainly imported CAMB
@@ -230,7 +230,7 @@ def test_importing_the_library_does_not_import_the_optional_backends():
     """
 
     code = (
-        "import sys; import CosmoFit; "
+        "import sys; import cosmofit; "
         f"leaked = [m for m in {OPTIONAL_BACKENDS!r} if m in sys.modules]; "
         "print(','.join(leaked))"
     )
@@ -244,7 +244,7 @@ def test_importing_the_library_does_not_import_the_optional_backends():
 
     leaked = result.stdout.strip()
 
-    assert not leaked, f"import CosmoFit pulled in: {leaked}"
+    assert not leaked, f"import cosmofit pulled in: {leaked}"
 
 
 # ============================================================
@@ -303,11 +303,11 @@ def _type_checking_namespace(module) -> dict:
 
 
 def _public_callables():
-    """Every function and method reachable from ``CosmoFit.__all__``."""
+    """Every function and method reachable from ``cosmofit.__all__``."""
 
-    for name in CosmoFit.__all__:
+    for name in cosmofit.__all__:
 
-        obj = getattr(CosmoFit, name)
+        obj = getattr(cosmofit, name)
 
         if inspect.isclass(obj):
             for member_name, member in vars(obj).items():
@@ -411,8 +411,8 @@ def test_declared_return_types_are_what_is_actually_returned():
     import emcee
     from scipy.optimize import OptimizeResult
 
-    from CosmoFit import CosmologyParameters  # noqa: F401  (import check)
-    from CosmoFit.stats import fitter as fitter_module
+    from cosmofit import CosmologyParameters  # noqa: F401  (import check)
+    from cosmofit.stats import fitter as fitter_module
 
     fit = Fitter(
         model=LCDM,
@@ -472,7 +472,7 @@ def test_the_py_typed_marker_is_shipped():
     there.
     """
 
-    marker = Path(CosmoFit.__file__).parent / "py.typed"
+    marker = Path(cosmofit.__file__).parent / "py.typed"
 
     assert marker.exists(), (
         "py.typed is missing from the installed package -- "
@@ -493,10 +493,39 @@ def test_version_is_a_release_number():
     against an installed copy.
     """
 
-    assert CosmoFit.__version__ != "0.0.0+unknown"
+    assert cosmofit.__version__ != "0.0.0+unknown"
 
-    parts = CosmoFit.__version__.split(".")
+    parts = cosmofit.__version__.split(".")
 
     assert len(parts) >= 2
 
     assert all(part.isdigit() for part in parts[:2])
+
+
+# ============================================================
+# The name before 2.0
+# ============================================================
+
+def test_the_old_name_still_imports_and_says_so():
+    """
+    ``CosmoFit`` is an alias of ``cosmofit`` for one release: same
+    modules, same classes, and a DeprecationWarning on the way in. Run
+    in a fresh interpreter, where neither name has been imported yet.
+    """
+
+    code = (
+        "import warnings\n"
+        "with warnings.catch_warnings(record=True) as caught:\n"
+        "    warnings.simplefilter('always')\n"
+        "    import CosmoFit\n"
+        "    from CosmoFit.stats.fitter import Fitter\n"
+        "    from CosmoFit.core import run\n"
+        "import cosmofit, cosmofit.stats.fitter, cosmofit.core\n"
+        "assert CosmoFit is cosmofit\n"
+        "assert Fitter is cosmofit.stats.fitter.Fitter\n"
+        "assert run is cosmofit.core.run\n"
+        "assert [w.category.__name__ for w in caught] == ['DeprecationWarning']\n"
+        "assert 'cosmofit' in str(caught[0].message)\n"
+    )
+
+    subprocess.run([sys.executable, "-c", code], check=True)

@@ -53,8 +53,8 @@ import pytest
 
 pytest.importorskip("sympy", reason="theory.Action needs sympy")
 
-import CosmoFit.theory.curvature as curvature  # noqa: E402
-from CosmoFit.theory import Action  # noqa: E402
+import cosmofit.theory.curvature as curvature  # noqa: E402
+from cosmofit.theory import Action  # noqa: E402
 
 
 ARCTAN = "R - (4*Lam/pi)*atan(R/Rw)"

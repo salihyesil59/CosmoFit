@@ -27,11 +27,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import CPL, IDE, LCDM, WCDM
-from CosmoFit.cosmology.boltzmann import supports_cmb_spectra
-from CosmoFit.cosmology.custom import define_model
-from CosmoFit.cosmology.models.fr import FRHuSawicki
-from CosmoFit.cosmology.models.rvm import RunningVacuum
+from cosmofit import CPL, IDE, LCDM, WCDM
+from cosmofit.cosmology.boltzmann import supports_cmb_spectra
+from cosmofit.cosmology.custom import define_model
+from cosmofit.cosmology.models.fr import FRHuSawicki
+from cosmofit.cosmology.models.rvm import RunningVacuum
 
 
 def _flat_lcdm(p, z):
@@ -132,7 +132,7 @@ def test_teleparallel_action_model_with_its_own_growth_is_refused():
 
     _sympy()
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     model = Action(
         "T + A0*(-T)**b",
@@ -157,7 +157,7 @@ def test_teleparallel_action_model_as_effective_dark_energy_is_supported():
 
     _sympy()
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     model = Action(
         "T + A0*(-T)**b",
@@ -183,7 +183,7 @@ def test_minimally_coupled_quintessence_is_supported():
 
     _sympy()
 
-    from CosmoFit.theory import Action
+    from cosmofit.theory import Action
 
     model = Action(
         "R",

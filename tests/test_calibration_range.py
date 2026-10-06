@@ -15,8 +15,8 @@ import warnings
 
 import pytest
 
-from CosmoFit import LCDM, Fitter
-from CosmoFit.cosmology.core import utils
+from cosmofit import LCDM, Fitter
+from cosmofit.cosmology.core import utils
 
 
 def _build(**values):

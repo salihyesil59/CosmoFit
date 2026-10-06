@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 
 PYTHON="${PYTHON:-python3}"
 
-if ! "$PYTHON" -c "import CosmoFit" >/dev/null 2>&1; then
+if ! "$PYTHON" -c "import cosmofit" >/dev/null 2>&1; then
     echo "Installing CosmoFit..."
     "$PYTHON" -m pip install -e . --quiet
 fi

@@ -13,9 +13,9 @@ import numpy as np
 import pytest
 import yaml
 
-from CosmoFit.core import Likelihood, run
-from CosmoFit.core.output import OutputError
-from CosmoFit.core.post import PostError
+from cosmofit.core import Likelihood, run
+from cosmofit.core.output import OutputError
+from cosmofit.core.post import PostError
 
 from test_mcmc import COV, ICOV, MEAN, gaussian_input
 

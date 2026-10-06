@@ -394,14 +394,14 @@ def test_guide_lists_every_dataset_and_model():
     assert dataset_guide, "dataset guide table missing"
     assert model_guide, "model guide table missing"
 
-    from CosmoFit.stats.fitter import DATASET_REGISTRY
+    from cosmofit.stats.fitter import DATASET_REGISTRY
 
     assert len(dataset_guide[0]) == len(DATASET_REGISTRY)
 
     assert (dataset_guide[0]["Measures"].str.len() > 0).all()
     assert (dataset_guide[0]["Reference"].str.len() > 0).all()
 
-    from CosmoFit.cosmology.models import __all__ as model_names
+    from cosmofit.cosmology.models import __all__ as model_names
 
     assert len(model_guide[0]) == len(model_names)
 
@@ -897,7 +897,7 @@ def test_a_model_with_no_gate_shows_no_verdict():
     panel there would be noise.
     """
 
-    from CosmoFit import LCDM
+    from cosmofit import LCDM
 
     assert not hasattr(LCDM, "viability")
 
@@ -912,7 +912,7 @@ def test_the_gate_asks_the_two_questions_separately():
     `FRHuSawicki` at a large enough amplitude is exactly that.
     """
 
-    from CosmoFit import FRHuSawicki
+    from cosmofit import FRHuSawicki
 
     model = FRHuSawicki(
         FRHuSawicki.PARAMS_CLASS(H0=70.0, Omega_m=0.3, f_R0=-1e-2, n=1.0)
@@ -959,7 +959,7 @@ def test_the_fit_is_offered_as_a_python_snippet():
 
     ast.parse(snippet)
 
-    assert "from CosmoFit import" in snippet
+    assert "from cosmofit import" in snippet
 
     assert "run_mcmc(" in snippet
 
@@ -1016,7 +1016,7 @@ def test_the_snippet_rebuilds_an_action_rather_than_importing_it():
 
     ast.parse(snippet)
 
-    assert "from CosmoFit.theory import Action" in snippet
+    assert "from cosmofit.theory import Action" in snippet
 
     assert "Action(" in snippet and ".build('MyAction')" in snippet
 

@@ -1,55 +1,55 @@
-``CosmoFit.stats``
+``cosmofit.stats``
 ==================
 
-.. automodule:: CosmoFit.stats
+.. automodule:: cosmofit.stats
 
 Priors and the posterior
 ------------------------
 
-.. automodule:: CosmoFit.stats.priors
+.. automodule:: cosmofit.stats.priors
    :members:
 
-.. automodule:: CosmoFit.stats.posterior
+.. automodule:: cosmofit.stats.posterior
    :members:
 
 Chain diagnostics and intervals
 -------------------------------
 
-.. automodule:: CosmoFit.stats.diagnostics
+.. automodule:: cosmofit.stats.diagnostics
    :members:
 
 Model comparison
 ----------------
 
-.. automodule:: CosmoFit.stats.model_comparison
+.. automodule:: cosmofit.stats.model_comparison
    :members:
 
-.. automodule:: CosmoFit.stats.significance
+.. automodule:: cosmofit.stats.significance
    :members:
 
 Bayesian evidence
 -----------------
 
-.. automodule:: CosmoFit.stats.evidence
+.. automodule:: cosmofit.stats.evidence
    :members:
 
-.. automodule:: CosmoFit.stats.nested
+.. automodule:: cosmofit.stats.nested
    :members:
 
 Tension
 -------
 
-.. automodule:: CosmoFit.stats.tension
+.. automodule:: cosmofit.stats.tension
    :members:
 
 Derived quantities
 ------------------
 
-.. automodule:: CosmoFit.stats.derived
+.. automodule:: cosmofit.stats.derived
    :members:
 
 CPL diagnostics
 ---------------
 
-.. automodule:: CosmoFit.stats.cpl_diagnostics
+.. automodule:: cosmofit.stats.cpl_diagnostics
    :members:

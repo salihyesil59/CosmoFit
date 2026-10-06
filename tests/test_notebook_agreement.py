@@ -47,12 +47,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from CosmoFit import FTPowerLaw, LCDM
+from cosmofit import FTPowerLaw, LCDM
 
 
 pytest.importorskip("sympy", reason="theory.Action needs sympy")
 
-from CosmoFit.theory import Action  # noqa: E402
+from cosmofit.theory import Action  # noqa: E402
 
 
 H0 = 70.0
@@ -249,7 +249,7 @@ MU_REFERENCE = [
 @pytest.mark.parametrize("n,z,expected", MU_REFERENCE)
 def test_mu_matches_the_notebook(n, z, expected):
 
-    from CosmoFit import FTPowerLaw
+    from cosmofit import FTPowerLaw
 
     model = FTPowerLaw(
         FTPowerLaw.PARAMS_CLASS(H0=H0, Omega_m=OMEGA_M, n=n)
@@ -273,7 +273,7 @@ def test_the_notebook_agrees_about_where_the_model_is_sick():
     artefact of this library's own arithmetic.
     """
 
-    from CosmoFit import FTPowerLaw
+    from cosmofit import FTPowerLaw
 
     model = FTPowerLaw(
         FTPowerLaw.PARAMS_CLASS(H0=H0, Omega_m=OMEGA_M, n=0.7)

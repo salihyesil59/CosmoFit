@@ -31,8 +31,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from CosmoFit.data.loader import load_plik_lite
-from CosmoFit.likelihoods.covariance import make_covariance
+from cosmofit.data.loader import load_plik_lite
+from cosmofit.likelihoods.covariance import make_covariance
 
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -316,8 +316,8 @@ def test_cpl_at_lcdm_limit_reproduces_lcdm_spectrum():
     spectrum for a w0-wa model.
     """
 
-    from CosmoFit import LCDM, CPL, CosmologyParameters
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit import LCDM, CPL, CosmologyParameters
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     kwargs = dict(H0=67.36, Omega_m=0.3153, Omega_b=0.0493)
 
@@ -354,8 +354,8 @@ def test_first_acoustic_peak_is_where_planck_measured_it():
     name, moves this visibly.
     """
 
-    from CosmoFit import LCDM, CosmologyParameters
-    from CosmoFit.cosmology.boltzmann import CAMBBackend
+    from cosmofit import LCDM, CosmologyParameters
+    from cosmofit.cosmology.boltzmann import CAMBBackend
 
     model = LCDM(
 
@@ -404,8 +404,8 @@ def test_chi2_at_planck_best_fit_is_reasonable():
     came from is broken, whatever else it does.
     """
 
-    from CosmoFit import LCDM, CosmologyParameters
-    from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
+    from cosmofit import LCDM, CosmologyParameters
+    from cosmofit.likelihoods.planck_lite import PlanckLiteLikelihood
 
     model = LCDM(
 
@@ -442,8 +442,8 @@ def test_modified_gravity_models_are_refused():
     be quietly handed to a solver that assumes GR.
     """
 
-    from CosmoFit import FRHuSawicki, FQExponential
-    from CosmoFit.cosmology.boltzmann import CAMBBackend, BoltzmannError
+    from cosmofit import FRHuSawicki, FQExponential
+    from cosmofit.cosmology.boltzmann import CAMBBackend, BoltzmannError
 
     for model_cls in (FRHuSawicki, FQExponential):
 
@@ -467,8 +467,8 @@ def test_a_planck_carries_its_calibration_prior():
     the default A_planck = 1, so nothing that leaves it fixed changes.
     """
 
-    from CosmoFit import LCDM, CosmologyParameters
-    from CosmoFit.likelihoods.planck_lite import PlanckLiteLikelihood
+    from cosmofit import LCDM, CosmologyParameters
+    from cosmofit.likelihoods.planck_lite import PlanckLiteLikelihood
 
     model = LCDM(
         CosmologyParameters(

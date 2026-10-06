@@ -53,8 +53,8 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 
-from CosmoFit import LCDM, CPL, Fitter, PlanckLikelihood
-from CosmoFit.stats import model_comparison, cpl_diagnostics
+from cosmofit import LCDM, CPL, Fitter, PlanckLikelihood
+from cosmofit.stats import model_comparison, cpl_diagnostics
 
 FIGURE_DIR = Path(__file__).parent / "cpl_mcmc_tfd42_figures"
 

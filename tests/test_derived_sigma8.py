@@ -23,7 +23,7 @@ import warnings
 import numpy as np
 import pytest
 
-from CosmoFit import LCDM, CosmologyParameters
+from cosmofit import LCDM, CosmologyParameters
 
 
 def _has_camb() -> bool:
@@ -90,7 +90,7 @@ def test_deriving_without_a_backend_says_why():
 @requires_camb
 def test_derived_value_matches_planck():
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     model = LCDM(CosmologyParameters(sigma8=0.60, **PLANCK_BEST_FIT))
 
@@ -116,7 +116,7 @@ def test_the_growth_evolution_stays_the_models_own():
     ``fsigma8(z)`` by a constant, not reshape it.
     """
 
-    from CosmoFit.likelihoods.planck_lensing import PlanckLensingLikelihood
+    from cosmofit.likelihoods.planck_lensing import PlanckLensingLikelihood
 
     model = LCDM(CosmologyParameters(sigma8=0.60, **PLANCK_BEST_FIT))
 
@@ -152,7 +152,7 @@ def test_free_sigma8_absorbs_the_s8_measurement():
     predict.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     fit = Fitter(
 
@@ -180,7 +180,7 @@ def test_derived_sigma8_exposes_the_s8_tension():
     the square of that ~3 sigma gap.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with warnings.catch_warnings():
 
@@ -220,7 +220,7 @@ def test_derived_sigma8_exposes_the_s8_tension():
 @requires_camb
 def test_refuses_sigma8_as_a_free_parameter():
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with pytest.raises(ValueError, match="cannot also be a free parameter"):
 
@@ -241,7 +241,7 @@ def test_refuses_sigma8_as_a_free_parameter():
 
 def test_refuses_without_a_from_scratch_cmb_dataset():
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with pytest.raises(ValueError, match="needs a CMB likelihood"):
 
@@ -268,7 +268,7 @@ def test_the_warning_names_the_fix():
     to do about it, or it sends people to fix it by hand.
     """
 
-    from CosmoFit import Fitter
+    from cosmofit import Fitter
 
     with warnings.catch_warnings(record=True) as caught:
 
@@ -299,8 +299,8 @@ def test_is_part_of_the_chain_signature():
     the other's.
     """
 
-    from CosmoFit import Fitter
-    from CosmoFit.stats.chains import compare_signatures
+    from cosmofit import Fitter
+    from cosmofit.stats.chains import compare_signatures
 
     common = dict(
 

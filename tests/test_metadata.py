@@ -10,11 +10,11 @@ from pathlib import Path
 
 import pytest
 
-from CosmoFit.core import get_model
-from CosmoFit.data import metadata
-from CosmoFit.data.metadata import DATASETS, FAMILIES, SAMPLES, conflicts
-from CosmoFit.likelihoods.native import NATIVE_LIKELIHOODS
-from CosmoFit.stats.fitter import DATASET_REGISTRY
+from cosmofit.core import get_model
+from cosmofit.data import metadata
+from cosmofit.data.metadata import DATASETS, FAMILIES, SAMPLES, conflicts
+from cosmofit.likelihoods.native import NATIVE_LIKELIHOODS
+from cosmofit.stats.fitter import DATASET_REGISTRY
 
 
 #: The pairs the hand-written list held before they were derived. A

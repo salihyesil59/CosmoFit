@@ -19,9 +19,9 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-import CosmoFit
-from CosmoFit.core import ComponentError, Likelihood, get_model
-from CosmoFit.theories import DarkSector, GrowthContext
+import cosmofit
+from cosmofit.core import ComponentError, Likelihood, get_model
+from cosmofit.theories import DarkSector, GrowthContext
 
 
 class Probe(Likelihood):
@@ -60,7 +60,7 @@ def model(sector, radiation=True, growth=None, **params):
 
 def old_model(name, Omega_k=0.0, **params):
 
-    cls = getattr(CosmoFit, name)
+    cls = getattr(cosmofit, name)
     values = dict(cls.PARAMS_CLASS.defaults())
     values.update(H0=68.0, Omega_m=0.31, Omega_b=0.049, Omega_k=Omega_k, **params)
 
