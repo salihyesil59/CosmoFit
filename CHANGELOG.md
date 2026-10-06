@@ -14,6 +14,43 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### Matter power spectra and `sigma(R)` from CAMB
+
+The first item of the plan after 2.0: the `camb` theory now provides
+`Pk_interpolator`, `Pk_grid` and `sigma_R`, so that a likelihood of
+large-scale structure can ask for `P(z, k)` the way the CMB
+likelihoods ask for `Cl`:
+
+```python
+def get_requirements(self):
+    return {"Pk_interpolator": {"z": [0, 0.5, 1], "k_max": 10, "nonlinear": True}}
+...
+P = self.provider.get_Pk_interpolator()      # P.P(z, k): k in 1/Mpc, P in Mpc^3
+```
+
+Linear or non-linear (HMcode 2020 by default, any of CAMB's
+`halofit_version` with the theory's option of that name), of any pair
+of CAMB's variables -- `delta_nonu` for the cold matter, `Weyl` for
+lensing. Requests from different likelihoods are merged into one CAMB
+run: the union of their redshifts, the largest `k_max`.
+
+The interpolator is CosmoFit's own, built from the grid, so a
+likelihood reads the same object whichever Boltzmann code is behind
+it, and it **raises outside the grid** instead of extrapolating -- a
+spline carried past the last `k` it was given returns numbers that look
+like a spectrum, and a likelihood integrating further than it asked
+for would never find out.
+
+How it was checked: the interpolated spectra against CAMB's own
+interpolator on the same run (0.2%), and `sigma(R)` against the
+top-hat integral of the returned `P(k)` (0.2%), which pins the units of
+both. Asking for spectra leaves everything else alone -- the `Cl` and
+`sigma8` to 1e-6 -- except that a larger `k_max` moves the lensing
+potential at `L ~ 2500` by 0.2%, which is CAMB being more accurate,
+not less.
+
 ## v2.0.0
 
 The rewrite the 1.x line grew towards: the library as components --

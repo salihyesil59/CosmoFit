@@ -232,6 +232,192 @@ def test_two_amplitudes_are_refused():
 
 
 # ============================================================
+# Matter power spectra and sigma(R)
+# ============================================================
+
+PK = {"z": [0.0, 0.5, 1.0, 2.0], "k_max": 10.0, "nonlinear": [False, True]}
+
+
+def test_matter_power_is_cambs():
+    """
+    The theory's ``P(z, k)`` against CAMB's own interpolator, run on the
+    parameters the theory builds: the grid and its interpolation in
+    the theory, without ``h`` in either unit.
+    """
+
+    m = model(needs={"Pk_interpolator": PK})
+    evaluate(m)
+
+    theory = m.theories["camb"]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        results = camb.get_results(theory._parameters(**theory.defaults))
+
+    z = np.array([0.0, 0.3, 1.0, 1.7])
+    k = np.array([1e-3, 0.02, 0.1, 0.5, 3.0])
+
+    for nonlinear in (False, True):
+
+        mine = m.provider.get_Pk_interpolator(nonlinear=nonlinear)
+        cambs = results.get_matter_power_interpolator(
+            nonlinear=nonlinear, hubble_units=False, k_hunit=False,
+        )
+
+        np.testing.assert_allclose(mine.P(z, k, grid=True), cambs.P(z, k), rtol=2e-3)
+
+    linear = m.provider.get_Pk_interpolator(nonlinear=False)
+    halofit = m.provider.get_Pk_interpolator(nonlinear=True)
+
+    # Linear on large scales, far above it on small ones.
+    assert halofit.P(0.0, 1e-3) == pytest.approx(linear.P(0.0, 1e-3), rel=1e-3)
+    assert halofit.P(0.0, 1.0) > 3 * linear.P(0.0, 1.0)
+
+
+def test_sigma_R_is_the_integral_of_P_k():
+    """
+    ``sigma(R)`` from CAMB, against the top-hat integral of the linear
+    ``P(k)`` the theory returns: the two outputs, and their units, agree.
+    """
+
+    h = BASE["H0"] / 100.0
+    R = np.array([8.0 / h, 20.0])
+
+    m = model(needs={
+        "Pk_interpolator": {**PK, "nonlinear": False},
+        "sigma_R": {"z": [0.0, 1.0], "R": R},
+    })
+    evaluate(m)
+
+    z, radii, sigma = m.provider.get_sigma_R()
+
+    np.testing.assert_array_equal(z, [0.0, 0.5, 1.0, 2.0])
+    np.testing.assert_array_equal(radii, R)
+
+    P = m.provider.get_Pk_interpolator(nonlinear=False)
+
+    k = np.logspace(np.log10(P.kmin), np.log10(P.kmax), 4000)
+
+    for i, redshift in enumerate(z):
+        for j, radius in enumerate(R):
+
+            x = k * radius
+            window = 3.0 * (np.sin(x) - x * np.cos(x)) / x**3
+
+            integral = np.trapezoid(k**3 * P.P(redshift, k) * window**2 / (2 * np.pi**2), np.log(k))
+
+            assert sigma[i, j] == pytest.approx(math.sqrt(integral), rel=2e-3)
+
+
+def test_sigma_R_of_cold_matter_is_sigma8_0():
+
+    h = BASE["H0"] / 100.0
+
+    m = model(needs={
+        "sigma_R": {"R": [8.0 / h], "vars_pairs": [["delta_nonu", "delta_nonu"]]},
+    })
+    evaluate(m)
+
+    _, _, sigma = m.provider.get_sigma_R(("delta_nonu", "delta_nonu"))
+
+    assert sigma[0, 0] == pytest.approx(m.theories["camb"].get_sigma8_0(), rel=1e-10)
+
+
+def test_requests_are_merged():
+    """Two likelihoods asking for different spectra get both, on one grid."""
+
+    m = get_model({
+        "theory": {"background": {"dark_energy": "lambda"}, "camb": None},
+        "likelihood": {
+            "one": {"class": Probe, "needs": {"Pk_interpolator": {"z": [0.5], "k_max": 5.0}}},
+            "two": {"class": Probe, "needs": {"Pk_interpolator": {
+                "z": [2.0], "nonlinear": False,
+                "vars_pairs": [["delta_nonu", "delta_nonu"]],
+            }}},
+        },
+        "params": BASE,
+    })
+
+    evaluate(m)
+
+    theory = m.theories["camb"]
+
+    assert theory.redshifts == {0.0, 0.5, 2.0}
+    assert theory.k_max == 5.0
+    assert theory.spectra == {
+        ("delta_tot", "delta_tot", True), ("delta_nonu", "delta_nonu", False),
+    }
+
+    total = m.provider.get_Pk_interpolator()
+    cold = m.provider.get_Pk_interpolator(("delta_nonu", "delta_nonu"), nonlinear=False)
+
+    assert total.zmax == cold.zmax == 2.0
+    assert total.kmax == pytest.approx(cold.kmax) and total.kmax >= 5.0
+
+
+def test_spectra_nobody_asked_for_are_refused():
+
+    m = model(needs={"Pk_interpolator": {"z": [0.0, 1.0], "nonlinear": False}})
+    evaluate(m)
+
+    with pytest.raises(ComponentError, match="non-linear P\\(k\\)"):
+        m.provider.get_Pk_interpolator()
+
+    with pytest.raises(ComponentError, match="sigma\\(R\\)"):
+        m.theories["camb"].get_sigma_R()
+
+    P = m.provider.get_Pk_interpolator(nonlinear=False)
+
+    with pytest.raises(ValueError, match="'z'"):
+        P.P(1.5, 0.1)
+
+    with pytest.raises(ValueError, match="k_max"):
+        P.P(0.5, 50.0)
+
+
+@pytest.mark.parametrize("needs, match", [
+    ({"Pk_interpolator": {"zmax": 2}}, "not \\['zmax'\\]"),
+    ({"Pk_interpolator": {"z": [-1.0]}}, "z >= 0"),
+    ({"Pk_interpolator": {"vars_pairs": [["delta_tot", "delta_dm"]]}}, "vars_pairs"),
+    ({"sigma_R": {"z": [0.0]}}, "R > 0"),
+])
+def test_bad_requests_are_refused(needs, match):
+
+    with pytest.raises(ComponentError, match=match):
+        model(needs=needs)
+
+
+def test_halofit_version_is_checked():
+
+    with pytest.raises(ComponentError, match="halofit_version 'mead2030'"):
+        model(camb_options={"halofit_version": "mead2030"})
+
+
+def test_asking_for_P_k_leaves_the_rest_alone():
+    """
+    More redshifts and a non-linear ``P(k)`` change nothing else CAMB
+    returns. (A larger ``k_max`` does: the lensing potential at
+    ``L ~ 2500`` moves by 0.2%, towards the better answer.)
+    """
+
+    plain = model()
+    evaluate(plain)
+
+    m = model(needs={"Cl": None, "Pk_interpolator": {"z": [0.0, 1.0, 3.0]}})
+    evaluate(m)
+
+    for name in ("tt", "te", "ee", "pp"):
+        np.testing.assert_allclose(
+            m.provider.get_Cl()[name][2:], plain.provider.get_Cl()[name][2:],
+            rtol=1e-6, atol=1e-30,
+        )
+
+    assert m.theories["camb"].get_sigma8_0() == pytest.approx(
+        plain.theories["camb"].get_sigma8_0(), rel=1e-6,
+    )
+
+
+# ============================================================
 # What CAMB cannot be given
 # ============================================================
 

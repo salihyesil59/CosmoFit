@@ -38,6 +38,7 @@ from cosmofit.cosmology.core.constants import Tcmb
 
 from .dark_energy import DarkEnergy
 from .dark_sector import DarkSector
+from .power_spectrum import PowerSpectrumInterpolator
 
 
 __all__ = ["CAMB", "cmb_support"]
@@ -46,6 +47,16 @@ __all__ = ["CAMB", "cmb_support"]
 #: Scale factors the dark energy's ``w(a)`` is tabulated on for PPF:
 #: log-spaced, as every ``w(z)`` here varies fastest at late times.
 _A_TABLE = np.logspace(-5.0, 0.0, 500)
+
+#: What a request for a matter power spectrum or for ``sigma(R)`` may
+#: say, and the pair of variables it means when it names none.
+_PK_OPTIONS = {"z", "k_max", "nonlinear", "vars_pairs"}
+_SIGMA_OPTIONS = {"z", "R", "vars_pairs"}
+_TOTAL = ("delta_tot", "delta_tot")
+
+#: The ``k_max`` [1/Mpc] CAMB's transfer functions go to when nothing
+#: asks for more: enough for ``sigma8``.
+_K_MAX = 2.0
 
 
 def cmb_support(sector) -> tuple[bool, str]:
@@ -103,6 +114,10 @@ class CAMB(Theory):
     lens_potential_accuracy : int
         CAMB's lensing accuracy; the largest any likelihood asks for is
         used. Default 1.
+    halofit_version : str
+        CAMB's non-linear model, for ``P(k)`` and the lensing potential:
+        ``mead2020`` (HMcode 2020, CAMB's own default) unless given; any
+        of CAMB's ``halofit_version`` values.
 
     The primordial parameters ``ln1e10As``, ``n_s`` and ``tau_reio``
     default to Planck 2018's best fit.
@@ -117,6 +132,25 @@ class CAMB(Theory):
     * ``sigma8_0`` -- ``sigma8`` of the cold matter today, the amplitude
       the growth theory scales when its ``amplitude`` is ``boltzmann``.
     * ``S8`` -- of all matter, as the derived parameter.
+    * ``Pk_interpolator`` -- ``P(z, k)``, a
+      :class:`~cosmofit.theories.power_spectrum.PowerSpectrumInterpolator`;
+      ``k`` in 1/Mpc, ``P`` in Mpc^3. Asked for with ``z`` (the
+      redshifts it must cover), ``k_max`` [1/Mpc], ``nonlinear``
+      (``True``, the default, ``False``, or both as a list) and
+      ``vars_pairs`` (CAMB's variable names, ``[["delta_tot",
+      "delta_tot"]]`` by default); read with
+      ``get_Pk_interpolator(var_pair=("delta_tot", "delta_tot"),
+      nonlinear=True)``.
+    * ``Pk_grid`` -- the same spectra as the grid ``(k, z, P[z, k])``
+      they are interpolated from; asked for and read the same way.
+    * ``sigma_R`` -- the linear r.m.s. ``sigma(R, z)`` in spheres of
+      radius ``R`` [Mpc], as ``(z, R, sigma[z, R])``. Asked for with
+      ``z``, ``R`` and ``vars_pairs``; read with
+      ``get_sigma_R(var_pair=("delta_tot", "delta_tot"))``.
+
+    Every request widens what CAMB computes for all of them -- the
+    union of the redshifts, the largest ``k_max`` -- so a spectrum may
+    cover more than its own request asked for, never less.
 
     Derived parameters: ``sigma8`` (all matter, as usually quoted),
     ``S8 = sigma8 sqrt(Omega_m/0.3)`` and ``A_s``.
@@ -127,18 +161,35 @@ class CAMB(Theory):
 
     def initialize(self) -> None:
 
-        unknown = set(self.info) - {"lmax", "lens_potential_accuracy"}
+        unknown = set(self.info) - {"lmax", "lens_potential_accuracy", "halofit_version"}
 
         if unknown:
             raise ComponentError(f"{self.name}: unknown option(s) {sorted(unknown)}.")
 
         self.lmax = int(self.info.get("lmax", 0))
         self.lens_potential_accuracy = int(self.info.get("lens_potential_accuracy", 1))
+        self.halofit_version = self.info.get("halofit_version", "mead2020")
+
+        # What the matter power spectra and sigma(R) are wanted for,
+        # gathered from the requests in `initialize_with_provider`.
+        self.redshifts = {0.0}
+        self.k_max = _K_MAX
+        self.spectra: set[tuple[str, str, bool]] = set()
+        self.sigma_pairs: set[tuple[str, str]] = set()
+        self.radii: set[float] = set()
 
         try:
             self.camb = _import_camb()
         except BoltzmannError as error:
             raise ComponentError(str(error)) from None
+
+        versions = self.camb.nonlinear.halofit_version_names
+
+        if self.halofit_version not in versions:
+            raise ComponentError(
+                f"{self.name}: halofit_version {self.halofit_version!r} is not "
+                f"one of CAMB's: {sorted(versions)}."
+            )
 
     def accepts(self, name: str) -> bool:
         return name in self.defaults
@@ -150,7 +201,7 @@ class CAMB(Theory):
         return {"expansion": None, "background_densities": None}
 
     def get_can_provide(self) -> list[str]:
-        return ["Cl", "sigma8_0", "S8"]
+        return ["Cl", "sigma8_0", "S8", "Pk_interpolator", "Pk_grid", "sigma_R"]
 
     def get_derived_params(self) -> list[str]:
         return ["sigma8", "S8", "A_s"]
@@ -173,6 +224,63 @@ class CAMB(Theory):
 
         if self.lmax == 0:
             self.lmax = 2508
+
+        for quantity in ("Pk_interpolator", "Pk_grid", "sigma_R"):
+            for options in self.requested.get(quantity, []):
+                self._add_request(quantity, options or {})
+
+    def _add_request(self, quantity: str, options: dict) -> None:
+
+        allowed = _SIGMA_OPTIONS if quantity == "sigma_R" else _PK_OPTIONS
+
+        unknown = set(options) - allowed
+
+        if unknown:
+            raise ComponentError(
+                f"{self.name}: {quantity} takes {sorted(allowed)}, "
+                f"not {sorted(unknown)}."
+            )
+
+        z = np.atleast_1d(np.asarray(options.get("z", [0.0]), dtype=float))
+
+        if z.size == 0 or not np.all(np.isfinite(z)) or np.any(z < 0):
+            raise ComponentError(f"{self.name}: {quantity} needs redshifts z >= 0.")
+
+        self.redshifts.update(float(x) for x in z)
+
+        known = set(self.camb.model.transfer_names) - {"k/h"}
+
+        pairs = []
+
+        for pair in options.get("vars_pairs", [_TOTAL]):
+
+            if len(pair) != 2 or not set(pair) <= known:
+                raise ComponentError(
+                    f"{self.name}: {quantity}'s vars_pairs are pairs of "
+                    f"{sorted(known)}; {pair!r} is not."
+                )
+
+            pairs.append((str(pair[0]), str(pair[1])))
+
+        if quantity == "sigma_R":
+
+            R = np.atleast_1d(np.asarray(options.get("R", []), dtype=float))
+
+            if R.size == 0 or not np.all(R > 0):
+                raise ComponentError(f"{self.name}: sigma_R needs radii R > 0 [Mpc].")
+
+            self.radii.update(float(x) for x in R)
+            self.sigma_pairs.update(pairs)
+
+            return
+
+        self.k_max = max(self.k_max, float(options.get("k_max", _K_MAX)))
+
+        nonlinear = options.get("nonlinear", True)
+
+        for flag in (nonlinear if isinstance(nonlinear, (list, tuple)) else [nonlinear]):
+            for pair in pairs:
+                self.spectra.add((*pair, bool(flag)))
 
     def check_model(self, model) -> None:
 
@@ -216,7 +324,10 @@ class CAMB(Theory):
 
         pars.InitPower.set_params(As=math.exp(ln1e10As) * 1.0e-10, ns=n_s)
 
-        pars.set_matter_power(redshifts=[0.0], kmax=2.0)
+        # Earliest first, as CAMB stores them -- so the last is z = 0.
+        pars.set_matter_power(
+            redshifts=sorted(self.redshifts, reverse=True), kmax=self.k_max, silent=True,
+        )
 
         if type(sector) is not DarkEnergy:
 
@@ -239,6 +350,18 @@ class CAMB(Theory):
             # CAMB's accuracy falls off near the lmax it is given.
             self.lmax + 500, lens_potential_accuracy=self.lens_potential_accuracy,
         )
+
+        # After `set_for_lmax`, which decides whether the lensing is
+        # non-linear; a non-linear P(k) must not undo that.
+        if any(nonlinear for *_, nonlinear in self.spectra):
+
+            model = self.camb.model
+
+            lensing = pars.NonLinear in (model.NonLinear_lens, model.NonLinear_both)
+
+            pars.NonLinear = model.NonLinear_both if lensing else model.NonLinear_pk
+
+        pars.NonLinearModel.set_params(halofit_version=self.halofit_version)
 
         return pars
 
@@ -264,6 +387,24 @@ class CAMB(Theory):
                 8.0, z_indices=[-1], var1="delta_nonu", var2="delta_nonu",
             )[0])
 
+            Pk_grid = {
+                (var1, var2, nonlinear): results.get_linear_matter_power_spectrum(
+                    var1=var1, var2=var2, hubble_units=False, k_hunit=False,
+                    have_power_spectra=True, nonlinear=nonlinear,
+                )
+                for var1, var2, nonlinear in self.spectra
+            }
+
+            radii = np.array(sorted(self.radii))
+
+            sigma_R = {
+                # CAMB's rows are earliest first; turned to increasing z.
+                (var1, var2): results.get_sigmaR(
+                    radii, var1=var1, var2=var2, hubble_units=False,
+                )[::-1]
+                for var1, var2 in self.sigma_pairs
+            }
+
         except self.camb.CAMBError as error:
             raise BoltzmannError(f"CAMB refused the point: {error}") from error
 
@@ -280,10 +421,19 @@ class CAMB(Theory):
         ):
             return False
 
+        if not all(np.all(np.isfinite(P)) for _, _, P in Pk_grid.values()) or not all(
+            np.all(np.isfinite(s)) for s in sigma_R.values()
+        ):
+            return False
+
         Omega_m = self.provider.get_background_densities()["Omega_m"]
         S8 = sigma8 * math.sqrt(Omega_m / 0.3)
 
-        state.update(Cl=Cl, sigma8_0=sigma8_cb, S8=S8)
+        state.update(
+            Cl=Cl, sigma8_0=sigma8_cb, S8=S8, Pk_grid=Pk_grid, sigma_R=sigma_R,
+            sigma_R_axes=(np.array(sorted(self.redshifts)), radii),
+            Pk_interpolators={},
+        )
 
         if want_derived:
             state["derived"] = {
@@ -313,3 +463,51 @@ class CAMB(Theory):
 
     def get_sigma8_0(self) -> float:
         return self.current_state["sigma8_0"]
+
+    def _spectrum(self, var_pair, nonlinear):
+
+        key = (*var_pair, bool(nonlinear))
+
+        grids = self.current_state["Pk_grid"]
+
+        if key not in grids:
+            raise ComponentError(
+                f"{self.name} computed no {'non-linear' if nonlinear else 'linear'} "
+                f"P(k) of {tuple(var_pair)}: ask for it, in the requirement's "
+                f"'vars_pairs' and 'nonlinear'. Computed: {sorted(grids)}."
+            )
+
+        return key, grids[key]
+
+    def get_Pk_grid(self, var_pair=_TOTAL, nonlinear: bool = True):
+        """``(k, z, P[z, k])``: ``k`` in 1/Mpc, ``P`` in Mpc^3."""
+
+        return self._spectrum(var_pair, nonlinear)[1]
+
+    def get_Pk_interpolator(self, var_pair=_TOTAL, nonlinear: bool = True):
+        """``P(z, k)`` as a :class:`PowerSpectrumInterpolator`."""
+
+        key, (k, z, P) = self._spectrum(var_pair, nonlinear)
+
+        built = self.current_state["Pk_interpolators"]
+
+        if key not in built:
+            built[key] = PowerSpectrumInterpolator(z, k, P)
+
+        return built[key]
+
+    def get_sigma_R(self, var_pair=_TOTAL):
+        """``(z, R, sigma[z, R])``, linear, ``R`` in Mpc."""
+
+        computed = self.current_state["sigma_R"]
+        key = tuple(var_pair)
+
+        if key not in computed:
+            raise ComponentError(
+                f"{self.name} computed no sigma(R) of {key}: ask for it, in "
+                f"the requirement's 'vars_pairs'. Computed: {sorted(computed)}."
+            )
+
+        z, R = self.current_state["sigma_R_axes"]
+
+        return z, R, computed[key]

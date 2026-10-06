@@ -135,6 +135,9 @@ Native theories
 .. automodule:: cosmofit.theories.boltzmann
    :members:
 
+.. automodule:: cosmofit.theories.power_spectrum
+   :members:
+
 Native likelihoods
 ------------------
 
