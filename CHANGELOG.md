@@ -16,6 +16,30 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Phase 5c: the dataset loaders, one module per family
+
+`data/loader.py` had grown to 3416 lines: every dataset's file table,
+its reader and its loader in one module. It is now the package
+`data/loaders/`:
+
+- `_common`: the data directory, version lookup and the shared readers;
+- `cc`, `bao`, `sn`, `growth`, `cmb` and `priors`: each family's file
+  tables and its `load_<dataset>` functions;
+- `_index`: `available_versions`, `dataset_reference` and
+  `available_datasets` across all of them.
+
+A script made the split and wrote each module's imports from the
+names it uses. Comparing every definition's syntax tree with the old
+module's shows two changes, both intended:
+
+- `DATA_DIR` is now the package's parent directory;
+- `_validate_version` imports the registries inside the function. The
+  registries collect every family's tables, and every family imports
+  the shared helpers, so a module-level import would be circular. `cosmofit.data.loader`
+re-exports every name the old module defined, private ones included.
+Imports written against it keep working, and all 21 datasets load as
+before (219 dataset and likelihood tests, golden chi2 included).
+
 ### The 2.0 command line, phase 5b: `cosmofit run`, `list` and `doc`
 
 `pip install` now provides a `cosmofit` command (`python -m cosmofit`

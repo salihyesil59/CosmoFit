@@ -262,3 +262,9 @@ ignore = [
     # would read worse.
     "E731",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+
+# Re-exports every name of data.loaders, private ones included, for
+# code written against the single module it used to be.
+"src/cosmofit/data/loader.py" = ["F401"]

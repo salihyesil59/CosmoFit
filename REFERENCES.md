@@ -104,8 +104,8 @@ repository.
 - Used by: [`data/bao/sdss/`](src/cosmofit/data/bao/sdss/),
   [`likelihoods/sdss_bao.py`](src/cosmofit/likelihoods/sdss_bao.py)
 - **Note:** BOSS DR12's usual third bin (z=0.61) is deliberately
-  omitted from this combination -- see the module docstring in
-  `data/loader.py` for why.
+  omitted from this combination -- see the comment on
+  `SDSS_BAO_FILES` in `data/loaders/bao.py` for why.
 
 ### SDSS BAO + full-shape consensus
 
