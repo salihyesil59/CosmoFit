@@ -26,6 +26,6 @@ if not exist "%USERPROFILE%\.streamlit\credentials.toml" (
 
 echo Starting the CosmoFit GUI -- it will open in your browser.
 set STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-python -m streamlit run app\streamlit_app.py
+python -m cosmofit gui
 
 pause

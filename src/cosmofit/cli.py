@@ -6,6 +6,7 @@ The ``cosmofit`` command.
     cosmofit run input.yaml [--output PREFIX] [--force | --resume] [--seed N]
     cosmofit list [theory | likelihood | sampler]
     cosmofit doc NAME
+    cosmofit gui [streamlit options]
 
 ``run`` runs an input: its sampler, or -- for an input with a ``post``
 block -- the reweighting of a finished run (:mod:`core.post`). Under
@@ -22,6 +23,9 @@ the built-in ones and those installed packages register under the
 takes, the parameters it brings with their default declarations, and
 what it provides or requires -- the starting point for writing it into
 an input.
+
+``gui`` starts the graphical interface (:mod:`cosmofit.gui`); what
+follows it goes to ``streamlit run``.
 
 ``python -m cosmofit`` is the same command.
 """
@@ -314,15 +318,37 @@ def _parser() -> argparse.ArgumentParser:
     doc = commands.add_parser("doc", help="describe one component")
     doc.add_argument("name")
 
+    # What follows `gui` goes to `streamlit run` as it is; see main().
+    commands.add_parser(
+        "gui", help="start the graphical interface; other options go to 'streamlit run'",
+    )
+
     return parser
+
+
+def _gui(args) -> int:
+
+    from cosmofit.gui import main as start
+
+    return start(args.streamlit_args)
 
 
 def main(argv=None) -> int:
     """Entry point of the ``cosmofit`` command; returns the exit status."""
 
-    args = _parser().parse_args(argv)
+    parser = _parser()
 
-    handler = {"run": _run, "list": _list, "doc": _doc}[args.command]
+    # Options cosmofit does not know are Streamlit's, after `gui`, and
+    # an error anywhere else. (argparse's REMAINDER would not take
+    # them: it stops at the first option-like word in a subcommand.)
+    args, unknown = parser.parse_known_args(argv)
+
+    if unknown and args.command != "gui":
+        parser.error(f"unrecognized arguments: {' '.join(unknown)}")
+
+    args.streamlit_args = unknown
+
+    handler = {"run": _run, "list": _list, "doc": _doc, "gui": _gui}[args.command]
 
     try:
         return handler(args)

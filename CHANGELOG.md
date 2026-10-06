@@ -16,6 +16,32 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Phase 5e: the GUI is a package, started with `cosmofit gui`
+
+`app/streamlit_app.py` was one 4249-line script, outside the package,
+so a `pip install`ed library had no GUI. It is now `cosmofit.gui`:
+
+- `app`: the page, which Streamlit runs top to bottom;
+- `reference`: models, datasets, presets, parameters and plot labels;
+- `helpers`: the sidebar's choices turned into a fit;
+- `render`: a finished fit drawn.
+
+`cosmofit gui` starts it from anywhere. Anything after `gui` goes to
+`streamlit run`. The theme and the usage-statistics setting are
+passed on the command line, so they hold outside the repository,
+where `.streamlit/config.toml` is not read. The double-click launchers
+use the command. `app/streamlit_app.py` remains as the entry point in
+a checkout and runs the packaged page on every rerun.
+
+The page behaves exactly as before. A script split it, and the 76
+top-level statements of the new modules have the old script's syntax
+trees, in the same order. The one change is that `matplotlib.use("Agg")`
+now sits only where it is needed: before anything imports `pyplot`.
+
+Two tests used to compile functions out of the script's source,
+because a Streamlit page cannot be imported. They now import
+`_equivalent_script` and the configuration filters from `gui.render`.
+
 ### Phase 5d: a `Fitter` written as a 2.0 input
 
 `Fitter.to_info()` writes a fitter as an input for the new core. The

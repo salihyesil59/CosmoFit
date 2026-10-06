@@ -31,7 +31,14 @@ pytest.importorskip("streamlit", reason="GUI extra not installed")
 from streamlit.testing.v1 import AppTest  # noqa: E402
 
 
-APP = str(Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py")
+from cosmofit.gui import APP as _PAGE  # noqa: E402
+
+
+#: The page, in the package.
+APP = str(_PAGE)
+
+#: The repository's entry point, which runs that page.
+ENTRY = str(Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py")
 
 
 def _fresh(timeout: float = 300.0) -> AppTest:
@@ -150,9 +157,10 @@ def _messages(app: AppTest) -> str:
 # It boots
 # ============================================================
 
-def test_app_starts_without_exceptions():
+@pytest.mark.parametrize("script", [APP, ENTRY], ids=["package", "repository"])
+def test_app_starts_without_exceptions(script):
 
-    app = AppTest.from_file(APP, default_timeout=300)
+    app = AppTest.from_file(script, default_timeout=300)
 
     app.run()
 
@@ -1029,35 +1037,14 @@ def test_the_snippet_rebuilds_an_action_rather_than_importing_it():
 
 def _snippet_generator():
     """
-    ``_equivalent_script`` lifted out of the app module.
-
-    The app runs top to bottom under Streamlit and cannot simply be
-    imported, so the function is compiled from its own source. That
-    keeps this test on the real implementation rather than a copy
-    of it.
+    ``_equivalent_script``, the real one: since the page was split out
+    of one script, the functions it draws with import like any
+    others.
     """
 
-    import ast
-    from pathlib import Path
+    from cosmofit.gui.render import _equivalent_script
 
-    source = Path(APP).read_text(encoding="utf-8")
-
-    tree = ast.parse(source)
-
-    function = next(
-        node for node in tree.body
-        if isinstance(node, ast.FunctionDef)
-        and node.name == "_equivalent_script"
-    )
-
-    namespace: dict = {}
-
-    exec(  # noqa: S102 - compiling one known function from this repo
-        compile(ast.Module(body=[function], type_ignores=[]), APP, "exec"),
-        namespace,
-    )
-
-    return namespace["_equivalent_script"]
+    return _equivalent_script
 
 
 # ============================================================
@@ -1143,40 +1130,17 @@ def test_the_configuration_carries_what_to_run_and_not_what_was_run():
 def _configuration_keys(app):
     """
     Which keys the app's own filter would save, evaluated against
-    this app's session state.
-
-    Lifted from the module the same way `_snippet_generator` is, so
-    the test reads the real prefix lists rather than a copy that
-    could drift from them.
+    this app's session state -- with the real prefix lists, not a copy
+    that could drift from them.
     """
 
-    import ast
-    from pathlib import Path
-
-    source = Path(APP).read_text(encoding="utf-8")
-
-    tree = ast.parse(source)
-
-    namespace: dict = {}
-
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and any(
-            getattr(t, "id", "") in ("_CONFIG_PREFIXES", "_CONFIG_EXCLUDE")
-            for t in node.targets
-        ):
-            exec(  # noqa: S102 - two literal tuples from this repo
-                compile(ast.Module(body=[node], type_ignores=[]), APP, "exec"),
-                namespace,
-            )
-
-    prefixes = namespace["_CONFIG_PREFIXES"]
-    exclude = namespace["_CONFIG_EXCLUDE"]
+    from cosmofit.gui.render import _CONFIG_EXCLUDE, _CONFIG_PREFIXES
 
     return [
         key for key in _state(app)
         if isinstance(key, str)
-        and key.startswith(prefixes)
-        and not key.startswith(exclude)
+        and key.startswith(_CONFIG_PREFIXES)
+        and not key.startswith(_CONFIG_EXCLUDE)
     ]
 
 

@@ -28,7 +28,7 @@ fi
 
 echo "Starting the CosmoFit GUI -- it will open in your browser."
 export STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
-"$PYTHON" -m streamlit run app/streamlit_app.py
+"$PYTHON" -m cosmofit gui
 
 # Keep the window open if launched by double-clicking (so any error
 # above stays readable instead of the terminal closing immediately).

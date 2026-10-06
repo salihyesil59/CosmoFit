@@ -195,7 +195,7 @@ pip install cosmofit
     `3 H dF/dt` term into the Friedmann equation and a moving `G_eff/G_N` into the growth
   * **A general `f(R)`** -- fourth-order, reduced by promoting `R` to an independent
     variable held to its geometric value by a Lagrange multiplier
-* Graphical interface (`app/streamlit_app.py`, `pip install -e ".[gui]"`): tick datasets, configure
+* Graphical interface (`cosmofit gui`, `pip install "cosmofit[gui]"`): tick datasets, configure
   one or more models (built-in or your own), edit free parameters, and run the MCMC fit(s) + plots
   with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
   test) and on the same figures, all from the browser, with every figure downloadable as SVG, PNG,
@@ -287,10 +287,11 @@ CosmoFit/
 │   ├── likelihoods/   # per-dataset chi2/likelihood classes + joint likelihood
 │   ├── stats/         # Fitter (MCMC/best-fit), priors, posterior, saved chains, model comparison
 │   ├── theory/        # build a model from an action: reduce, vary, solve (optional: sympy)
+│   ├── gui/           # the Streamlit GUI: `cosmofit gui`
 │   └── plots/         # FitPlotter -- every figure, attached as fitter.plots
 ├── examples/          # example notebooks, in five sections
 ├── tests/             # the test suite
-├── app/               # the Streamlit GUI
+├── app/               # the GUI's entry point in a checkout (the page is cosmofit.gui)
 ├── CHANGELOG.md       # the release history
 └── pyproject.toml
 ```
@@ -975,14 +976,18 @@ pip install "cosmofit[theory]"
 ## Graphical Interface
 
 For datasets/models/parameters by clicking rather than coding, a
-[Streamlit](https://streamlit.io) app (`app/streamlit_app.py`) sits
+[Streamlit](https://streamlit.io) app (the `cosmofit.gui` package) sits
 on top of the exact same public API as above -- it builds a
 `Fitter` and calls `run_mcmc()`/`best_fit()`/`fit.plots.*` for you.
 
 ```bash
-pip install -e ".[gui]"
-streamlit run app/streamlit_app.py
+pip install "cosmofit[gui]"
+cosmofit gui
 ```
+
+Anything after `cosmofit gui` goes to `streamlit run`
+(`cosmofit gui --server.port 8600`). From a checkout,
+`streamlit run app/streamlit_app.py` runs the same page.
 
 Or, without touching a terminal: double-click `run_gui.sh` (Linux/macOS)
 or `run_gui.bat` (Windows) in the repository root. Either installs
