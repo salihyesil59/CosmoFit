@@ -47,7 +47,7 @@ How it was checked: the interpolated spectra against CAMB's own
 interpolator on the same run (0.2%), and `sigma(R)` against the
 top-hat integral of the returned `P(k)` (0.2%), which pins the units of
 both. Asking for spectra leaves everything else alone -- the `Cl` and
-`sigma8` to 1e-6 -- except that a larger `k_max` moves the lensing
+`sigma8` to CAMB's numerical noise (2e-5 at worst, on Linux) -- except that a larger `k_max` moves the lensing
 potential at `L ~ 2500` by 0.2%, which is CAMB being more accurate,
 not less.
 

@@ -396,8 +396,10 @@ def test_halofit_version_is_checked():
 def test_asking_for_P_k_leaves_the_rest_alone():
     """
     More redshifts and a non-linear ``P(k)`` change nothing else CAMB
-    returns. (A larger ``k_max`` does: the lensing potential at
-    ``L ~ 2500`` moves by 0.2%, towards the better answer.)
+    returns, beyond CAMB's numerical noise -- below 1e-7 on Windows,
+    2e-5 at high ``l`` on Linux, far under any likelihood's error.
+    (A larger ``k_max`` does: the lensing potential at ``L ~ 2500``
+    moves by 0.2%, towards the better answer.)
     """
 
     plain = model()
@@ -409,11 +411,11 @@ def test_asking_for_P_k_leaves_the_rest_alone():
     for name in ("tt", "te", "ee", "pp"):
         np.testing.assert_allclose(
             m.provider.get_Cl()[name][2:], plain.provider.get_Cl()[name][2:],
-            rtol=1e-6, atol=1e-30,
+            rtol=5e-5, atol=1e-30,
         )
 
     assert m.theories["camb"].get_sigma8_0() == pytest.approx(
-        plain.theories["camb"].get_sigma8_0(), rel=1e-6,
+        plain.theories["camb"].get_sigma8_0(), rel=1e-5,
     )
 
 
