@@ -16,6 +16,26 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Two more chronometers, and the M_B calibration as a prior
+
+* `cc` has a `favale2023_extended` version: the 32 points, plus Jiao et
+  al. (2023) at `z = 0.8` (LEGA-C, 113.1 +- 25.2 -- the statistical
+  error and the symmetrized +29.1/-11.3 systematic in quadrature) and
+  Tomasetti et al. (2023) at `z = 1.26` (VANDELS, 135 +- 65), correlated
+  with the rest by the same IMF and stellar-population budget. Their
+  errors are large, and they move LCDM's CC-only `H0` from 71.29 +- 5.61
+  to 71.25 +- 5.60: they are there to be complete, not to change the
+  answer. The 32 points' block of the covariance is unchanged, and a
+  test holds it so.
+* `examples/yaml/lcdm_sn_mb_prior.yaml`: Pantheon+ with `M_B` sampled
+  and the SH0ES calibration `M_B = -19.253 +- 0.027` (Riess et al. 2022)
+  as its Gaussian prior -- on the 2.0 core a prior on a likelihood's
+  nuisance parameter is one line of `params`, so this needed no new
+  code. Its Fisher fit gives `H0 = 73.24 +- 0.94` and `Omega_m = 0.331`,
+  Pantheon+SH0ES's answer, without a Cepheid in the likelihood. The
+  file says why it must not sit next to a SH0ES `H0` prior or the
+  Cepheid hosts.
+
 ### DESI DR1 full shape
 
 `bao.desi_fullshape`: the six DESI DR1 tracers' full-shape clustering

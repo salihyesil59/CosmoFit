@@ -165,7 +165,7 @@ DATASETS = {
 
     "cc": _info(
         "cc.chronometers", "CC", "Cosmic Chronometers (CC)", "expansion",
-        references=("2301.09591",),
+        references=("2301.09591", "2205.05701", "2305.16387"),
     ),
 
     "desi": _info(

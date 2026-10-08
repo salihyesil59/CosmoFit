@@ -96,7 +96,8 @@ pip install cosmofit
 * Flexible parameter management
 * Built-in observational datasets
 
-  * Cosmic Chronometers (CC)
+  * Cosmic Chronometers (CC): Favale et al.'s 32 points, or 34 with Jiao et al. (2023) and
+    Tomasetti et al. (2023), correlated by the method's systematic budget
   * BAO (**DESI DR2 2025** or DESI DR1 2024; SDSS BOSS DR12 + eBOSS DR16 LRG/QSO;
     **low-z 6dFGS + SDSS DR7 MGS**) -- the low-z pair is independent of the other two and
     can join either; DESI and SDSS cannot be combined with each other, see the note below

@@ -1,0 +1,32 @@
+# The distance ladder's last rung, as a prior: Pantheon+ with the
+# supernovae's absolute magnitude M_B sampled instead of marginalized,
+# and Gaussian-calibrated by SH0ES -- M_B = -19.253 +- 0.027 (Riess et
+# al. 2022, the 42 Cepheid-host supernovae). The supernovae then fix H0
+# with no Cepheid in the likelihood and no H0 prior.
+#
+# The calibration is the SH0ES H0 in another form: do not add an
+# external.h0 SH0ES prior, or sn.pantheonplus with include_cepheid,
+# next to it -- each counts the same Cepheids again.
+#
+#   cosmofit run examples/yaml/lcdm_sn_mb_prior.yaml
+
+theory:
+  background:
+
+likelihood:
+  sn.pantheonplus: {marginalize_MB: false}
+
+params:
+  H0: {prior: {min: 55, max: 85}, ref: 73, proposal: 0.5}
+  Omega_m: {prior: {min: 0.1, max: 0.6}, ref: 0.33, proposal: 0.01}
+  Omega_b: 0.049
+  MB:
+    prior: {dist: norm, loc: -19.253, scale: 0.027}
+    ref: -19.253
+    proposal: 0.01
+    latex: M_B
+
+sampler:
+  fisher:
+
+output: chains/lcdm_sn_mb_prior

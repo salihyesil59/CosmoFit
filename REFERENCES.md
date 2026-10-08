@@ -31,6 +31,15 @@ repository.
   CC covariance is built from it (`data.loader._cc_covariance`), and
   `CC_32_Favale2023_Moresco2020_correlation.txt` is kept as the check
   on that construction.
+- **Jiao et al. (2023)**, *New Observational H(z) Data from
+  Full-spectrum Fitting of Cosmic Chronometers in the LEGA-C Survey*,
+  ApJS 265, 48: H(0.8) = 113.1 +- 15.1 (stat) +29.1/-11.3 (syst).
+  [arXiv:2205.05701](https://arxiv.org/abs/2205.05701)
+- **Tomasetti et al. (2023)**, *A new measurement of the expansion
+  history of the Universe at z = 1.26 with cosmic chronometers in
+  VANDELS*, A&A 679, A96: H(1.26) = 135 +- 65.
+  [arXiv:2305.16387](https://arxiv.org/abs/2305.16387)
+- The two are added to the 32 in the `favale2023_extended` version.
 - Used by: [`data/cc/favale2023/`](src/cosmofit/data/cc/favale2023/),
   [`likelihoods/cc.py`](src/cosmofit/likelihoods/cc.py)
 

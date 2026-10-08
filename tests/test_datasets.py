@@ -610,3 +610,34 @@ def test_cc_h0_error_with_correlated_systematics():
 
     assert best[0] == pytest.approx(71.3, abs=0.1)
     assert error == pytest.approx(5.61, abs=0.02)
+
+
+def test_cc_extended_is_the_32_and_two_more():
+    """
+    ``favale2023_extended`` adds Jiao et al. (2023) and Tomasetti et al.
+    (2023) and changes nothing about the 32: their rows and columns of
+    the covariance are those of ``favale2023``, and the two new points
+    are correlated with them by the same systematic budget.
+    """
+
+    from cosmofit.data.loader import load_cc
+
+    base = load_cc("favale2023")
+    extended = load_cc("favale2023_extended")
+
+    old = np.isin(extended.z, base.z)
+
+    assert old.sum() == 32 and len(extended.z) == 34
+
+    np.testing.assert_array_equal(extended.z[old], base.z)
+    np.testing.assert_array_equal(extended.H[old], base.H)
+
+    full = extended.covariance.matrix
+    np.testing.assert_allclose(full[np.ix_(old, old)], base.covariance.matrix)
+
+    new = {round(z, 2): (H, s) for z, H, s in zip(extended.z, extended.H, extended.sigma) if z not in base.z}
+
+    # Jiao: 15.1 (stat) and the systematic +29.1/-11.3 symmetrized, in quadrature.
+    assert new == {0.8: (113.1, 25.2), 1.26: (135.0, 65.0)}
+
+    assert np.all(full[~old][:, old] > 0)

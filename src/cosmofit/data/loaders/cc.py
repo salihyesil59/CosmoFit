@@ -37,6 +37,27 @@ CC_FILES = {
 
     },
 
+    # The same 32, with Jiao et al. (2023) at z = 0.8 and Tomasetti et
+    # al. (2023) at z = 1.26 -- full-spectrum fits published since. They
+    # are correlated with the rest by the same IMF and SPS budget, as
+    # every one of the 32 is: the stellar-population models behind
+    # their ages are the same ones.
+    "favale2023_extended": {
+
+        "folder": "favale2023",
+
+        "data": "CC_34_Favale2023_Jiao2023_Tomasetti2023_data.txt",
+
+        "systematics": "data_MM20.dat",
+
+        "reference": (
+            "Favale, Gomez-Valent & Migliaccio (2023), MNRAS 523, 3406, arXiv:2301.09591; "
+            "Jiao et al. (2023), ApJS 265, 48, arXiv:2205.05701; "
+            "Tomasetti et al. (2023), A&A 679, A96, arXiv:2305.16387"
+        ),
+
+    },
+
 }
 
 
@@ -130,7 +151,9 @@ def load_cc(
     Parameters
     ----------
     version : str, optional
-        Dataset version.
+        ``"favale2023"`` (the default; 32 points) or
+        ``"favale2023_extended"`` (34: with Jiao et al. 2023 at
+        z = 0.8 and Tomasetti et al. 2023 at z = 1.26).
 
     Returns
     -------
