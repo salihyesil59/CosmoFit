@@ -91,6 +91,7 @@ def camb_results(m, redshifts=None):
     ("cpl", {"w0": -0.8, "wa": -0.6}),
     ("gede", {"Delta": 0.7, "z_t": 0.3}),
     ("gcg", {"A_gcg": 0.75, "alpha_gcg": 0.1}),
+    ("ede", {"f_ede": 0.1, "z_c": 3500.0}),
 ])
 def test_camb_solves_the_native_background(sector, params):
 
@@ -162,6 +163,44 @@ def test_lmax_is_widened_to_what_likelihoods_ask():
     evaluate(m)
 
     assert len(m.provider.get_Cl()["tt"]) == 3001
+
+
+@pytest.mark.parametrize("f_ede", [0.05, 0.1, 0.15])
+def test_early_dark_energy_is_cambs(f_ede):
+    """
+    The early dark energy reaches CAMB as its own fluid, with the same
+    ``f_ede`` -- CAMB's fraction of everything at ``z_c`` -- and the
+    sound horizon and ``theta_*`` the early-universe theory computes
+    from the native background are CAMB's. ``theta_*`` is the looser:
+    its decoupling redshift comes from a fit made in LCDM, read at the
+    density that gives this background's own expansion rate there.
+    """
+
+    z_c = 3500.0
+
+    m = get_model({
+        "theory": {"background": {"dark_energy": "ede"}, "camb": None, "early_universe": None},
+        "likelihood": {"probe": {"class": Probe, "needs": {"Cl": None, "rdrag": None}}},
+        "params": {**BASE, "f_ede": f_ede, "z_c": z_c,
+                   "rdrag": {"derived": True}, "thetastar": {"derived": True}},
+    })
+
+    point = evaluate(m)
+
+    results = camb_results(m)
+
+    assert isinstance(m.theories["camb"]._parameters(**m.theories["camb"].defaults).DarkEnergy,
+                      camb.dark_energy.AxionEffectiveFluid)
+
+    a = 1.0 / (1.0 + z_c)
+    densities = results.get_background_densities(a, vars=["tot", "de"])
+
+    assert densities["de"][0] / densities["tot"][0] == pytest.approx(f_ede, rel=1e-6)
+
+    derived = results.get_derived_params()
+
+    assert point.derived["rdrag"] == pytest.approx(derived["rdrag"], rel=3e-4)
+    assert point.derived["thetastar"] == pytest.approx(derived["thetastar"], rel=3e-4)
 
 
 # ============================================================
@@ -409,10 +448,13 @@ def test_asking_for_P_k_leaves_the_rest_alone():
     evaluate(m)
 
     for name in ("tt", "te", "ee", "pp"):
-        np.testing.assert_allclose(
-            m.provider.get_Cl()[name][2:], plain.provider.get_Cl()[name][2:],
-            rtol=5e-5, atol=1e-30,
-        )
+
+        mine = m.provider.get_Cl()[name][2:]
+        reference = plain.provider.get_Cl()[name][2:]
+
+        # Against the spectrum's largest value: TE crosses zero, where
+        # any noise is a large relative difference.
+        assert np.max(np.abs(mine - reference)) < 5e-5 * np.max(np.abs(reference)), name
 
     assert m.theories["camb"].get_sigma8_0() == pytest.approx(
         plain.theories["camb"].get_sigma8_0(), rel=1e-5,

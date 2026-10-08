@@ -20,7 +20,7 @@ import numpy as np
 from .dark_sector import DarkSector
 
 
-__all__ = ["DarkEnergy", "DARK_ENERGY", "get_dark_energy"]
+__all__ = ["DarkEnergy", "EarlyDarkEnergy", "DARK_ENERGY", "get_dark_energy"]
 
 
 _LN10 = np.log(10.0)
@@ -251,6 +251,113 @@ class GCG(DarkEnergy):
         return -A_gcg / self._g(z, A_gcg, alpha_gcg)
 
 
+
+class EarlyDarkEnergy(DarkEnergy):
+    r"""
+    Early dark energy as an effective fluid (Poulin, Smith, Grin,
+    Karwal & Kamionkowski 2018, arXiv:1806.10608), on top of a
+    cosmological constant:
+
+        rho_ede(a) = 2 rho_c / [1 + (a/a_c)^{3(1+w_n)}],
+        rho_c = f_ede rho_tot(z_c)
+
+    -- frozen, like a cosmological constant, before ``z_c``, and diluting
+    with ``w = w_n`` after it; ``w_n = (n-1)/(n+1)`` for the axion-like
+    potential ``V ~ [1 - cos(phi/f)]^n`` (``n = 3``: ``w_n = 1/2``).
+    ``f_ede`` is the fraction of *all* the energy at ``z_c`` (radiation,
+    matter, massive neutrinos and both dark energies), as in CAMB's
+    ``AxionEffectiveFluid``; with the closure for ``Omega_Lambda`` it
+    fixes ``rho_c`` in closed form.
+
+    Parameters ``f_ede`` and ``z_c``; ``w_n`` (default 1/2) and
+    ``theta_i``, the initial field value (default 2.83), which only
+    the perturbations -- CAMB's -- see.
+
+    What it changes is the expansion just before recombination, so
+    the sound horizon (computed from this ``E(z)`` by the early-universe
+    theory) shrinks. The recombination redshift ``z_*`` still comes from
+    a fit calibrated in LCDM, which does not see it; ``theta_*``, ``r_d``
+    and the BAO scale do.
+    """
+
+    name = "ede"
+    params = ("f_ede", "z_c")
+    defaults = {"w_n": 0.5, "theta_i": 2.83}
+
+    #: :meth:`w` needs the standard fluids (see ``Background.get_w``).
+    w_reads_context = True
+
+    @staticmethod
+    def _shape(z, z_c, w_n):
+        """``rho_ede(z) / rho_c``."""
+
+        x = ((1.0 + z_c) / (1.0 + np.asarray(z, dtype=float))) ** (3.0 * (1.0 + w_n))
+
+        return 2.0 / (1.0 + x)
+
+    def _densities(self, ctx, f_ede, z_c, w_n):
+        """``(Omega_Lambda, rho_c)`` from ``f_ede`` and the closure."""
+
+        if not 0.0 <= f_ede < 1.0:
+            return None
+
+        closure = 1.0 - ctx.Omega_k - ctx.rho_std0
+        standard = float(ctx.rho_std(z_c) + ctx.curvature(z_c))
+
+        g = f_ede / (1.0 - f_ede)
+        today = float(self._shape(0.0, z_c, w_n))
+
+        # rho_c = g (standard + Omega_L + rho_c), Omega_L = closure - today rho_c
+        # -- the EDE's own density at z_c being half its frozen value.
+        rho_c = g * (standard + closure) / (1.0 + g * today)
+
+        return closure - today * rho_c, rho_c
+
+    def solve(self, ctx, f_ede, z_c, w_n=0.5, theta_i=2.83):
+
+        densities = self._densities(ctx, f_ede, z_c, w_n)
+
+        if densities is None:
+            return None
+
+        Omega_L, rho_c = densities
+
+        def E2(z):
+            return (
+                ctx.rho_std(z) + ctx.curvature(z) + Omega_L
+                + rho_c * self._shape(z, z_c, w_n)
+            )
+
+        return E2
+
+    def w(self, z, f_ede, z_c, w_n=0.5, theta_i=2.83, ctx=None):
+        """
+        The equation of state of both dark energies together; that of
+        the EDE alone is ``-1 + (1 + w_n) x / (1 + x)``, ``x = (a/a_c)^{3(1+w_n)}``.
+        """
+
+        z = np.asarray(z, dtype=float)
+
+        x = ((1.0 + z) / (1.0 + z_c)) ** (-3.0 * (1.0 + w_n))
+        w_ede = -1.0 + (1.0 + w_n) * x / (1.0 + x)
+
+        if ctx is None:
+            raise ValueError(f"{self.name}: w(z) needs the standard fluids (ctx).")
+
+        Omega_L, rho_c = self._densities(ctx, f_ede, z_c, w_n)
+
+        ede = rho_c * self._shape(z, z_c, w_n)
+
+        return (-Omega_L + w_ede * ede) / (Omega_L + ede)
+
+    def camb_dark_energy(self, camb, f_ede, z_c, w_n=0.5, theta_i=2.83):
+        """CAMB's own model of this fluid, perturbations included."""
+
+        model = camb.dark_energy.AxionEffectiveFluid()
+        model.set_params(w_n=w_n, fde_zc=f_ede, zc=z_c, theta_i=theta_i)
+
+        return model
+
 def _expm1_ratio(x):
     """``expm1(x)/x``, equal to 1 at 0 and accurate near it."""
 
@@ -373,6 +480,7 @@ DARK_ENERGY = {
     for cls in (
         DarkEnergy, WCDM, CPL, JBP, BA, Logarithmic, PEDE, GEDE,
         SignSwitchingLambda, GCG, InteractingDarkEnergy, HuSawicki,
+        EarlyDarkEnergy,
     )
 }
 

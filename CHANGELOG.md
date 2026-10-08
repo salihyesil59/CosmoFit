@@ -16,6 +16,37 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Early dark energy
+
+The next item of the plan: `background: {dark_energy: ede}`, early dark
+energy as the effective fluid of Poulin et al. (2018) on top of a
+cosmological constant -- `rho_ede = 2 rho_c / [1 + (a/a_c)^{3(1+w_n)}]`,
+frozen before `z_c` and diluting with `w = w_n` after it. Parameters
+`f_ede` and `z_c`; `w_n` (1/2, the `n = 3` potential) and `theta_i`
+(2.83) default.
+
+`f_ede` is defined as CAMB defines it -- the EDE's share of *all* the
+energy at `z_c` -- which together with the closure fixes `rho_c` in
+closed form; and the `camb` theory hands CAMB its own
+`AxionEffectiveFluid` (perturbations included) instead of a PPF table
+of `w(a)`, through a `camb_dark_energy` hook any sector can define.
+How it was checked: `H(z)` is CAMB's to 2e-7 from today to `z = 1e4`,
+CAMB's own densities give back `f_ede` at `z_c` to 1e-6, and `w(z)` is
+what continuity gives for the dark energy in `E^2`, differentiated
+numerically.
+
+**Decoupling now sees a non-standard early universe too.** The
+early-universe theory already read the drag-epoch fit at the cold
+matter density that gives the background's *actual* `H(z_drag)`; the
+decoupling fit was still given `Omega_m h^2` as it is. Against CAMB,
+with `f_ede = 0.1`, that left `theta_*` 0.044% high -- more than
+Planck's 0.03% error on it, so a fit of EDE to the CMB distance priors
+would have been biased by about one and a half sigma. Read the same way
+as the drag fit, the error is 0.014% (0.022% at `f_ede = 0.15`), and
+`r_d` is CAMB's to 2e-4. In LCDM nothing moves (1e-10); for the other
+models with a non-standard early universe -- the running vacuum, IDE
+-- `z_*` now follows their expansion as `z_drag` already did.
+
 ### Matter power spectra and `sigma(R)` from CAMB
 
 The first item of the plan after 2.0: the `camb` theory now provides

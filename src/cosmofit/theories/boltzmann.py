@@ -13,6 +13,8 @@ now read off the sector's hooks:
 * a dark-energy fluid on top of general relativity, with an equation
   of state ``w(z)``, is passed through CAMB's PPF module as a table of
   ``w(a)``;
+* an early dark energy is passed as CAMB's own ``AxionEffectiveFluid``,
+  through the sector's ``camb_dark_energy`` hook;
 * a sector that changes the gravitational coupling (``mu``), moves
   energy into matter (``matter_exchange``, ``clustering_matter``) or
   makes ``E(z)`` jump is refused. CAMB would run for each of them --
@@ -329,7 +331,13 @@ class CAMB(Theory):
             redshifts=sorted(self.redshifts, reverse=True), kmax=self.k_max, silent=True,
         )
 
-        if type(sector) is not DarkEnergy:
+        if hasattr(sector, "camb_dark_energy"):
+
+            # A sector CAMB has a model of its own for -- the early dark
+            # energy's fluid, perturbations included -- is given that.
+            pars.DarkEnergy = sector.camb_dark_energy(camb, **expansion["sector_params"])
+
+        elif type(sector) is not DarkEnergy:
 
             z = 1.0 / _A_TABLE - 1.0
 

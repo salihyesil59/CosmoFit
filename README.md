@@ -40,6 +40,10 @@ pip install cosmofit
   * **LsCDM** (sign-switching Lambda, Akarsu et al.) -- Lambda flips sign at
     z_dagger ~ 2 (AdS below, dS above), shrinking r_d and so raising the BAO-inferred H0;
     a route to the H0 tension that late-time-only dark-energy models cannot take
+  * **EDE** (early dark energy, Poulin et al. 2018) -- a fraction `f_ede` of the energy at
+    `z_c ~ 3500`, frozen before and diluting after, on top of Lambda; shrinks r_d and
+    theta_* *before* recombination, the other route to the H0 tension. On the 2.0 core only
+    (`background: {dark_energy: ede}`); CAMB is given it as its own `AxionEffectiveFluid`
   * **GCG** (Generalized Chaplygin Gas) -- unified dark matter/dark energy fluid,
     p = -A/rho^alpha
   * **IDE** (Interacting Dark Energy) -- Q = 3 xi H rho_de in closed form; changes how

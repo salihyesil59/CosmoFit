@@ -549,7 +549,15 @@ class Background(Theory):
         if not hasattr(self.sector, "w"):
             raise ComponentError(f"{self.sector!r} has no equation of state.")
 
-        return self.sector.w(z, **self._state()["sector_params"])
+        state = self._state()
+
+        # A sector made of more than one dark energy (EDE on a
+        # cosmological constant) weighs their w by densities that
+        # depend on the standard fluids.
+        if getattr(self.sector, "w_reads_context", False):
+            return self.sector.w(z, ctx=state["context"], **state["sector_params"])
+
+        return self.sector.w(z, **state["sector_params"])
 
     def get_Omega_de_z(self, z):
         """

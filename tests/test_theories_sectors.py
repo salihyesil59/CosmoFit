@@ -35,6 +35,7 @@ def background(sector, radiation=True, **params):
     if not theory.sector.derives_matter:
         values["Omega_m"] = 0.31
 
+    values.update(theory.sector.defaults)
     values.update(params)
 
     with warnings.catch_warnings():
@@ -183,6 +184,7 @@ RADIATION_CASES = {
     "ade": {"n_ade": 2.8},
     "rde": {"gamma_rde": 0.45},
     "rvm": {"nu": 0.01},
+    "ede": {"f_ede": 0.1, "z_c": 3500.0},
 }
 
 
@@ -209,6 +211,7 @@ def test_every_sector_closes_with_radiation(sector):
     ("cardassian", {"n_card": 0.0, "q_card": 1.0}, True),
     ("rvm", {"nu": 0.0}, True),
     ("ide", {"w0": -1.0, "xi": 0.0}, True),
+    ("ede", {"f_ede": 0.0, "z_c": 3500.0}, True),
 ])
 def test_limits_that_are_lcdm_with_radiation(sector, params, lcdm_limit):
 
@@ -354,6 +357,84 @@ def test_fq_exponential_solves_its_friedmann_equation():
     np.testing.assert_allclose(
         (x - 2 * lam) * np.exp(lam / x), context.rho_std(z), rtol=1e-12,
     )
+
+
+@pytest.mark.parametrize("w_n", [0.5, 1.0 / 3.0, 1.0])
+def test_early_dark_energy_is_its_fraction_at_z_c_and_obeys_continuity(w_n):
+    """
+    ``f_ede`` is the EDE's share of everything at ``z_c``, and ``w(z)``
+    is the one continuity gives for the dark energy ``E^2`` holds --
+    differentiated numerically, not taken from the formula.
+    """
+
+    z_c = 3500.0
+
+    theory = background("ede", f_ede=0.1, z_c=z_c, w_n=w_n)
+    sector = theory.sector
+
+    Omega_L, rho_c = sector._densities(ctx(theory), 0.1, z_c, w_n)
+
+    assert rho_c / float(E2(theory, z_c)) == pytest.approx(0.1, rel=1e-12)
+
+    def rho_de(N):
+        z = math.expm1(-N)
+        return float(E2(theory, z) - ctx(theory).rho_std(z) - ctx(theory).curvature(z))
+
+    for z in (0.5, 10.0, 1100.0, z_c, 2e4):
+
+        N = -math.log1p(z)
+        w = -1.0 - dlog(rho_de, N) / 3.0
+
+        assert float(theory.get_w(z)) == pytest.approx(w, abs=1e-6)
+
+    # Frozen long before z_c; diluting as w_n long after it, where the
+    # cosmological constant is still negligible.
+    sector_w = theory.get_w(np.array([1e7, 300.0]))
+
+    assert sector_w[0] == pytest.approx(-1.0, abs=1e-6)
+    assert sector_w[1] == pytest.approx(w_n, abs=0.05)
+
+
+def test_early_dark_energy_shrinks_the_sound_horizon():
+
+    class Probe(Likelihood):
+
+        def get_requirements(self):
+            return {"rdrag": None}
+
+        def logp(self):
+            return 0.0
+
+    def rdrag(sector, **params):
+
+        m = get_model({
+            "theory": {"background": {"dark_energy": sector}, "early_universe": None},
+            "likelihood": {"probe": {"class": Probe}},
+            "params": {"H0": 68.0, "Omega_m": 0.31, "Omega_b": 0.049, **params},
+        })
+
+        m.logposterior({})
+
+        return m.provider.get_rdrag()
+
+    lcdm = rdrag("lambda")
+    ede = rdrag("ede", f_ede=0.1, z_c=3500.0)
+
+    # About 3%, the size that would reconcile the BAO and SH0ES H0.
+    assert 0.95 < ede / lcdm < 0.99
+
+
+def test_early_dark_energy_fraction_must_be_a_fraction():
+
+    theory = Background({"dark_energy": "ede", "radiation": True})
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert not theory.compute({
+            "H0": 68.0, "Omega_b": 0.049, "Omega_m": 0.31, "Omega_k": 0.0,
+            "N_eff": 3.044, "m_nu": 0.06, "f_ede": 1.2, "z_c": 3500.0,
+            **theory.sector.defaults,
+        })
 
 
 def test_interacting_dark_energy_moves_energy_into_matter():

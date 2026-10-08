@@ -15,9 +15,11 @@ recombination calculation: the drag and decoupling redshifts
 (:func:`~cosmology.calculators.sound_horizon.z_drag_fit`,
 :func:`~cosmology.calculators.recombination.z_star_fit`). Both were
 calibrated in LCDM, where the densities reach them through the
-expansion rate they set; the drag fit is therefore evaluated at the
-cold-matter density that gives the background's *actual* ``H(z_drag)``,
-which for a standard early universe is ``omega_cb`` itself.
+expansion rate they set; each fit is therefore evaluated at the
+cold-matter density that gives the background's *actual* ``H`` at its
+redshift, which for a standard early universe is ``omega_cb`` itself.
+With an early dark energy that keeps ``theta_*`` within 0.02% of
+CAMB's, where ``Omega_m h^2`` as it is left it 0.04% off.
 
 Requires a background with ``radiation: true``.
 """
@@ -116,17 +118,22 @@ class EarlyUniverse(Theory):
         # The cold-matter density that gives the background's actual
         # H at the drag epoch: omega_cb exactly for a standard early
         # universe, more or less for anything that changes it.
-        a = 1.0 / (1.0 + z_standard)
+        def effective_cb(z):
 
-        effective = (
-            float(E(z_standard)) ** 2 * h * h
-            - d["omega_gamma"] / a ** 4
-            - float(neutrino_density(a, d["N_eff"], d["m_nu"], d["omega_gamma"]))
-        ) * a ** 3
+            a = 1.0 / (1.0 + z)
 
-        zdrag = z_drag_fit(d["omega_b"], effective, d["N_eff"], omega_nu)
+            return (
+                float(E(z)) ** 2 * h * h
+                - d["omega_gamma"] / a ** 4
+                - float(neutrino_density(a, d["N_eff"], d["m_nu"], d["omega_gamma"]))
+            ) * a ** 3
 
-        zstar = z_star_fit(d["omega_b"], d["Omega_m"] * h * h)
+        zdrag = z_drag_fit(d["omega_b"], effective_cb(z_standard), d["N_eff"], omega_nu)
+
+        # The same for decoupling, whose fit takes all of omega_m.
+        z_standard = z_star_fit(d["omega_b"], d["Omega_m"] * h * h)
+
+        zstar = z_star_fit(d["omega_b"], effective_cb(z_standard) + omega_nu)
 
         rdrag = rs(zdrag)
         rstar = rs(zstar)
