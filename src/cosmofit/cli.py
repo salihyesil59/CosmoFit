@@ -6,6 +6,7 @@ The ``cosmofit`` command.
     cosmofit run input.yaml [--output PREFIX] [--force | --resume] [--seed N]
     cosmofit list [theory | likelihood | sampler]
     cosmofit doc NAME
+    cosmofit install [NAME | input.yaml ...] [--path DIR] [--force] [--list]
     cosmofit gui [streamlit options]
 
 ``run`` runs an input: its sampler, or -- for an input with a ``post``
@@ -23,6 +24,11 @@ the built-in ones and those installed packages register under the
 takes, the parameters it brings with their default declarations, and
 what it provides or requires -- the starting point for writing it into
 an input.
+
+``install`` downloads the data packages too large to ship with the
+library (:mod:`cosmofit.install`): by name, or every one the
+components of an input need; ``--list`` shows them and whether each is
+installed.
 
 ``gui`` starts the graphical interface (:mod:`cosmofit.gui`); what
 follows it goes to ``streamlit run``.
@@ -289,6 +295,63 @@ def _doc(args) -> int:
 
 
 # ============================================================
+# install
+# ============================================================
+
+def _install(args) -> int:
+
+    from pathlib import Path
+
+    from cosmofit import install as data
+
+    root = data.data_path(args.path)
+
+    if args.list:
+
+        packages = data.available_packages()
+
+        if not packages:
+            print("No data packages are registered.")
+            return 0
+
+        print(f"Data packages (installed in {root}):")
+
+        for name, package in packages.items():
+
+            state = "installed" if data.is_installed(name, args.path) else "-"
+            size = f"{package.size / 1e6:.0f} MB" if package.size else ""
+
+            print(f"  {name:<26} {state:<10} {size:>8}  {package.description}")
+
+        return 0
+
+    if not args.names:
+        raise SystemExit("cosmofit install: name a package or an input, or pass --list.")
+
+    names = []
+
+    for name in args.names:
+
+        if name.endswith((".yaml", ".yml")) and Path(name).is_file():
+
+            from cosmofit.core import load_info
+
+            needed = data.packages_for(load_info(name))
+
+            print(f"{name} needs: {', '.join(needed) or 'no data packages'}")
+            names.extend(needed)
+
+        else:
+            names.append(name)
+
+    if names:
+        print(f"Installing in {root}:")
+        data.install(names, path=args.path, force=args.force)
+
+    return 0
+
+
+# ============================================================
 
 def _parser() -> argparse.ArgumentParser:
 
@@ -317,6 +380,15 @@ def _parser() -> argparse.ArgumentParser:
 
     doc = commands.add_parser("doc", help="describe one component")
     doc.add_argument("name")
+
+    install = commands.add_parser(
+        "install", help="download data packages, by name or for an input",
+    )
+    install.add_argument("names", nargs="*", metavar="NAME", help="a package, or an input YAML")
+    install.add_argument("--path", help="where packages go (default: $COSMOFIT_PACKAGES_PATH "
+                                        "or ~/.cosmofit/packages)")
+    install.add_argument("-f", "--force", action="store_true", help="download again")
+    install.add_argument("--list", action="store_true", help="list the packages")
 
     # What follows `gui` goes to `streamlit run` as it is; see main().
     commands.add_parser(
@@ -348,7 +420,9 @@ def main(argv=None) -> int:
 
     args.streamlit_args = unknown
 
-    handler = {"run": _run, "list": _list, "doc": _doc, "gui": _gui}[args.command]
+    handler = {
+        "run": _run, "list": _list, "doc": _doc, "install": _install, "gui": _gui,
+    }[args.command]
 
     try:
         return handler(args)

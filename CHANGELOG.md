@@ -16,6 +16,35 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### `cosmofit install`: data packages
+
+What the plan kept for the large datasets -- full CMB spectra, per-lens
+time-delay posteriors -- is the way to get them: **data packages**, a
+URL and the SHA-256 the file must have, installed with
+
+```bash
+cosmofit install NAME            # by name
+cosmofit install input.yaml      # what an input's components need
+cosmofit install --list
+```
+
+or `cosmofit.install.install([...])`, into `~/.cosmofit/packages`,
+`$COSMOFIT_PACKAGES_PATH` or `--path`. A likelihood names what it needs
+in a `data_packages` attribute and finds it with
+`cosmofit.install.package_path(name)`, whose error, when the package is
+missing or older than the registry's, is the command that installs it.
+Other packages register theirs under the `cosmofit.data_packages` entry
+point.
+
+A download goes to a file beside its destination and is checked before
+anything is replaced, so a failed or corrupted one leaves the previous
+installation, or nothing -- never half a package; and an archive member
+that would land outside the package's directory (`..`, an absolute
+path, a symbolic link pointing out) is refused before anything is
+unpacked. The tests install zip, tar.gz and plain files from `file://`
+URLs, and check each of these refusals; the registry itself is empty
+until the first likelihood that needs a package arrives.
+
 ### Two more chronometers, and the M_B calibration as a prior
 
 * `cc` has a `favale2023_extended` version: the 32 points, plus Jiao et

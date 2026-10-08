@@ -67,6 +67,9 @@ The command line
 .. automodule:: cosmofit.cli
    :members:
 
+.. automodule:: cosmofit.install
+   :members:
+
 Samplers
 --------
 

@@ -254,6 +254,18 @@ pip install "cosmofit[evidence]"  # dynesty: nested sampling, Bayes factors
 pip install "cosmofit[speed]"     # numba: ~1.7x on growth-heavy fits, nothing else
 ```
 
+Data too large to ship with the package are *data packages*, downloaded
+once, checked against their SHA-256, and kept in `~/.cosmofit/packages`
+(or `$COSMOFIT_PACKAGES_PATH`, or `--path`):
+
+```bash
+cosmofit install --list          # what can be installed, and what is
+cosmofit install input.yaml      # whatever an input's likelihoods need
+```
+
+A likelihood that needs one and does not find it says which command
+installs it.
+
 Everything is importable from the top-level package:
 
 ```python
@@ -298,6 +310,7 @@ CosmoFit/
 │   ├── stats/         # Fitter (MCMC/best-fit), priors, posterior, saved chains, model comparison
 │   ├── theory/        # build a model from an action: reduce, vary, solve (optional: sympy)
 │   ├── gui/           # the Streamlit GUI: `cosmofit gui`
+│   ├── install.py     # data packages: `cosmofit install`
 │   └── plots/         # FitPlotter -- every figure, attached as fitter.plots
 ├── examples/          # example notebooks, in five sections
 ├── tests/             # the test suite
