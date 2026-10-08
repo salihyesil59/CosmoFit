@@ -68,6 +68,42 @@ S8_FILES = {
 
     },
 
+    "kids_legacy": {
+
+        "parent": "s8",
+
+        "folder": "kids_legacy",
+
+        "data": "s8_kids_legacy.txt",
+
+        "reference": "Wright et al. (2025), A&A 703, A158, arXiv:2503.19441",
+
+    },
+
+    "hsc_y3": {
+
+        "parent": "s8",
+
+        "folder": "hsc_y3",
+
+        "data": "s8_hsc_y3.txt",
+
+        "reference": "Li et al. (2023), Phys. Rev. D, arXiv:2304.00702",
+
+    },
+
+    "desy3_kids1000": {
+
+        "parent": "s8",
+
+        "folder": "desy3_kids1000",
+
+        "data": "s8_desy3_kids1000.txt",
+
+        "reference": "DES & KiDS Collaborations / Abbott et al. (2023), OJAp, arXiv:2305.17173",
+
+    },
+
 }
 
 
@@ -169,11 +205,14 @@ def load_s8(
     Parameters
     ----------
     version : str, optional
-        Dataset version -- ``"kids1000"`` (default) or
-        ``"des_y3"``. Don't combine the two in the same fit: they
-        are independent surveys, not a single joint constraint, and
+        Dataset version -- ``"kids1000"`` (default), ``"des_y3"``
+        (3x2pt), ``"kids_legacy"`` (the complete KiDS, superseding
+        KiDS-1000), ``"hsc_y3"`` or ``"desy3_kids1000"`` (the two
+        surveys' shear analysed jointly). Load one:
         :class:`~likelihoods.s8.S8Likelihood` treats whichever
-        version is loaded as the only S8 measurement in the fit.
+        version is loaded as the only S8 measurement in the fit, and
+        several of them share data -- KiDS-Legacy contains KiDS-1000,
+        the joint analysis contains both KiDS-1000 and DES Y3.
 
     Returns
     -------

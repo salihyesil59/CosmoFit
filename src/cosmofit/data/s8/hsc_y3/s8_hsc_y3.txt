@@ -1,0 +1,9 @@
+# Hyper Suprime-Cam Year 3 cosmic shear S8 = sigma8*sqrt(Omega_m/0.3)
+# constraint, from the two-point correlation functions (real space).
+# Li et al. (2023), arXiv:2304.00702 (Phys. Rev. D).
+# Reported as S8 = 0.769 (+0.031, -0.034) (68% CL, flat LCDM); sigma
+# below is the symmetrized average of the two one-sided errors,
+# (0.031+0.034)/2, for use in a symmetric Gaussian likelihood.
+#
+# value    sigma
+0.769      0.0325

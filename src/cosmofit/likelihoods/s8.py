@@ -16,13 +16,15 @@ from cosmofit.data.loader import load_s8
 class S8Likelihood(BaseLikelihood):
     """
     A single Gaussian S8 = sigma8 * sqrt(Omega_m / 0.3) constraint
-    from a weak-lensing survey (default: KiDS-1000; also DES Y3 --
-    see :func:`~data.loader.load_s8`).
+    from a weak-lensing survey (default: KiDS-1000; also DES Y3,
+    KiDS-Legacy, HSC Y3 and DES Y3 + KiDS-1000 jointly -- see
+    :func:`~data.loader.load_s8`).
 
-    Don't combine ``"s8"`` with a different ``version`` in the same
-    fit -- KiDS-1000 and DES Y3 are independent, not a single joint
-    constraint; pass ``dataset_kwargs={"s8": {"version": "des_y3"}}``
-    to use one or the other, not both at once.
+    One version per fit: pass e.g.
+    ``dataset_kwargs={"s8": {"version": "kids_legacy"}}``. Several
+    share data (KiDS-Legacy contains KiDS-1000; the joint analysis
+    contains both KiDS-1000 and DES Y3), and the independent ones are
+    not a single joint constraint either.
     """
 
     def __init__(

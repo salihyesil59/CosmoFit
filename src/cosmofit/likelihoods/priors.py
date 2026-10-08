@@ -241,7 +241,9 @@ class H0Likelihood(GaussianPriorLikelihood):
     ``"tdcosmo2025"`` (Birrer et al. 2025, strong-lensing time
     delays, 71.6 +- 3.6 -- independent of the Cepheid ladder
     entirely, and the one to reach for when the question is
-    whether the tension survives dropping SH0ES).
+    whether the tension survives dropping SH0ES), and ``"cchp2024"``
+    (Freedman et al. 2024, the tip of the red giant branch with HST
+    and JWST, 70.39 +- 1.94 -- a distance ladder without Cepheids).
 
     Do not combine two of them: they measure the same number.
     """

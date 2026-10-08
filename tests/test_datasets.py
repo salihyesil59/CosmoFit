@@ -364,6 +364,8 @@ def test_union3_is_binned_and_offset_marginalized():
         ("h0", "sh0es2022", 73.04, 1.04),
         ("omega_b", "bbn2024", 0.02218, 0.00055),
         ("tau", "planck2018", 0.0544, 0.0073),
+        # 1.22 (stat), 1.33 (sys) and 0.70 (SN) in quadrature.
+        ("h0", "cchp2024", 70.39, 1.94),
     ],
 )
 def test_prior_values_are_as_published(dataset, version, value, sigma):
@@ -376,6 +378,27 @@ def test_prior_values_are_as_published(dataset, version, value, sigma):
     from cosmofit.data.loader import load_gaussian_prior
 
     data = load_gaussian_prior(dataset, version)
+
+    assert data.value == pytest.approx(value)
+    assert data.sigma == pytest.approx(sigma)
+
+
+@pytest.mark.parametrize(
+    "version,value,sigma",
+    [
+        ("kids1000", 0.759, 0.0225),
+        ("des_y3", 0.776, 0.017),
+        # Asymmetric errors, symmetrized to the mean of the two sides.
+        ("kids_legacy", 0.815, 0.0185),
+        ("hsc_y3", 0.769, 0.0325),
+        ("desy3_kids1000", 0.790, 0.016),
+    ],
+)
+def test_s8_values_are_as_published(version, value, sigma):
+
+    from cosmofit.data.loader import load_s8
+
+    data = load_s8(version)
 
     assert data.value == pytest.approx(value)
     assert data.sigma == pytest.approx(sigma)

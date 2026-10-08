@@ -16,6 +16,27 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### Newer S8 and H0 measurements
+
+The first datasets of the plan, as versions of the two single-number
+likelihoods that already existed:
+
+* `s8`: **KiDS-Legacy** (Wright et al. 2025, 0.815 +0.016/-0.021, the
+  complete survey -- it contains KiDS-1000), **HSC Y3** (Li et al. 2023,
+  0.769 +0.031/-0.034) and **DES Y3 + KiDS-1000** analysed jointly
+  (2023, 0.790 +0.018/-0.014). KiDS-Legacy matters: the complete survey
+  moved KiDS from the low side of the S8 tension to agreement with
+  Planck, so which version a fit uses changes what it says.
+* `h0`: **CCHP 2024** (Freedman et al.), the tip of the red giant
+  branch calibrated with HST and JWST -- 70.39 +- 1.94, the three
+  published errors (statistical, systematic, supernova) summed in
+  quadrature. A distance ladder without Cepheids, between SH0ES and
+  the CMB.
+
+Every value was read from the paper's abstract, and is pinned by a
+test; asymmetric errors are symmetrized to the mean of the two sides,
+as for the versions already there.
+
 ### Early dark energy
 
 The next item of the plan: `background: {dark_energy: ede}`, early dark

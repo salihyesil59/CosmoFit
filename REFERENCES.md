@@ -411,6 +411,12 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   Cosmological constraints from strong lensing time delays*, A&A 704,
   A63 (H0 = 71.6 +3.9/-3.3; symmetrized to +-3.6 here).
   [arXiv:2506.03023](https://arxiv.org/abs/2506.03023)
+- **Freedman et al. (2024)**, *Status Report on the Chicago-Carnegie
+  Hubble Program (CCHP): Measurement of the Hubble Constant Using the
+  Hubble and James Webb Space Telescopes* (TRGB, H0 = 70.39 +- 1.22
+  (stat) +- 1.33 (sys) +- 0.70 (sigma_SN); summed in quadrature to
+  +-1.94 here).
+  [arXiv:2408.06153](https://arxiv.org/abs/2408.06153)
 - **Schoeneberg (2024)**, *The 2024 BBN baryon abundance update*
   (omega_b h^2 = 0.02218 +- 0.00055, the prior DESI DR1/DR2 adopt).
   [arXiv:2401.15054](https://arxiv.org/abs/2401.15054)
@@ -464,6 +470,20 @@ Two relatives of HDE, differing only in the infrared cutoff put into
   Clustering and Weak Lensing*, Phys. Rev. D 105, 023520.
   S8 = 0.776 +/- 0.017.
   [arXiv:2105.13549](https://arxiv.org/abs/2105.13549)
+- **KiDS-Legacy**: Wright et al. (2025), *KiDS-Legacy: Cosmological
+  constraints from cosmic shear with the complete Kilo-Degree Survey*,
+  A&A 703, A158. S8 = 0.815 (+0.016, -0.021). Contains KiDS-1000.
+  [arXiv:2503.19441](https://arxiv.org/abs/2503.19441)
+- **HSC Y3**: Li et al. (2023), *Hyper Suprime-Cam Year 3 Results:
+  Cosmology from Cosmic Shear Two-point Correlation Functions*,
+  Phys. Rev. D. S8 = 0.769 (+0.031, -0.034).
+  [arXiv:2304.00702](https://arxiv.org/abs/2304.00702)
+- **DES Y3 + KiDS-1000**: DES and KiDS Collaborations / Abbott et al.
+  (2023), *DES Y3 + KiDS-1000: Consistent cosmology combining cosmic
+  shear surveys*, Open Journal of Astrophysics. S8 = 0.790 (+0.018,
+  -0.014). Contains both surveys' shear.
+  [arXiv:2305.17173](https://arxiv.org/abs/2305.17173)
+- Asymmetric errors are symmetrized to the mean of the two sides.
 - Used by: [`data/s8/`](src/cosmofit/data/s8/),
   [`likelihoods/s8.py`](src/cosmofit/likelihoods/s8.py)
 

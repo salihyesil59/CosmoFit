@@ -274,12 +274,12 @@ DATASETS = {
 
     "s8": _info(
         "lss.s8", r"$S_8$", "S₈ weak-lensing prior", "growth",
-        references=("2007.15633", "2105.13549"),
+        references=("2007.15633", "2105.13549", "2503.19441", "2304.00702", "2305.17173"),
     ),
 
     "h0": _info(
         "external.h0", r"$H_0$", "Local H₀ (distance ladder)", "external",
-        references=("2112.04510", "2404.08038", "2506.03023"),
+        references=("2112.04510", "2404.08038", "2506.03023", "2408.06153"),
     ),
 
     "omega_b": _info(

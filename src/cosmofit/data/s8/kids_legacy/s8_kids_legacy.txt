@@ -1,0 +1,12 @@
+# KiDS-Legacy cosmic shear S8 = sigma8*sqrt(Omega_m/0.3) constraint,
+# from the complete Kilo-Degree Survey (1347 deg^2).
+# Wright et al. (2025), A&A 703, A158, arXiv:2503.19441.
+# Reported as S8 = 0.815 (+0.016, -0.021) (68% CL); sigma below is
+# the symmetrized average of the two one-sided errors, (0.016+0.021)/2,
+# for use in a symmetric Gaussian likelihood.
+#
+# Supersedes KiDS-1000 (the same survey, a subset of its area): use
+# one or the other, never both.
+#
+# value    sigma
+0.815      0.0185

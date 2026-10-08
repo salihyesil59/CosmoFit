@@ -44,6 +44,11 @@ PRIOR_FILES = {
                 "reference": "TDCOSMO Collaboration / Birrer et al. (2025), A&A 704, A63, arXiv:2506.03023",
             },
 
+            "cchp2024": {
+                "data": "h0_cchp2024.txt",
+                "reference": "Freedman et al. (2024), arXiv:2408.06153 (CCHP, TRGB with HST and JWST)",
+            },
+
         },
 
     },

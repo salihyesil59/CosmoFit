@@ -1,0 +1,11 @@
+# Chicago-Carnegie Hubble Program: the tip of the red giant branch,
+# calibrated with HST and JWST, tied to 24 SNe Ia -- a distance ladder
+# with no Cepheids in it.
+# Freedman et al. (2024), arXiv:2408.06153.
+#
+# Reported as H0 = 70.39 +/- 1.22 (stat) +/- 1.33 (sys) +/- 0.70
+# (sigma_SN). The three are independent, so sigma below is their sum
+# in quadrature, sqrt(1.22^2 + 1.33^2 + 0.70^2) = 1.94.
+#
+# [value] [sigma]   H0 in km/s/Mpc
+70.39 1.94

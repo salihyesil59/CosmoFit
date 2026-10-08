@@ -1,0 +1,12 @@
+# DES Y3 + KiDS-1000 joint cosmic shear S8 = sigma8*sqrt(Omega_m/0.3)
+# constraint, the two surveys analysed with one consistent pipeline.
+# DES and KiDS Collaborations / Abbott et al. (2023), Open Journal of
+# Astrophysics, arXiv:2305.17173.
+# Reported as S8 = 0.790 (+0.018, -0.014) (68% CL, mean); sigma below
+# is the symmetrized average of the two one-sided errors,
+# (0.018+0.014)/2, for use in a symmetric Gaussian likelihood.
+#
+# Contains KiDS-1000's shear and DES Y3's: combine it with neither.
+#
+# value    sigma
+0.790      0.016

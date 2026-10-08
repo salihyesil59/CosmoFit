@@ -137,12 +137,13 @@ pip install cosmofit
   * **ACT DR6 CMB lensing** -- a second, independent lensing reconstruction, tighter than
     Planck's (2.3% on the amplitude), built on the lensing convergence rather than the potential
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
-  * S8 weak-lensing prior (KiDS-1000 or DES Y3, Gaussian) -- don't combine the two versions,
-    see the note below
+  * S8 weak-lensing prior (KiDS-1000, KiDS-Legacy, DES Y3, HSC Y3, or DES Y3 + KiDS-1000
+    jointly; Gaussian) -- one version per fit: several share data, and the others are not
+    one joint constraint
   * **External single-number measurements**, entering as datasets rather than as priors so
     they show up in the chi2 breakdown and the degrees-of-freedom count: local **H0**
-    (SH0ES 2022/2024, or TDCOSMO 2025 time-delay lensing -- independent of the Cepheid
-    ladder), a **BBN** constraint on omega_b h^2 (Schoeneberg 2024 or Cooke 2018), and the
+    (SH0ES 2022/2024; CCHP 2024's tip of the red giant branch, a ladder without Cepheids; or
+    TDCOSMO 2025 time-delay lensing -- independent of the ladder altogether), a **BBN** constraint on omega_b h^2 (Schoeneberg 2024 or Cooke 2018), and the
     Planck lowE **tau** prior
 
 * Modular likelihood architecture
