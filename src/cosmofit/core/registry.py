@@ -41,6 +41,7 @@ _BUILTIN = {
         "bao.sdss_fullshape": "cosmofit.likelihoods.native:SDSSFullShape",
         "bao.eboss_elg": "cosmofit.likelihoods.native:EBOSSELG",
         "bao.eboss_elg_fullshape": "cosmofit.likelihoods.native:EBOSSELGFullShape",
+        "bao.desi_fullshape": "cosmofit.likelihoods.desi_fullshape:DESIFullShape",
         "bao.eboss_lya": "cosmofit.likelihoods.native:EBOSSLya",
         "bao.lowz": "cosmofit.likelihoods.native:BAOLowZ",
         "sn.pantheonplus": "cosmofit.likelihoods.native:PantheonPlus",

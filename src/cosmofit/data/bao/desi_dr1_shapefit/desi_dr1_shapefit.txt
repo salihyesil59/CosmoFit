@@ -1,0 +1,21 @@
+# DESI DR1 full-shape clustering, compressed with ShapeFit: per tracer,
+# the data vector (D_V/r_d, D_H/D_M, f sigma_s8, m+n) and its Gaussian
+# covariance, in units of 1e-4 (upper triangle, row by row).
+# DESI Collaboration / Adame et al. (2025), "DESI 2024 V: Full-Shape
+# Galaxy Clustering from Galaxies and Quasars", JCAP 09 (2025) 008,
+# arXiv:2411.12021, appendix A -- extracted programmatically from the
+# paper's LaTeX source. z_eff from its table 1.
+#
+# The ShapeFit fits to the pre-reconstruction power spectrum alone.
+#
+# sigma_s8 is the r.m.s. of the cold matter (CDM + baryons) in spheres
+# of 8 Mpc/h of the fiducial cosmology (Planck LCDM, h = 0.6736),
+# whose sound horizon is r_d = 99.0792 Mpc/h.
+#
+# tracer  z_eff  DV/rd  DH/DM  fsigma_s8  m+n   C11 C12 C13 C14 C22 C23 C24 C33 C34 C44
+BGS   0.295  7.788174  3.053800  0.377174  -0.031370   1314.664401  -142.669742  109.427163  -217.509715  829.170940  -158.101737  -61.084426  88.510877  -2.272457  279.702360
+LRG1  0.510  12.514437  1.637266  0.513635  0.027840   541.309833  48.425593  -4.652853  -37.707751  97.249820  -34.923265  -14.418597  41.295470  15.405508  48.918910
+LRG2  0.706  15.675560  1.165867  0.483623  0.046650   762.457717  39.781004  -1.896006  -62.812849  36.344098  -17.341350  -8.333900  28.119682  8.865225  47.624520
+LRG3  0.919  19.676985  0.844996  0.422164  -0.024690   847.499793  26.038900  3.257324  -37.016091  16.251088  -10.044074  -3.698790  22.370314  6.467510  34.883220
+ELG2  1.317  23.861806  0.470709  0.376715  0.059960   2342.506886  26.159601  13.521001  -95.336060  10.309303  -6.654663  -5.183903  13.997473  9.109619  43.575710
+QSO   1.491  25.708520  0.426508  0.434858  0.064550   3013.788566  -2.205101  36.332110  -98.167826  5.845806  -6.747133  -1.913326  19.785658  5.357546  26.266260

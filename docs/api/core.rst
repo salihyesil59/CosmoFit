@@ -144,5 +144,8 @@ Native likelihoods
 .. automodule:: cosmofit.likelihoods.native
    :members:
 
+.. automodule:: cosmofit.likelihoods.desi_fullshape
+   :members:
+
 .. automodule:: cosmofit.data.metadata
    :members: DatasetInfo, conflicts

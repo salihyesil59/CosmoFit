@@ -105,6 +105,11 @@ pip install cosmofit
     as the BAO-only entry above, so use one or the other -- and prefer this one over
     pairing `sdss_bao` with `fsigma8`, which covers the same galaxies while treating
     growth and geometry as uncorrelated when they are not
+  * **DESI DR1 full shape**, compressed with ShapeFit (2.0 core only:
+    `bao.desi_fullshape`): D_V/r_d, D_H/D_M and f*sigma_s8 for the six DR1 tracers, alone
+    or with the reconstructed BAO. The growth is read at the scale the template was
+    stretched to -- sigma of the cold matter in spheres of 8 r_d/99.08 Mpc, off CAMB -- so
+    it needs the `camb` theory; not to be combined with DESI BAO
   * BAO as a **tabulated likelihood surface** rather than a mean and a covariance:
     **eBOSS DR16 ELG** (`D_V/r_d` at z=0.845, a 399-point curve) and **eBOSS DR16
     Lyman-alpha** (`(D_M/r_d, D_H/r_d)` at z=2.334, a 50x50 surface, the

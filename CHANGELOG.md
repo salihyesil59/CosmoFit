@@ -16,6 +16,36 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### DESI DR1 full shape
+
+`bao.desi_fullshape`: the six DESI DR1 tracers' full-shape clustering
+as DESI 2024 V compressed it with ShapeFit -- `D_V/r_d`, `D_H/D_M` and
+`f sigma_s8` per tracer with their covariance, from the pre-
+reconstruction fits alone (`version: shapefit`) or with the
+post-reconstruction BAO (`shapefit_bao`). The first likelihood on the
+2.0 core with no 1.x counterpart: it needs the matter power spectrum,
+which only the new `camb` theory gives.
+
+The data are the paper's appendix A, extracted from its LaTeX source
+by a script rather than typed, and a corner of each version is pinned
+against the printed numbers. The shape parameter `m + n` is
+marginalized (its row and column dropped): predicting it needs the
+slope of the no-wiggle spectrum, a model of its own.
+
+How the prediction was pinned down: `sigma_s8` is `sigma` of the cold
+matter in spheres of `8 Mpc/h` *of the fiducial cosmology*, and the
+template's scales follow `r_d`, so in another cosmology the sphere is
+`8 r_d / 99.0792` Mpc. At DESI's fiducial cosmology that gives back
+the paper's table 11 -- `sigma_s8` and `f sigma_s8` for all six tracers
+-- to the four digits it prints, with no fudge. And a Fisher fit of
+LCDM to `shapefit_bao` with the BBN prior gives `H0 = 68.6 +- 1.0`,
+`Omega_m = 0.295 +- 0.020`, `ln(1e10 A_s) = 3.13 +- 0.16`, against the
+paper's full-modelling `68.63 +- 0.79`, `0.296 +- 0.010`, `3.117 +-
+0.097` -- the same centres, with the wider errors that dropping the
+shape costs.
+
+Combined with DESI BAO (either release) it warns: the same galaxies.
+
 ### Newer S8 and H0 measurements
 
 The first datasets of the plan, as versions of the two single-number

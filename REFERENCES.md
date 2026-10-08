@@ -46,6 +46,21 @@ repository.
 - Used by: [`data/bao/desi2024/`](src/cosmofit/data/bao/desi2024/),
   [`likelihoods/desi.py`](src/cosmofit/likelihoods/desi.py)
 
+### DESI DR1 full shape (ShapeFit)
+
+- **DESI Collaboration / Adame et al. (2025)**, *DESI 2024 V: Full-Shape
+  Galaxy Clustering from Galaxies and Quasars*, JCAP 09 (2025) 008.
+  [arXiv:2411.12021](https://arxiv.org/abs/2411.12021)
+- The ShapeFit data vectors `(D_V/r_d, D_H/D_M, f sigma_s8, m+n)` and
+  their Gaussian covariances for the six DR1 tracers, alone and combined
+  with the post-reconstruction BAO of DESI 2024 III (JCAP 04 (2025) 012,
+  [arXiv:2404.03000](https://arxiv.org/abs/2404.03000)): appendix A,
+  extracted programmatically from the paper's LaTeX source; `z_eff` from
+  its table 1, the fiducial `r_d = 99.0792 Mpc/h` from its table 11.
+- **Do not combine with DESI BAO** (DR1 or DR2): the same galaxies.
+- Used by: [`data/bao/desi_dr1_shapefit/`](src/cosmofit/data/bao/desi_dr1_shapefit/),
+  [`likelihoods/desi_fullshape.py`](src/cosmofit/likelihoods/desi_fullshape.py)
+
 ### DESI DR2 BAO (2025)
 
 - **DESI Collaboration et al. (2025)**, *DESI DR2 Results II:
