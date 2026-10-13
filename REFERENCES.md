@@ -28,9 +28,11 @@ repository.
 - `data_MM20.dat` (systematic error budget) is copied unmodified from
   [gitlab.com/mmoresco/CCcovariance](https://gitlab.com/mmoresco/CCcovariance)
   at commit `881413330a7f1e1e5203607d6964db49b4c6c461`; the off-diagonal
-  CC covariance is built from it (`data.loader._cc_covariance`), and
-  `CC_32_Favale2023_Moresco2020_correlation.txt` is kept as the check
-  on that construction.
+  CC covariance of the 15 Moresco et al. measurements is built from it
+  (`data.loader._cc_covariance`), following the script behind the
+  covariance of Favale et al. (A. Favale, private communication). The
+  other measurements are uncorrelated. We thank Dr. Arianna Favale for
+  sharing that script.
 - **Jiao et al. (2023)**, *New Observational H(z) Data from
   Full-spectrum Fitting of Cosmic Chronometers in the LEGA-C Survey*,
   ApJS 265, 48: H(0.8) = 113.1 +- 15.1 (stat) +29.1/-11.3 (syst).

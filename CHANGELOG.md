@@ -16,6 +16,53 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### The CC covariance is the one Favale et al. built
+
+The cosmic chronometer covariance correlated all 32 measurements of the
+Favale et al. (2023) compilation by the IMF and stellar-population
+budget of Moresco et al. (2020). That was a reconstruction: the paper
+does not release its covariance, and the correlation file bundled with
+the data -- not theirs -- has a rank-1 off-diagonal over all 32 points.
+
+Dr. Favale shared the script that built the published one. It sums
+`C_diag + C_IMF + C_SPS` over the 15 measurements of Moresco et al.
+(2012, 2015, 2016) only, and puts the other 17 on the diagonal with
+their tabulated errors: those come from other analyses, with other
+stellar-population assumptions, and the budget is not theirs. So
+
+    C_ii = sigma_i^2
+    C_ij = sum_k s_k(z_i) s_k(z_j)    i != j, both Moresco's;  0 otherwise
+
+and 210 of the 992 off-diagonal entries are left. The script also
+settles the diagonal, which the earlier fix could only argue for: the
+tabulated error *is* the sum's diagonal, the statistical and systematic
+errors in quadrature (at `z = 0.1791`, 6.2 from 4.5 and 4.2), so
+`sigma^2` stays where it was.
+
+Correlating points that are not correlated had inflated the error.
+Flat LCDM on CC alone:
+
+| covariance | H0 | chi2 |
+|---|---|---|
+| errors alone | 71.03 +- 3.70 | 11.66 |
+| all 32 correlated (before) | 71.29 +- 5.61 | 13.13 |
+| the 15 Moresco points (now) | 71.87 +- 4.24 | 12.29 |
+
+The data files gained a column that marks the Moresco measurements;
+`favale2023_extended` keeps Jiao et al. and Tomasetti et al. on the
+diagonal, as the script does for every point that is not Moresco's
+(71.90 +- 4.23). The bundled correlation file is removed. A test
+rebuilds the covariance element by element, the way the script does,
+and compares.
+
+Every chi2 that includes `cc` moves with it: the 21 `cc` rows of
+`tests/data/golden_chi2.json` are regenerated, and nothing else in the
+file changed. The CPL profile test on CC + DESI + Pantheon+ is pinned
+at its new minimum (1431.8 at `w0 = -0.7`, from 1432.7); it also showed
+that `Fitter.best_fit` stops 0.06 in chi2 short of the minimum the
+core's profile finds along the `H0`-`rd` valley (0.015 before, under
+the test's tolerance), which is left as it is and recorded here.
+
 ### `cosmofit install`: data packages
 
 What the plan kept for the large datasets -- full CMB spectra, per-lens
@@ -51,7 +98,8 @@ until the first likelihood that needs a package arrives.
   al. (2023) at `z = 0.8` (LEGA-C, 113.1 +- 25.2 -- the statistical
   error and the symmetrized +29.1/-11.3 systematic in quadrature) and
   Tomasetti et al. (2023) at `z = 1.26` (VANDELS, 135 +- 65), correlated
-  with the rest by the same IMF and stellar-population budget. Their
+  with the rest by the same IMF and stellar-population budget (no
+  longer: see the entry above). Their
   errors are large, and they move LCDM's CC-only `H0` from 71.29 +- 5.61
   to 71.25 +- 5.60: they are there to be complete, not to change the
   answer. The 32 points' block of the covariance is unchanged, and a

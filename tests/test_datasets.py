@@ -484,39 +484,69 @@ def test_conflicting_datasets_warn(pair):
 
 
 # ============================================================
-# Cosmic chronometers: the systematics correlate the measurements
+# Cosmic chronometers: the systematics correlate Moresco's measurements
 # ============================================================
 
-def _cc_systematic_covariance(data):
+# The 15 measurements of Moresco et al. (2012, 2015, 2016): the rows of
+# HzTable_MM_BC03.dat in gitlab.com/mmoresco/CCcovariance.
+CC_MORESCO_REDSHIFTS = (
+    0.1791, 0.1993, 0.3519, 0.3802, 0.4004, 0.4247, 0.4497, 0.4783,
+    0.5929, 0.6797, 0.7812, 0.8754, 1.037, 1.363, 1.965,
+)
+
+
+def _cc_favale_covariance(data):
     """
-    ``sum_k s_k s_k^T``, ``s_k(z) = H(z) f_k(z)``, for the IMF and SPS
-    (``mod_ooo``) entries of the Moresco et al. (2020) budget -- each
-    fully correlated across redshift on its own.
+    The covariance as the script of Favale et al. (2023) builds it,
+    written the way that script is: element by element for the Moresco
+    points, then placed in the full matrix, whose remaining diagonal is
+    the tabulated error squared.
+
+    The script's ``C_diag`` for the Moresco points holds their
+    statistical errors, which with the systematic give the tabulated
+    one; here it is that difference, so the sum's diagonal is
+    ``sigma^2`` by construction.
     """
 
     from cosmofit.data.loader import DATA_DIR
 
-    table = np.loadtxt(DATA_DIR / "cc" / "favale2023" / "data_MM20.dat")
+    zmod, imf, _, _, spsooo = np.loadtxt(
+        DATA_DIR / "cc" / "favale2023" / "data_MM20.dat", unpack=True,
+    )
 
-    total = np.zeros((len(data.H), len(data.H)))
+    index = [int(np.argmin(np.abs(data.z - z))) for z in CC_MORESCO_REDSHIFTS]
 
-    for column in (1, 4):
+    z, H = data.z[index], data.H[index]
 
-        fraction = np.interp(data.z, table[:, 0], table[:, column]) / 100.0
+    imf_intp = np.interp(z, zmod, imf) / 100
+    spsooo_intp = np.interp(z, zmod, spsooo) / 100
 
-        total += np.outer(data.H * fraction, data.H * fraction)
+    cov_tot = np.diag(data.sigma ** 2)
 
-    return total
+    for i in range(len(z)):
+        for j in range(len(z)):
+
+            if i == j:
+                continue
+
+            cov_tot[index[i], index[j]] = (
+                H[i] * imf_intp[i] * H[j] * imf_intp[j]
+                + H[i] * spsooo_intp[i] * H[j] * spsooo_intp[j]
+            )
+
+    return cov_tot
 
 
 def test_cc_diagonal_is_the_tabulated_errors():
     """
-    The tabulated errors are taken as the total ones: for the Moresco
-    points in the compilation they are already the statistical and SPS
-    errors in quadrature, so the systematic is not added to them again.
+    The tabulated errors are the total ones: for the Moresco points they
+    are the statistical and the IMF and SPS errors in quadrature, so
+    what is left of 6.2 at z = 0.1791 once the systematic is taken out
+    is the statistical 4.5 -- the mean of the 4 and 5 of Moresco et al.
+    (2012)'s two stellar-population models.
     """
 
-    from cosmofit.data.loader import load_cc
+    from cosmofit.data.loader import DATA_DIR, load_cc
 
     data = load_cc()
 
@@ -524,56 +554,55 @@ def test_cc_diagonal_is_the_tabulated_errors():
         np.diag(data.covariance.matrix), data.sigma ** 2, rtol=1e-14,
     )
 
+    table = np.loadtxt(DATA_DIR / "cc" / "favale2023" / "data_MM20.dat")
 
-def test_cc_off_diagonal_is_the_full_systematic_correlation():
+    i = int(np.argmin(np.abs(data.z - 0.1791)))
+
+    systematic = data.H[i] * np.hypot(
+        np.interp(data.z[i], table[:, 0], table[:, 1]),
+        np.interp(data.z[i], table[:, 0], table[:, 4]),
+    ) / 100.0
+
+    assert np.sqrt(data.sigma[i] ** 2 - systematic ** 2) == pytest.approx(4.5, abs=0.05)
+
+
+@pytest.mark.parametrize("version", ["favale2023", "favale2023_extended"])
+def test_cc_covariance_is_the_one_of_favale(version):
     """
-    The covariance used to be ``R * outer(sigma, sigma)``, with ``R``
-    the correlation distributed with the compilation. That correlation
-    was built from ``diag(sigma^2) + s s^T`` -- its off-diagonal is
-    reproduced exactly by the Moresco budget under that construction,
-    which this checks first -- so rescaling it by ``sigma`` alone left
-    every off-diagonal term below the systematic covariance. That is
-    wrong whichever reading of ``sigma`` is right.
+    The covariance correlated all 32 measurements by the Moresco et al.
+    (2020) budget. The authors' own script correlates the 15 Moresco
+    ones and leaves the other 17 on the diagonal: their errors are
+    their own, from other analyses.
     """
 
-    from cosmofit.data.loader import DATA_DIR, load_cc
+    from cosmofit.data.loader import load_cc
 
-    data = load_cc()
+    data = load_cc(version)
 
-    systematic = _cc_systematic_covariance(data)
+    covariance = data.covariance.matrix
 
-    released = np.loadtxt(
-        DATA_DIR / "cc" / "favale2023"
-        / "CC_32_Favale2023_Moresco2020_correlation.txt",
+    np.testing.assert_allclose(
+        covariance, _cc_favale_covariance(data), rtol=1e-12, atol=0,
     )
 
-    # The budget is the one behind the distributed correlation.
-    total = np.sqrt(data.sigma ** 2 + np.diag(systematic))
+    moresco = np.isin(data.z, CC_MORESCO_REDSHIFTS)
+
+    assert moresco.sum() == 15
+
     off = ~np.eye(len(data.z), dtype=bool)
 
-    np.testing.assert_allclose(
-        (systematic / np.outer(total, total))[off],
-        released[off],
-        rtol=0, atol=1e-9,
-    )
+    assert np.all(covariance[np.ix_(moresco, moresco)] > 0)
+    assert not np.any(covariance[~moresco][off[~moresco]])
+    assert np.count_nonzero(covariance[off]) == 15 * 14
 
-    # And the covariance carries it in full.
-    np.testing.assert_allclose(
-        data.covariance.matrix[off], systematic[off], rtol=1e-12,
-    )
-
-    old = released * np.outer(data.sigma, data.sigma)
-
-    assert np.all(data.covariance.matrix[off] > old[off])
-
-    assert np.linalg.eigvalsh(data.covariance.matrix).min() > 0.0
+    assert np.linalg.eigvalsh(covariance).min() > 0.0
 
 
 def test_cc_h0_error_with_correlated_systematics():
     """
-    Flat LCDM to CC alone, Fisher error on H0 at the best fit: 5.27
-    with the old covariance, 5.61 now (and 6.13 if the systematic were
-    also added to the diagonal, the reading not adopted).
+    Flat LCDM to CC alone, Fisher error on H0 at the best fit: 3.70 with
+    the errors alone, 4.24 with the Moresco points correlated (and 5.61
+    when all 32 were, which no source supports).
     """
 
     from scipy.optimize import minimize
@@ -608,8 +637,8 @@ def test_cc_h0_error_with_correlated_systematics():
 
     error = np.sqrt(np.linalg.inv(jacobian.T @ inverse @ jacobian)[0, 0])
 
-    assert best[0] == pytest.approx(71.3, abs=0.1)
-    assert error == pytest.approx(5.61, abs=0.02)
+    assert best[0] == pytest.approx(71.9, abs=0.1)
+    assert error == pytest.approx(4.24, abs=0.02)
 
 
 def test_cc_extended_is_the_32_and_two_more():
@@ -617,7 +646,7 @@ def test_cc_extended_is_the_32_and_two_more():
     ``favale2023_extended`` adds Jiao et al. (2023) and Tomasetti et al.
     (2023) and changes nothing about the 32: their rows and columns of
     the covariance are those of ``favale2023``, and the two new points
-    are correlated with them by the same systematic budget.
+    are on the diagonal alone, like every other that is not Moresco's.
     """
 
     from cosmofit.data.loader import load_cc
@@ -640,4 +669,4 @@ def test_cc_extended_is_the_32_and_two_more():
     # Jiao: 15.1 (stat) and the systematic +29.1/-11.3 symmetrized, in quadrature.
     assert new == {0.8: (113.1, 25.2), 1.26: (135.0, 65.0)}
 
-    assert np.all(full[~old][:, old] > 0)
+    assert not np.any(full[~old][:, old])

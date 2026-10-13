@@ -26,22 +26,18 @@ CC_FILES = {
         "data": "CC_32_Favale2023_data.txt",
 
         # Moresco et al. (2020) systematic error budget, in percent of
-        # H(z); the off-diagonal covariance is built from it -- see
-        # `_cc_covariance`. The distributed correlation matrix is kept
-        # next to it as the check on that construction (tests only).
+        # H(z); the off-diagonal covariance of the Moresco measurements
+        # is built from it -- see `_cc_covariance`.
         "systematics": "data_MM20.dat",
-
-        "correlation": "CC_32_Favale2023_Moresco2020_correlation.txt",
 
         "reference": "Favale, Gomez-Valent & Migliaccio (2023), MNRAS 523, 3406, arXiv:2301.09591",
 
     },
 
     # The same 32, with Jiao et al. (2023) at z = 0.8 and Tomasetti et
-    # al. (2023) at z = 1.26 -- full-spectrum fits published since. They
-    # are correlated with the rest by the same IMF and SPS budget, as
-    # every one of the 32 is: the stellar-population models behind
-    # their ages are the same ones.
+    # al. (2023) at z = 1.26 -- full-spectrum fits published since.
+    # Their errors carry their own systematics and they enter on the
+    # diagonal alone, as every non-Moresco point of the 32 does.
     "favale2023_extended": {
 
         "folder": "favale2023",
@@ -70,66 +66,56 @@ def _cc_covariance(
     H: np.ndarray,
     sigma: np.ndarray,
     systematics: np.ndarray,
+    correlated: np.ndarray,
 ) -> np.ndarray:
     r"""
-    Covariance of the cosmic chronometer H(z) measurements.
+    Covariance of the cosmic chronometer H(z) measurements, as Favale,
+    Gomez-Valent & Migliaccio (2023) built theirs.
 
-    The tabulated errors ``sigma`` are taken as each measurement's
-    *total* error and stay on the diagonal unchanged. What they cannot
-    carry is the correlation: the method's systematics -- the initial
-    mass function and the stellar population synthesis model, from the
-    budget of Moresco et al. (2020) -- are the same assumption at every
-    redshift, so they are fully correlated between measurements::
+    The tabulated errors ``sigma`` are each measurement's *total* error
+    and stay on the diagonal. The 15 measurements of Moresco et al.
+    (2012, 2015, 2016) -- ``correlated`` -- share the method's
+    systematics, the initial mass function and the stellar population
+    synthesis model of the Moresco et al. (2020) budget, which are the
+    same assumption at every redshift and so fully correlated between
+    them::
 
         C_ii = sigma_i^2
-        C_ij = sum_k s_k(z_i) s_k(z_j)       (i != j)
+        C_ij = sum_k s_k(z_i) s_k(z_j)       (i != j, both Moresco's)
         s_k(z) = H(z) f_k(z)
 
     with ``f_k`` the fractional error of component ``k`` (``IMF`` and
     ``mod_ooo``), interpolated in the table and held at its end values
-    beyond it.
+    beyond it. Every other measurement is uncorrelated with the rest.
 
-    Why the diagonal is not ``sigma^2 + s^2``
-    -----------------------------------------
-    That is the other reading, and it is what Moresco's own notebook
-    does with *his* table, whose errors are statistical only. For the
-    15 Moresco points in the Favale et al. (2023) compilation the
-    tabulated errors are already close to the statistical and SPS
-    errors in quadrature (6.2 against sqrt(4.3^2 + 4.2^2) = 6.1 at
-    z = 0.1791, median ratio 1.02), so adding ``s^2`` again would count
-    the systematic twice. Favale et al. do not release their covariance
-    -- the correlation file bundled with the data is not an official
-    product -- so the diagonal cannot be settled from the release
-    itself; this keeps it at the published errors.
-
-    The off-diagonal is not in question either way. The bundled
-    correlation's off-diagonal factorizes as ``a_i a_j``, and ``s``
-    from this budget reproduces it under the construction its author
-    used. Turning that correlation back into a covariance with
-    ``outer(sigma, sigma)``, as this library did, shrank every
-    off-diagonal term below ``s_i s_j`` -- by the factor
-    ``sigma_i sigma_j / sqrt((sigma_i^2 + s_i^2)(sigma_j^2 + s_j^2))``
-    -- which is wrong under both readings.
+    This is the construction of the authors' own script (A. Favale,
+    private communication): ``C_diag + C_IMF + C_SPS`` over the Moresco
+    points, where ``C_diag`` holds their statistical errors, and the
+    tabulated error squared for the others. The diagonal of that sum is
+    the tabulated ``sigma^2`` -- 6.2 at z = 0.1791 is the statistical
+    4.5 and the systematic 4.2 in quadrature -- so adding ``s^2`` to
+    ``sigma^2`` would count the systematic twice.
 
     References
     ----------
+    Favale, Gomez-Valent & Migliaccio (2023), MNRAS 523, 3406;
     Moresco et al. (2020), ApJ 898, 82 (2020ApJ...898...82M);
     https://gitlab.com/mmoresco/CCcovariance
     """
 
     z_table = systematics[:, 0]
 
-    correlated = np.zeros((len(z), len(z)))
+    shared = np.zeros((len(z), len(z)))
 
     for column in (1, 4):                       # IMF, mod_ooo
 
         fractional = np.interp(z, z_table, systematics[:, column]) / 100.0
 
-        error = H * fractional
+        error = np.where(correlated, H * fractional, 0.0)
 
-        correlated += np.outer(error, error)
+        shared += np.outer(error, error)
 
-    covariance = correlated - np.diag(np.diag(correlated))
+    covariance = shared - np.diag(np.diag(shared))
 
     covariance += np.diag(sigma ** 2)
 
@@ -145,8 +131,8 @@ def load_cc(
     Load a Cosmic Chronometer dataset.
 
     The covariance keeps the tabulated errors on its diagonal and adds
-    the correlation the method's systematics induce between
-    measurements -- see :func:`_cc_covariance`.
+    the correlation the method's systematics induce between the
+    Moresco et al. measurements -- see :func:`_cc_covariance`.
 
     Parameters
     ----------
@@ -188,6 +174,8 @@ def load_cc(
 
     sigma = data[:, 2]
 
+    correlated = data[:, 3].astype(bool)
+
     systematics = _load_txt(
 
         dataset_path / entry["systematics"],
@@ -205,6 +193,8 @@ def load_cc(
             sigma,
 
             systematics,
+
+            correlated,
 
         ),
 

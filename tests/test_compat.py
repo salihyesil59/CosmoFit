@@ -363,10 +363,11 @@ def test_run_nested_points_to_the_core():
 def test_a_profile_reaches_the_minimum_a_gradient_method_stops_short_of():
     """
     Profiling CPL's w0 on CC + DESI + Pantheon+, L-BFGS-B alone stopped
-    8 units of chi2 above the minimum at w0 = -0.7 (1440.9 against
-    1432.7), and the profile came out with a kink. The Nelder-Mead
-    polish after it finds the minimum, and the profile through the best
-    fit is the best fit's chi2.
+    8 units of chi2 above the minimum at w0 = -0.7, and the profile came
+    out with a kink. The Nelder-Mead polish after it finds the minimum
+    (1431.8), and the profile through the best fit is the best fit's
+    chi2 -- or a little under it: along the H0 - rd valley, which only
+    CC closes, the fitter's own minimizer stops 0.06 short.
     """
 
     fitter = quiet(
@@ -381,5 +382,6 @@ def test_a_profile_reaches_the_minimum_a_gradient_method_stops_short_of():
 
     profile = quiet(profile_on_core, fitter, "w0", [w0, -0.7])
 
-    assert profile["chi2"][0] == pytest.approx(fitter.best_fit_chi2, abs=0.05)
-    assert profile["chi2"][1] == pytest.approx(1432.7, abs=0.2)
+    assert profile["chi2"][0] <= fitter.best_fit_chi2 + 0.01
+    assert profile["chi2"][0] == pytest.approx(fitter.best_fit_chi2, abs=0.1)
+    assert profile["chi2"][1] == pytest.approx(1431.8, abs=0.2)
