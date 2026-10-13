@@ -16,6 +16,39 @@ worth more words than a feature that worked first time.
 
 ## Unreleased
 
+### `Fitter.best_fit` stopped short of the minimum in a degenerate valley
+
+Found by the entry below: after the CC covariance changed, the core's
+profile of CPL's `w0` on CC + DESI + Pantheon+ came out 0.06 in `chi2`
+*under* the `Fitter.best_fit` it started from, which a best fit does
+not allow. L-BFGS-B had reported convergence at `H0 = 68.69`,
+`rd = 145.27`; the minimum is at `H0 = 69.23`, `rd = 144.09`. With
+`rd` free only CC separates the two, the valley along `H0`-`rd` is
+narrow, every step along it gains little, and L-BFGS-B stops once
+`chi2` falls by less than a relative 2e-9 per iteration. It had been
+0.015 short with the previous covariance, under the test's tolerance.
+
+`best_fit` now does what the core's minimizer already did: an L-BFGS-B
+attempt is followed by Nelder-Mead from where it stopped, and the
+lower of the two is kept (1423.910 -> 1423.852 here, 235 evaluations
+more). Rescaling the parameters for L-BFGS-B instead got to 1423.855,
+not to the minimum. A stalled attempt is still rescued as before and
+is not polished twice; with `method=` or `eps=` given, the caller has
+taken control and nothing is added. The test that showed it holds the
+two to 0.005 now.
+
+One published comparison had been passing because of this. The HDE test
+on CC + DESI DR2 + Pantheon+ (arXiv:2607.09732: `c ~ 1`,
+`Omega_m ~ 0.27`, `H0 ~ 67.3-68.0`) asked for `67.0 < H0 < 68.5` and
+got 67.87 -- from a start at 68.0, and the same 67.87 under any of the
+three CC covariances, because L-BFGS-B never moved along the valley.
+The minimum is at `H0 = 69.25`, `rd = 144.23` (it would be 68.37 with
+all 32 chronometers correlated, 68.99 with none). `c = 0.986` and
+`Omega_m = 0.272` still match the paper, and so does `H0`, within the
+4 km/s/Mpc the chronometers allow it with `rd` free -- but as an
+agreement at 0.4 sigma, not as the central value the test claimed. The
+test now pins the minimum and `H0 rd`, and says which is which.
+
 ### The CC covariance is the one Favale et al. built
 
 The cosmic chronometer covariance correlated all 32 measurements of the
@@ -59,9 +92,8 @@ Every chi2 that includes `cc` moves with it: the 21 `cc` rows of
 `tests/data/golden_chi2.json` are regenerated, and nothing else in the
 file changed. The CPL profile test on CC + DESI + Pantheon+ is pinned
 at its new minimum (1431.8 at `w0 = -0.7`, from 1432.7); it also showed
-that `Fitter.best_fit` stops 0.06 in chi2 short of the minimum the
-core's profile finds along the `H0`-`rd` valley (0.015 before, under
-the test's tolerance), which is left as it is and recorded here.
+that `Fitter.best_fit` stopped short of the minimum, which is the
+entry above.
 
 ### `cosmofit install`: data packages
 

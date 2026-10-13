@@ -2920,11 +2920,15 @@ class Fitter:
         993.17 -- so only the derivative-free attempt actually finds
         the minimum, and the default one is wrong by 366.
 
-        The rescue runs only when the first attempt failed outright,
-        so nothing that already worked changes. That matters: a
-        larger step is *not* uniformly better, and on some cheap
-        likelihoods it converges to a slightly worse minimum than
-        the default does.
+        The rescue runs only when the first attempt failed outright.
+        That matters: a larger step is *not* uniformly better, and on
+        some cheap likelihoods it converges to a slightly worse
+        minimum than the default does.
+
+        A default attempt that did move (L-BFGS-B, no ``eps``) is
+        polished with Nelder-Mead from where it stopped, and the lower
+        of the two kept: along a degenerate valley L-BFGS-B reports convergence
+        short of the bottom. See :meth:`_polish_best_fit`.
 
         The rescue cannot help with a *local* minimum, which is a
         different failure: there the optimizer converges properly,
@@ -3042,7 +3046,88 @@ class Fitter:
 
             result = self._retry_best_fit(result, x0, bounds)
 
+        elif rescuable:
+
+            result = self._polish_best_fit(result, bounds)
+
         return result
+
+    # ------------------------------------------------------------
+
+    def _polish_best_fit(self, first, bounds):
+        """
+        Nelder-Mead from where L-BFGS-B stopped, kept if it is lower.
+
+        L-BFGS-B stops when ``chi2`` no longer falls by a relative
+        2e-9 per iteration, and along a narrow degenerate valley that
+        happens well before the bottom: every step is short there, so
+        every step gains little. On CPL with CC + DESI + Pantheon+ and
+        ``rd`` free it reported convergence 0.06 in ``chi2`` above the
+        minimum, half a unit of ``H0`` and a full Mpc of ``rd`` along
+        the ``H0``-``rd`` direction away from it -- found because the
+        core's profile through that "best fit" came out lower than it.
+        The core's minimizer polishes for the same reason.
+        """
+
+        second = self._nelder_mead(np.asarray(first.x, dtype=float), bounds)
+
+        second.nfev += first.nfev
+
+        return second if second.fun < first.fun else first
+
+    # ------------------------------------------------------------
+
+    def _nelder_mead(self, x0, bounds):
+        """
+        Nelder-Mead from ``x0``. The initial simplex is built from the
+        prior widths rather than left to SciPy's default (5% of each
+        coordinate's *value*), because these parameters differ by
+        three orders of magnitude and a value-relative simplex is
+        badly shaped for them.
+        """
+
+        from scipy.optimize import minimize
+
+        width = self._prior_width()
+
+        simplex = np.vstack(
+
+            [x0] + [
+
+                x0 + 0.02 * width[i] * np.eye(len(x0))[i]
+
+                for i in range(len(x0))
+
+            ],
+
+        )
+
+        # Keep the simplex inside the prior.
+        lower = np.asarray(self.prior.lower, dtype=float)
+        upper = np.asarray(self.prior.upper, dtype=float)
+
+        simplex = np.clip(simplex, lower, upper)
+
+        return minimize(
+
+            self.logpost.chi2,
+
+            x0,
+
+            method="Nelder-Mead",
+
+            bounds=bounds,
+
+            options={
+                "initial_simplex": simplex,
+                # Nelder-Mead's work grows with dimension; a flat 2000
+                # evaluations ran out on 8-10 parameter fits before
+                # the simplex had converged.
+                "maxfev": 400 * (len(x0) + 1),
+                "xatol": 1e-4,
+                "fatol": 1e-3,
+            },
+        )
 
     # ------------------------------------------------------------
 
@@ -3085,16 +3170,10 @@ class Fitter:
         described in :meth:`best_fit`.
 
         Derivative-free by construction, so the numerical noise that
-        defeated the gradient cannot defeat it. The initial simplex
-        is built from the prior widths rather than left to SciPy's
-        default (5% of each coordinate's *value*), because these
-        parameters differ by three orders of magnitude and a
-        value-relative simplex is badly shaped for them.
+        defeated the gradient cannot defeat it.
         """
 
         import warnings
-
-        from scipy.optimize import minimize
 
         warnings.warn(
 
@@ -3118,46 +3197,7 @@ class Fitter:
 
         )
 
-        width = self._prior_width()
-
-        simplex = np.vstack(
-
-            [x0] + [
-
-                x0 + 0.02 * width[i] * np.eye(len(x0))[i]
-
-                for i in range(len(x0))
-
-            ],
-
-        )
-
-        # Keep the simplex inside the prior.
-        lower = np.asarray(self.prior.lower, dtype=float)
-        upper = np.asarray(self.prior.upper, dtype=float)
-
-        simplex = np.clip(simplex, lower, upper)
-
-        second = minimize(
-
-            self.logpost.chi2,
-
-            x0,
-
-            method="Nelder-Mead",
-
-            bounds=bounds,
-
-            options={
-                "initial_simplex": simplex,
-                # Nelder-Mead's work grows with dimension; a flat 2000
-                # evaluations ran out on 8-10 parameter fits before
-                # the simplex had converged.
-                "maxfev": 400 * (len(x0) + 1),
-                "xatol": 1e-4,
-                "fatol": 1e-3,
-            },
-        )
+        second = self._nelder_mead(x0, bounds)
 
         if not second.success:
 

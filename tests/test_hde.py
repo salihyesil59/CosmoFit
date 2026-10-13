@@ -408,6 +408,15 @@ def test_reproduces_the_published_late_time_constraint():
     None of those is used as an input here. No CMB and no BBN, as
     in the paper -- which is why ``r_d`` is a free parameter rather
     than computed: nothing in this combination calibrates it.
+
+    ``c`` and ``Omega_m`` are what BAO and the supernovae fix, and they
+    are held to the published values. ``H0`` is not: with ``r_d`` free
+    BAO gives ``H0 r_d`` alone, and the chronometers separate the two
+    to about 4 km/s/Mpc. This test asked for ``67.0 < H0 < 68.5`` and
+    passed for as long as L-BFGS-B stopped at 67.87, next to the 68.0
+    it was started from, whatever the chronometer covariance was. The
+    minimum is at 69.25 -- 0.4 sigma from the paper's value -- and is
+    held there, within that error of the published range.
     """
 
     from cosmofit import Fitter
@@ -428,7 +437,11 @@ def test_reproduces_the_published_late_time_constraint():
 
     assert 0.265 < parameters["Omega_m"] < 0.277
 
-    assert 67.0 < parameters["H0"] < 68.5
+    assert parameters["H0"] == pytest.approx(69.25, abs=0.1)
+
+    assert parameters["H0"] == pytest.approx(67.65, abs=4.0)
+
+    assert parameters["H0"] * parameters["rd"] == pytest.approx(9987.0, abs=5.0)
 
 
 def test_supernovae_and_bao_pull_c_in_opposite_directions():
