@@ -1056,10 +1056,14 @@ deployment.
 
 ## Project Status
 
-**v2.0.0** turns the library into a set of components: theories,
+**v2.0.0** turned the library into a set of components: theories,
 likelihoods and samplers assembled from a YAML input, run with
 `cosmofit run`, written as getdist chains -- see
-[Upgrading from 1.x](#upgrading-from-1x). It is on
+[Upgrading from 1.x](#upgrading-from-1x). **v2.1.0** adds matter power
+spectra and `sigma(R)` from CAMB, early dark energy, the DESI DR1
+full-shape likelihood, newer `S8` and `H0` measurements and
+`cosmofit install`, and builds the chronometer covariance as Favale et
+al. did. It is on
 [PyPI](https://pypi.org/project/cosmofit/) with an
 [API reference](https://salihyesil59.github.io/CosmoFit/). The full
 release history -- what each version changed, and for many of them
@@ -1070,10 +1074,10 @@ Where it stands today:
 
 | | |
 |---|---|
-| datasets | **21**, from cosmic chronometers to the from-scratch CMB, each a native likelihood |
+| datasets | **21**, from cosmic chronometers to the from-scratch CMB, each a native likelihood, and the DESI DR1 full shape on the core |
 | models | **20** written out by hand, plus three routes to one that is not here |
 | samplers | adaptive Metropolis-Hastings, emcee, dynesty, minimize, profile, Fisher, post-processing |
-| tests | **1360**, on Python 3.11-3.13 on Linux, Windows and macOS, with and without every optional extra |
+| tests | **1423**, on Python 3.11-3.13 on Linux, Windows and macOS, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/), and YAML inputs beside them |
 
 ---

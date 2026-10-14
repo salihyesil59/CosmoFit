@@ -14,7 +14,33 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v2.1.0
+
+The first features on the 2.0 core, and two corrections that move
+numbers.
+
+**New.** Matter power spectra, `P(k, z)` linear and non-linear, and
+`sigma(R)` from CAMB; early dark energy, with its own background and
+the CAMB fluid that matches it; the DESI DR1 full-shape (ShapeFit)
+likelihood, `bao.desi_fullshape`; KiDS-Legacy, HSC Y3 and DES Y3 +
+KiDS-1000 `S8`, and the CCHP TRGB `H0`; Jiao et al. and Tomasetti et
+al. chronometers in `favale2023_extended`; and `cosmofit install`, the
+checksummed data packages the large datasets will arrive as.
+
+**Corrected, with results that move.**
+
+* The cosmic chronometer covariance is now the one Favale et al.
+  (2023) built, from the script Dr. Favale shared: only the 15 Moresco
+  measurements are correlated. Correlating all 32 had inflated CC's
+  error on `H0` -- in flat LCDM 71.29 +- 5.61 becomes 71.87 +- 4.24 --
+  and every `chi2` with `cc` in it moves.
+* `Fitter.best_fit` is polished with Nelder-Mead after L-BFGS-B, which
+  had stopped short of the minimum along the `H0`-`rd` valley. One
+  published comparison had been passing on that: HDE's `H0` on
+  CC + DESI DR2 + Pantheon+ is 69.25, not the 67.87 the start had left
+  it at.
+
+Nothing is removed or renamed; 2.0 inputs run unchanged.
 
 ### `Fitter.best_fit` stopped short of the minimum in a degenerate valley
 
