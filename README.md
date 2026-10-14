@@ -1080,7 +1080,9 @@ likelihoods and samplers assembled from a YAML input, run with
 spectra and `sigma(R)` from CAMB, early dark energy, the DESI DR1
 full-shape likelihood, newer `S8` and `H0` measurements and
 `cosmofit install`, and builds the chronometer covariance as Favale et
-al. did. It is on
+al. did. **v2.2.0** rebuilds the graphical interface as tabs in the
+order a fit is made, with quick starts, a pre-flight checklist and a
+guide, and makes it fast. It is on
 [PyPI](https://pypi.org/project/cosmofit/) with an
 [API reference](https://salihyesil59.github.io/CosmoFit/). The full
 release history -- what each version changed, and for many of them

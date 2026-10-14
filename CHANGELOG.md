@@ -14,7 +14,13 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v2.2.0
+
+The graphical interface, rebuilt around how a fit is made: six tabs
+in workflow order, one-click quick starts, a checklist before every
+run, and a page that answers a click in tens of milliseconds rather
+than most of a second. Nothing in the library changes; the `gui`
+extra now needs `streamlit>=1.62`.
 
 ### The GUI is a row of tabs in the order a fit is built, and fast
 
