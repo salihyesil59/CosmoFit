@@ -14,6 +14,82 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### The GUI is a row of tabs in the order a fit is built, and fast
+
+The page had grown into one long scroll: datasets, the sound horizon,
+σ₈, the sampler and the chain folder in the sidebar; the models, the
+Run button and the results stacked in the main panel; the guide folded
+away in an expander at the top. Everything was explained -- each
+widget carries its note -- but nothing said where to *start*, and
+someone opening it for the first time faced fourteen checkboxes and a
+model table before knowing what a run needed.
+
+It is now six tabs, left to right: **Start**, **Data**, **Model**,
+**Run**, **Results**, **Guide**.
+
+* **Start** says what the page does, shows where each step of the
+  current setup stands, and offers three **quick starts** -- a first
+  ΛCDM fit on chronometers and DESI, CPL on DESI DR2 + Pantheon+ + CMB
+  priors, the Hubble tension -- each of which writes the datasets, the
+  model, its free parameters and a sampling profile and lands on Run.
+* Each step opens with **what to do on it and why**. The dataset
+  presets are cards; the datasets keep their notes, now in the ⓘ beside
+  each, with a summary of the selection -- conflicts and slow datasets
+  included -- next to the checkboxes.
+* **Run** has a **pre-flight checklist**: no dataset, a model that does
+  not build, no free parameter, too few emcee walkers, a 🚫 model and
+  dataset combination. Each item has a button to the tab that fixes
+  it, and the Run button stays off until none is left. Three
+  **sampling profiles** (Quick look, Standard, Publication) set the
+  chains, R − 1 and the step ceiling; the numbers stay editable under
+  Advanced.
+* A finished run opens **Results**, where each tab says how to read
+  it. What the run reported -- a library warning, `rd` dropped because
+  it is computed -- stays there with the results.
+* **Guide** adds a glossary of the words the page uses and the common
+  problems with what to do about each.
+* The sidebar shows where each step stands and saves or restores the
+  setup.
+
+**Faster.** Only the open tab is drawn (Streamlit 1.62's stateful
+tabs; `streamlit>=1.62` for the `gui` extra), and every widget keeps
+its value while its tab is closed (`persist_state`). The parameter
+tables, which `st.data_editor` cannot keep that way, are held by the
+page and the editor drawn from them. A figure is drawn once and kept
+until the next run; `fit.result` -- rebuilt on every access, the
+autocorrelation times included -- and the derived quantities are
+computed once per run instead of on every rerun; the figure, profile,
+Fisher, evidence and tension panels are fragments, rerunning alone
+when their own controls change. sympy is no longer imported to start
+the page, only for the action route, and the title is drawn before the
+library is imported. `cosmofit gui` turns Streamlit's file watcher off
+(there is no source being edited to watch).
+
+Measured with `AppTest` on the same short ΛCDM fit, before and after:
+
+| | before | after |
+|---|---|---|
+| first run of the page | 2.69 s | 1.76 s |
+| a rerun, no fit | 69 ms | 11 ms |
+| a rerun with results on screen (any click) | 805 ms | 73 ms |
+
+The last row is the one that was felt: with a fit on screen, every
+click anywhere redrew the chosen figures and rebuilt the posterior
+summary.
+
+Driving it headlessly turned up one thing a browser hides. A rerun
+from `AppTest` does not report the tabs' own state, so the page fell
+back to Start on every widget change in a test -- the open tab is now
+also kept in session state and given to the tabs as their default.
+The GUI tests open the tab a widget is on before using it, as a user
+has to, and new ones check that a tick survives leaving its tab, that a
+parameter edit survives a change of datasets, that a quick start sets
+what it says and runs, that the Run button waits for the checklist,
+that only the open tab is drawn, that a figure is drawn once, and that
+the page starts without sympy.
+
 ## v2.1.0
 
 The first features on the 2.0 core, and two corrections that move

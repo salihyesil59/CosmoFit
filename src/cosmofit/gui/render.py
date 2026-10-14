@@ -16,7 +16,6 @@ import pandas as pd
 import streamlit as st
 
 from cosmofit import (
-    __version__,
     Fitter,
     CCLikelihood,
     DESILikelihood,
@@ -34,10 +33,18 @@ from cosmofit import (
     EBOSSLyaLikelihood,
 )
 from cosmofit.stats import cpl_diagnostics
-from cosmofit.compat import evidence_on_core, fisher_on_core, profile_on_core
 
 from cosmofit.gui.reference import (
     PLOT_EXPORT_FORMATS,
+)
+
+# The configuration's save and restore live with the rest of the
+# session state; imported here too, where they were first written.
+from cosmofit.gui.state import (  # noqa: F401
+    _CONFIG_EXCLUDE,
+    _CONFIG_PREFIXES,
+    _configuration,
+    _restore_configuration,
 )
 
 
@@ -190,9 +197,41 @@ def _available_compare_plots(fits: list[Fitter]) -> list[str]:
 
 # ------------------------------------------------------------
 
+def _once(fit: Fitter, name: str, compute):
+    """
+    ``compute()``, evaluated once per fit and run.
+
+    For what the Results tab would otherwise recompute on every rerun
+    from a fit that cannot change until the next run -- kept under the
+    fits' token, which a new run replaces.
+    """
+
+    cache = st.session_state.setdefault("_results", {})
+
+    entry = (st.session_state.get("fits_token"), id(fit), name)
+
+    if entry not in cache:
+        cache[entry] = compute()
+
+    return cache[entry]
+
+
+def _result(fit: Fitter):
+    """
+    ``fit.result``, built once per run: the property is rebuilt on
+    every access -- the posterior summary and the convergence test,
+    autocorrelation times included -- and the Results tab reads it
+    several times on every rerun.
+    """
+
+    return _once(fit, "result", lambda: fit.result)
+
+
+# ------------------------------------------------------------
+
 def _render_best_fit(fit: Fitter) -> None:
 
-    result = fit.result
+    result = _result(fit)
 
     if result.best_fit is None:
         st.caption("No best-fit result.")
@@ -274,94 +313,6 @@ def _render_best_fit(fit: Fitter) -> None:
     )
 
     _render_gate(fit)
-
-
-# ------------------------------------------------------------
-
-#: Session-state keys that describe *what to run*, as opposed to
-#: what was run or which tab is open. Saved and restored by prefix
-#: rather than by an exhaustive list, so a widget added later to an
-#: existing family is carried without anyone remembering to come
-#: back here.
-#:
-#: Deliberately excluded: `dl_*` (download button state),
-#: `*_model_choice` and `*_multiselect` (which result is being
-#: looked at), and `profile_run_`/`fisher_run_` (whether an
-#: expensive extra has been asked for). Restoring those would
-#: reproduce someone else's *view* rather than their configuration.
-_CONFIG_PREFIXES = (
-    "ds_", "dsver_", "compute_rd", "derive_sigma",
-    "model_choice_", "n_models",
-    "action_", "custom_",
-    "mcmc_", "param_editor_", "relevant_only_",
-)
-
-
-_CONFIG_EXCLUDE = ("action_load_", "action_preset_", "dataset_preset")
-
-
-def _configuration() -> dict:
-    """
-    The current configuration, as something that can be written to
-    a file and read back.
-
-    A run here can take fourteen dataset ticks, three models with
-    their own parameters, and a set of MCMC settings. Closing the
-    tab loses all of it, and there is no way to hand it to someone
-    else -- which for a tool whose whole point is reproducible
-    fitting is a gap worth closing.
-    """
-
-    return {
-        "version": __version__,
-        "state": {
-            key: value
-            for key, value in st.session_state.items()
-            if isinstance(key, str)
-            and key.startswith(_CONFIG_PREFIXES)
-            and not key.startswith(_CONFIG_EXCLUDE)
-            and isinstance(value, (str, int, float, bool, list, type(None)))
-        },
-    }
-
-
-def _restore_configuration(payload: dict) -> int:
-    """
-    Write a saved configuration back into session state.
-
-    Returns how many keys were applied.
-
-    Values are written rather than widgets set, and this runs
-    *above* the widgets it writes to, so they are picked up on the
-    same pass -- the same ordering the dataset presets rely on. A
-    `st.rerun()` here would be a second render for no gain.
-
-    Unknown keys are dropped rather than trusted: a file from a
-    later version can name a widget this one does not have, and
-    Streamlit raises on an unexpected key only once the widget
-    tries to use it, which would be a crash far from the cause.
-    """
-
-    state = (payload or {}).get("state") or {}
-
-    applied = 0
-
-    for key, value in state.items():
-
-        if not isinstance(key, str):
-            continue
-
-        if not key.startswith(_CONFIG_PREFIXES):
-            continue
-
-        if key.startswith(_CONFIG_EXCLUDE):
-            continue
-
-        st.session_state[key] = value
-
-        applied += 1
-
-    return applied
 
 
 # ------------------------------------------------------------
@@ -603,7 +554,7 @@ def _render_gate(fit: Fitter) -> None:
 
 def _render_posterior(fit: Fitter) -> None:
 
-    result = fit.result
+    result = _result(fit)
 
     if result.mcmc is None:
         st.caption("No MCMC run.")
@@ -678,21 +629,23 @@ def _render_posterior(fit: Fitter) -> None:
 
             rows = []
 
-            q0 = derived.summarize(derived.deceleration_today(fit))
+            # Each pushes every sample through the model again: done
+            # once per run, not on every rerun of the page.
+            q0 = _once(fit, "q0", lambda: derived.summarize(derived.deceleration_today(fit)))
             rows.append({
                 "quantity": "q₀ (deceleration today)",
                 "median": q0["median"],
                 "+": q0["plus"], "−": q0["minus"],
             })
 
-            z_t = derived.summarize(derived.transition_redshift(fit))
+            z_t = _once(fit, "z_t", lambda: derived.summarize(derived.transition_redshift(fit)))
             rows.append({
                 "quantity": "z_t (acceleration begins)",
                 "median": z_t["median"],
                 "+": z_t["plus"], "−": z_t["minus"],
             })
 
-            r_d = derived.summarize(derived.sound_horizon(fit))
+            r_d = _once(fit, "r_d", lambda: derived.summarize(derived.sound_horizon(fit)))
             rows.append({
                 "quantity": "r_d [Mpc], from the densities",
                 "median": r_d["median"],
@@ -731,7 +684,7 @@ def _render_posterior(fit: Fitter) -> None:
                     f"r_d here is what the early-universe physics "
                     f"*predicts* for these densities; the fit used "
                     f"the free parameter "
-                    f"({fit.result.mcmc.summary['rd']['median']:.2f} Mpc) "
+                    f"({_result(fit).mcmc.summary['rd']['median']:.2f} Mpc) "
                     f"instead. A disagreement between the two is the "
                     f"standard signature of new physics before "
                     f"recombination."
@@ -836,12 +789,12 @@ def _render_profile(fit: Fitter, label: str) -> None:
 
     index = free.index(name)
 
-    centre = float(fit.result.best_fit.params[name])
+    centre = float(_result(fit).best_fit.params[name])
 
     sigma = None
 
-    if fit.result.mcmc is not None:
-        entry = fit.result.mcmc.summary.get(name)
+    if _result(fit).mcmc is not None:
+        entry = _result(fit).mcmc.summary.get(name)
         if entry:
             sigma = 0.5 * (entry["plus"] + entry["minus"])
 
@@ -893,6 +846,8 @@ def _render_profile(fit: Fitter, label: str) -> None:
             icon="⚠️",
         )
         return
+
+    from cosmofit.compat import profile_on_core
 
     with st.spinner(f"Profiling {name} at {values.size} points..."):
         profile = profile_on_core(fit, name, values)
@@ -974,12 +929,14 @@ def _render_fisher(fit: Fitter, label: str) -> None:
         )
         return
 
+    from cosmofit.compat import fisher_on_core
+
     with st.spinner("Differentiating chi2 at the best fit..."):
         fisher = fisher_on_core(fit)
 
     rows = []
 
-    summary = fit.result.mcmc.summary if fit.result.mcmc else {}
+    summary = _result(fit).mcmc.summary if _result(fit).mcmc else {}
 
     for name, value, error in zip(
         fisher["free_params"], fisher["theta"], fisher["errors"],
@@ -1039,6 +996,7 @@ def _render_evidence(fits: list[Fitter], labels: list[str]) -> None:
     which is exactly what makes it able to compare models at all.
     """
 
+    from cosmofit.compat import evidence_on_core
     from cosmofit.stats import evidence as evidence_mod
 
     try:
@@ -1287,3 +1245,53 @@ def _render_figure(fig, base_name: str, fmt_label: str, key: str) -> None:
     )
 
     plt.close(fig)
+
+
+# ------------------------------------------------------------
+
+def _render_cached_figure(make, name: str, base_name: str, fmt_label: str, key: str) -> None:
+    """
+    `_render_figure` for a figure of the current fits, drawn once.
+
+    Streamlit reruns the page on every interaction, and a corner plot
+    or a CMB spectrum is the slowest thing on it -- redrawing each one
+    because a checkbox elsewhere was ticked made the Results tab the
+    slow one. The image and its download are kept per figure and
+    format, under the fits' token, so a new run starts afresh; `make`
+    (which returns the figure) is called only on a miss.
+    """
+
+    cache = st.session_state.setdefault("_figures", {})
+
+    entry = (st.session_state.get("fits_token"), name, fmt_label)
+
+    if entry not in cache:
+
+        fig = make()
+
+        ext, _ = PLOT_EXPORT_FORMATS[fmt_label]
+
+        shown = io.BytesIO()
+        fig.savefig(shown, format="png", dpi=144, bbox_inches="tight")
+
+        export = io.BytesIO()
+        fig.savefig(export, format=ext, bbox_inches="tight")
+
+        plt.close(fig)
+
+        cache[entry] = (shown.getvalue(), export.getvalue())
+
+    shown, export = cache[entry]
+
+    ext, mime = PLOT_EXPORT_FORMATS[fmt_label]
+
+    st.image(shown, width="stretch")
+
+    st.download_button(
+        f"⬇️ {fmt_label}",
+        data=export,
+        file_name=f"{base_name}.{ext}",
+        mime=mime,
+        key=key,
+        width="stretch",
+    )

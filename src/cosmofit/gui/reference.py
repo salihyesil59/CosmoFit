@@ -17,17 +17,22 @@ from cosmofit.stats.fitter import CONFLICTING_DATASETS
 from cosmofit.data.metadata import DATASETS, FAMILIES
 
 
-try:
-    from cosmofit.theory import Action, GEOMETRIES, STANDARD_FLUIDS
+import importlib.util
 
-    HAVE_THEORY = True
 
-except ModuleNotFoundError:
+#: Whether the action route can be offered. Asked of the import
+#: system rather than answered by importing: `cosmofit.theory` pulls in
+#: sympy, half a second of a cold start, and only the action route
+#: needs it -- which imports it then (see `theory()`).
+HAVE_THEORY = importlib.util.find_spec("sympy") is not None
 
-    Action = None
-    GEOMETRIES = ()
-    STANDARD_FLUIDS = {}
-    HAVE_THEORY = False
+
+def theory():
+    """``cosmofit.theory``, imported on first use."""
+
+    import cosmofit.theory
+
+    return cosmofit.theory
 
 
 # ============================================================
@@ -1032,3 +1037,239 @@ COMPUTE_RD_PARAMS = {"Omega_b", "N_eff", "m_nu"}
 
 #: Always shown: the two every model has, plus curvature.
 ALWAYS_RELEVANT = {"H0", "Omega_m", "Omega_k"}
+
+
+# ============================================================
+# The workflow, and the guidance written for it
+# ============================================================
+
+#: The page's tabs, in the order a fit is built. The label is also
+#: the tab's identity -- `st.session_state["step"]` holds one of these.
+STEPS = {
+    "start": "🏠 Start",
+    "data": "📊 Data",
+    "model": "🧮 Model",
+    "run": "🚀 Run",
+    "results": "📈 Results",
+    "guide": "📖 Guide",
+}
+
+
+#: What each step is for, shown at its top: what to do here, and why
+#: it matters -- the second half is what a first-time user lacks.
+STEP_INTROS = {
+    "data": (
+        "Choose what the models are confronted with.",
+        "Every model is fitted to the *same* data, which is what makes "
+        "their χ², AIC and BIC comparable. Start from a preset if "
+        "unsure, then tick or untick. A warning in the summary means "
+        "two datasets share supernovae or sky -- combining them "
+        "understates every error bar with no other symptom.",
+    ),
+    "model": (
+        "Choose the cosmology, and which of its parameters to fit.",
+        "A parameter ticked **Free** is sampled between its Lower and "
+        "Upper bounds (a flat prior); one left unticked is held at its "
+        "Initial value. A model whose own parameters are all fixed is "
+        "not being tested -- the page says so under the table. Add a "
+        "second model to compare the two.",
+    ),
+    "run": (
+        "Check the plan, choose how long to sample, and run.",
+        "The checklist is everything that would make a run fail or "
+        "mean nothing; the Run button waits until it is clear. A first "
+        "look takes a minute or two with the *Quick look* profile, and "
+        "saved chains mean nothing is sampled twice.",
+    ),
+    "results": (
+        "Read the fit.",
+        "Start with **Best fit**: the χ² by dataset says which data the "
+        "model struggles with. Then **Posterior**: check it converged "
+        "before quoting a number. **Inference** answers what a "
+        "posterior alone does not, and **Plots** draws everything.",
+    ),
+}
+
+
+#: One-click analyses for a first visit: each writes the datasets, the
+#: model and its free parameters, and lands on the Run tab with nothing
+#: left to decide. Built on the dataset presets, so the two cannot
+#: drift apart.
+QUICK_STARTS = {
+
+    "first_fit": dict(
+        title="Your first fit",
+        subtitle="ΛCDM · chronometers + DESI BAO",
+        what="The matter density and H₀·r_d from the expansion history. "
+             "About a minute -- the place to learn the page.",
+        preset="Late-time background (default)",
+        model="LCDM",
+        free=["H0", "Omega_m", "rd"],
+        profile="Quick look",
+    ),
+
+    "dark_energy": dict(
+        title="Is dark energy evolving?",
+        subtitle="CPL (w₀, w_a) · DESI DR2 + Pantheon+ + CMB priors",
+        what="The combination behind the DESI dark-energy result. The "
+             "w₀–w_a plane under Plots shows where ΛCDM's (−1, 0) sits.",
+        preset="Dark-energy workhorse (BAO + SNe + CMB priors)",
+        model="CPL",
+        free=["H0", "Omega_m", "Omega_b", "w0", "wa", "rd"],
+        profile="Standard",
+    ),
+
+    "hubble_tension": dict(
+        title="The Hubble tension",
+        subtitle="ΛCDM · DESI + CMB priors + local H₀",
+        what="CMB-anchored data against the distance ladder. The χ² by "
+             "dataset shows the local H₀ point carrying the tension.",
+        preset="The Hubble tension, both sides",
+        model="LCDM",
+        free=["H0", "Omega_m", "Omega_b", "rd"],
+        profile="Quick look",
+    ),
+
+}
+
+
+#: How long to sample, as three named choices over the adaptive
+#: sampler's settings -- the numbers stay editable under Advanced.
+SAMPLER_PROFILES = {
+    "Quick look": dict(
+        settings=dict(mcmc_chains=4, mcmc_rminus1=0.05, mcmc_nsteps=5000),
+        note="Chains agree to R − 1 < 0.05: the right shape, rough "
+             "error bars. Minutes for distance data.",
+    ),
+    "Standard": dict(
+        settings=dict(mcmc_chains=4, mcmc_rminus1=0.01, mcmc_nsteps=20000),
+        note="R − 1 < 0.01, the usual target. Good enough to quote.",
+    ),
+    "Publication": dict(
+        settings=dict(mcmc_chains=8, mcmc_rminus1=0.005, mcmc_nsteps=100000),
+        note="Twice the chains and R − 1 < 0.005: stable tails and 95% "
+             "limits. Leave chain saving on.",
+    ),
+}
+
+
+#: Words the page uses without stopping to define them.
+GLOSSARY = {
+    "Prior": "What is assumed about a parameter before the data: here "
+             "a flat range, the Lower and Upper bounds of the parameter "
+             "table.",
+    "Posterior": "What is known after the data -- the distribution the "
+                 "sampler draws from. Its median and 68% interval are "
+                 "the numbers quoted.",
+    "Best fit": "The single point of lowest χ², found by an optimizer "
+                "before sampling. The chains start there.",
+    "χ² and χ²/dof": "How far the model is from the data, weighted by "
+                     "the errors. χ²/dof ≈ 1 is a good fit; far above "
+                     "it, the model cannot describe the data.",
+    "AIC / BIC": "χ² plus a penalty per free parameter (BIC's grows "
+                 "with the size of the data). Lower is better; a "
+                 "difference below ~2 decides nothing.",
+    "Likelihood-ratio test": "For two nested models -- one is the other "
+                             "with parameters fixed -- how many σ the "
+                             "χ² improvement is worth.",
+    "R − 1 (Gelman-Rubin)": "How much independent chains disagree. "
+                            "Below 0.01 they have converged on the same "
+                            "posterior.",
+    "Autocorrelation time τ": "How many steps an emcee walker takes to "
+                              "forget where it was. A chain is long "
+                              "enough at 50 τ.",
+    "Burn-in": "The start of each chain, discarded because it still "
+               "remembers where it began.",
+    "Sound horizon r_d": "The distance sound travelled before the "
+                         "baryons decoupled: the ruler BAO measure in "
+                         "units of. Left free, BAO measure only H₀·r_d.",
+    "σ₈ and S₈": "The amplitude of matter clustering today; S₈ = "
+                 "σ₈ √(Ω_m/0.3) is what weak lensing measures best.",
+    "Bayesian evidence": "The likelihood averaged over the prior. The "
+                         "ratio for two models, the Bayes factor, "
+                         "penalises prior volume a parameter does not "
+                         "use -- which AIC and BIC only approximate.",
+    "Tension": "How many σ apart two posteriors for one quantity are.",
+    "Profile likelihood": "χ² minimised over every other parameter at "
+                          "each value of one -- the honest interval "
+                          "where a posterior runs into a prior edge.",
+}
+
+
+#: What goes wrong most often and what to do -- each written from a
+#: message the page or the library actually shows.
+TROUBLESHOOTING = [
+    (
+        "The Run button is greyed out",
+        "The checklist on the Run tab names what is missing, and each "
+        "item has a button to the tab that fixes it.",
+    ),
+    (
+        "\"not ready yet\" under a model",
+        "A Custom or action model with an empty or invalid box. The "
+        "message names the box; the worked examples fill every one.",
+    ),
+    (
+        "\"left fixed\" under the parameter table",
+        "The model's own parameters are not ticked Free, so the fit is "
+        "of the model it reduces to. Tick them.",
+    ),
+    (
+        "A posterior that is just its prior",
+        "No ticked dataset constrains that parameter -- σ₈ without "
+        "growth data, r_d without BAO. Add the data or untick it.",
+    ),
+    (
+        "\"Not converged yet\" on the Posterior tab",
+        "Raise Max steps, or pick a longer profile, and run again: "
+        "saved chains continue rather than restart.",
+    ),
+    (
+        "A model fits worse than the one it contains",
+        "The optimizer found the wrong basin. Set Best-fit restarts "
+        "under Advanced on the Run tab.",
+    ),
+    (
+        "emcee will not start",
+        "It needs at least twice as many walkers as free parameters; "
+        "the checklist says when that is not met.",
+    ),
+]
+
+
+#: The workflow, written once, for the Guide tab.
+WORKFLOW = """
+**1. Pick the data** (📊 Data). Start from a preset, then adjust. The
+warnings in the summary are not decoration -- combining two datasets
+that share supernovae or sky understates every error bar in the
+result, with no other symptom.
+
+**2. Pick the model, and free the right parameters** (🧮 Model). Every
+model shows what its extra parameters mean and which values reduce it
+to ΛCDM. A model whose own parameters are left fixed is not being
+tested -- the page says so under the parameter table.
+
+**3. Check the parameter table.** By default it shows only the
+parameters this particular fit uses: `rd` appears only with BAO,
+`sigma8` only with growth data, `n_s`/`tau` only with the full CMB
+spectra. A parameter that is free but unconstrained returns a
+posterior identical to its prior, which looks exactly like a
+measurement.
+
+**4. Run** (🚀 Run). Clear the checklist and pick a profile --
+*Quick look* first, *Standard* for numbers to quote.
+
+**5. Read the χ² breakdown first** (📈 Results → Best fit). A total χ²
+says a fit is bad without saying where; the per-dataset table turns
+that into "the local H₀ measurement contributes 24 of it, on one data
+point" -- which is the entire content of the Hubble tension.
+
+**6. Check convergence before believing the posterior.** The Posterior
+tab says outright whether the chains met their stopping rule. With
+chain saving on, raising **Max steps** and running again continues the
+saved chains instead of starting over.
+
+**7. Compare.** Add a second model to get AIC/BIC, a likelihood-ratio
+test where the two are nested, and every figure with both curves
+overlaid.
+"""

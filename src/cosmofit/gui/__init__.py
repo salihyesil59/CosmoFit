@@ -5,14 +5,22 @@ The graphical interface: a Streamlit page over the library.
 ``pip install "cosmofit[gui]"``.
 
 :mod:`~gui.app`
-    The page, which Streamlit runs top to bottom on every interaction.
+    The page, which Streamlit runs top to bottom on every interaction:
+    the sidebar and a row of tabs, of which only the open one is drawn.
+:mod:`~gui.steps`
+    The tabs, one module each: Start, Data, Model, Run, Results, Guide.
+:mod:`~gui.state`
+    The configuration, read from session state as one plan -- what the
+    Run tab runs whichever tab set it.
 :mod:`~gui.reference`
     What the page knows without computing: models, datasets, presets,
-    parameters, plot labels.
+    parameters, plot labels, and the guidance written for each step.
 :mod:`~gui.helpers`
-    The sidebar's choices made into a fit.
+    The choices made into a fit: model classes, relevance, warnings.
 :mod:`~gui.render`
     A finished fit drawn.
+:mod:`~gui.style`
+    The page's look and the pieces every tab draws the same way.
 
 Importing this package does not import Streamlit; the modules beside
 it do.
@@ -34,11 +42,17 @@ APP = Path(__file__).with_name("app.py")
 #: Theme and privacy settings, passed on the command line so they hold
 #: wherever the GUI is started from -- a `.streamlit/config.toml`
 #: is only read from the working directory. The accent matches the
-#: library's own figures (plots/plotter.py's COLOR_MODEL).
+#: library's own figures (plots/plotter.py's COLOR_MODEL). The file
+#: watcher is off: it exists to rerun a page whose source is being
+#: edited, and walking the library's modules to watch them only
+#: delays a start. The toolbar keeps what a user needs and drops the
+#: developer menu.
 _SETTINGS = (
     "--theme.primaryColor=#d1495b",
     "--theme.font=sans serif",
     "--browser.gatherUsageStats=false",
+    "--server.fileWatcherType=none",
+    "--client.toolbarMode=minimal",
 )
 
 

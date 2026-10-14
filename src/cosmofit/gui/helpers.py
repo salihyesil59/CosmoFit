@@ -6,6 +6,8 @@ expression, or from an action.
 
 from __future__ import annotations
 
+import functools
+
 import streamlit as st
 
 from cosmofit import (
@@ -15,13 +17,13 @@ from cosmofit import (
 from cosmofit.gui.reference import (
     ACTION_CHOICE,
     ALWAYS_RELEVANT,
-    Action,
     BUILTIN_MODELS,
     COMPUTE_RD_PARAMS,
     CUSTOM_CHOICE,
     DATASET_PARAMS,
     HAVE_THEORY,
     MODEL_STANDARD_PARAMS,
+    theory,
 )
 
 
@@ -29,6 +31,7 @@ from cosmofit.gui.reference import (
 # Helpers
 # ============================================================
 
+@functools.lru_cache(maxsize=128)
 def _model_capabilities(model_cls) -> dict:
     """
     What a model can be asked to do, read off the class itself
@@ -39,6 +42,10 @@ def _model_capabilities(model_cls) -> dict:
     ``Cosmology.mu`` returning 1 (standard GR growth), and only a
     model that replaces it predicts a growth history differing from
     GR's at the same background.
+
+    Cached per class: the page asks on every rerun, for every model
+    in the Guide's table, and the answer is a property of the class.
+    The dictionary is shared, so callers must not change it.
     """
 
     from cosmofit.cosmology.core.base import Cosmology
@@ -337,7 +344,7 @@ def _action_and_model(
     Friedmann equation that was derived without deriving it twice.
     """
 
-    action = Action(
+    action = theory().Action(
         gravity,
         geometry=geometry,
         fluids=tuple(fluids),

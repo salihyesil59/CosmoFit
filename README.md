@@ -210,8 +210,10 @@ pip install cosmofit
   with one click, no code -- compare models side by side statistically (AIC/BIC/a likelihood-ratio
   test) and on the same figures, all from the browser, with every figure downloadable as SVG, PNG,
   or PDF. It is also **self-explaining**: every dataset and model carries a note saying what it
-  measures, over what redshift range, what it constrains and where it comes from; six presets
-  configure a whole analysis in one click; the parameter table shows only the parameters *this*
+  measures, over what redshift range, what it constrains and where it comes from; the page is a
+  row of tabs in the order a fit is built (Start, Data, Model, Run, Results, Guide), with three
+  quick starts that set up a whole fit in one click and a checklist that holds the Run button
+  until nothing would make the run fail; six presets configure the data; the parameter table shows only the parameters *this*
   fit actually uses; and the app warns about combinations that will not work (or, worse, will
   quietly produce a posterior for something the data cannot constrain) before you run them
 * Covariance matrix support, including precision (inverse-covariance) matrices as shipped
@@ -985,7 +987,20 @@ or `run_gui.bat` (Windows) in the repository root. Either installs
 whatever's missing on first run and then opens the app in your
 browser; safe to double-click again any time to relaunch it.
 
-Chains are saved and reused (the "Saved chains" box in the sidebar,
+**A tab per step.** The page is a row of tabs in the order a fit is
+built: **Start** (three quick starts -- a first ΛCDM fit, the DESI
+dark-energy question, the Hubble tension -- each of which fills in
+every tab and lands on Run), **Data**, **Model**, **Run** (a
+pre-flight checklist, each item with a button to the tab that fixes
+it, and three sampling profiles: Quick look, Standard, Publication),
+**Results** and **Guide**. Each step opens with what to do on it and
+why; the sidebar shows where each one stands and saves or restores the
+whole setup as a file. Only the open tab is drawn, everything the tabs
+configure is kept across them, and a figure is drawn once and then
+kept, so moving between tabs and clicking around the results is
+immediate.
+
+Chains are saved and reused (the "Save chains" box on the Run tab,
 on by default), in getdist's format, one folder per distinct
 configuration: add a second model to compare against and the first
 one comes back instantly instead of being re-sampled, tighten R − 1 or
@@ -1042,9 +1057,11 @@ itself -- it produces a perfectly ordinary-looking posterior. So:
 * **Derived quantities** (`q₀`, `z_t`, and `r_d` computed from the
   densities) with real error bars, pushed sample by sample back
   through the model's own `E(z)`.
-* A **📖 Guide** panel listing every dataset and model in one
-  browsable table, with the conflict rules and a short "how to use
-  this" walkthrough.
+* A **📖 Guide** tab listing every dataset and model in one
+  browsable table, with the conflict rules, a "how to use this"
+  walkthrough, a glossary of the words the page uses (prior,
+  posterior, AIC/BIC, R − 1, r_d, S₈, evidence...) and the common
+  problems with what to do about each.
 
 The custom-model expression box evaluates with `eval()` but with
 Python's builtins removed and only whitelisted `numpy` math plus the
@@ -1077,7 +1094,7 @@ Where it stands today:
 | datasets | **21**, from cosmic chronometers to the from-scratch CMB, each a native likelihood, and the DESI DR1 full shape on the core |
 | models | **20** written out by hand, plus three routes to one that is not here |
 | samplers | adaptive Metropolis-Hastings, emcee, dynesty, minimize, profile, Fisher, post-processing |
-| tests | **1423**, on Python 3.11-3.13 on Linux, Windows and macOS, with and without every optional extra |
+| tests | **1439**, on Python 3.11-3.13 on Linux, Windows and macOS, with and without every optional extra |
 | notebooks | **17**, in five sections under [`examples/`](examples/), and YAML inputs beside them |
 
 ---

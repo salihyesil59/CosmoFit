@@ -168,7 +168,7 @@ cmb = [
 ]
 
 gui = [
-    "streamlit>=1.38",
+    "streamlit>=1.62",
 ]
 
 # The API reference under docs/. `myst-parser` is what lets the site

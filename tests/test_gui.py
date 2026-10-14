@@ -41,9 +41,29 @@ APP = str(_PAGE)
 ENTRY = str(Path(__file__).resolve().parents[1] / "app" / "streamlit_app.py")
 
 
+#: The tabs, by the short name the tests use.
+STEPS = {
+    "start": "🏠 Start", "data": "📊 Data", "model": "🧮 Model",
+    "run": "🚀 Run", "results": "📈 Results", "guide": "📖 Guide",
+}
+
+
+def _goto(app: AppTest, step: str) -> AppTest:
+    """
+    Open a tab. Only the open tab is drawn, so a widget is found only
+    once its tab is -- which is what a user has to do too.
+    """
+
+    app.session_state["step"] = STEPS[step]
+    app.session_state["open_step"] = STEPS[step]
+
+    return app.run()
+
+
 def _fresh(timeout: float = 300.0) -> AppTest:
     """
-    A booted app with chain saving off and a short chain configured.
+    A booted app with chain saving off and a short chain configured,
+    left on the Run tab.
 
     Chain saving is disabled so a test run never writes ``chains/``
     into whatever directory pytest was started from -- and so one
@@ -53,6 +73,8 @@ def _fresh(timeout: float = 300.0) -> AppTest:
     app = AppTest.from_file(APP, default_timeout=timeout)
 
     app.run()
+
+    _goto(app, "run")
 
     for checkbox in app.checkbox:
         if checkbox.label.startswith("Save chains"):
@@ -91,10 +113,12 @@ def _state(app: AppTest) -> dict:
 
 def _select_model(app: AppTest, name: str) -> AppTest:
     """
-    Pick a model by name. The dropdown shows ``"CPL · Dark energy on
-    top of GR"``, so entries are matched by prefix rather than
-    equality.
+    Pick a model by name, on the Model tab. The dropdown shows ``"CPL
+    · Dark energy on top of GR"``, so entries are matched by prefix
+    rather than equality.
     """
+
+    _goto(app, "model")
 
     picker = [s for s in app.selectbox if s.label == "Cosmology"][0]
 
@@ -104,14 +128,28 @@ def _select_model(app: AppTest, name: str) -> AppTest:
 
 
 def _apply_preset(app: AppTest, name: str) -> AppTest:
+    """Press a preset's card on the Data tab."""
 
-    picker = [s for s in app.selectbox if s.label == "Start from a preset"][0]
+    from cosmofit.gui.reference import DATASET_PRESETS
 
-    picker.set_value(name).run()
+    _goto(app, "data")
 
-    button = [b for b in app.button if b.label == "Apply preset"][0]
+    key = f"preset_{list(DATASET_PRESETS).index(name)}"
+
+    button = [b for b in app.button if b.key == key][0]
+
+    if button.disabled:          # already in use
+        return app
 
     return button.click().run()
+
+
+def _run(app: AppTest) -> AppTest:
+    """Press Run Fit, on the Run tab."""
+
+    _goto(app, "run")
+
+    return [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
 
 
 def _parameter_table(app: AppTest):
@@ -122,6 +160,8 @@ def _parameter_table(app: AppTest):
     it is reported alongside ``st.dataframe`` -- so it is picked out
     by the one column only it has.
     """
+
+    _goto(app, "model")
 
     tables = [
         f.value for f in app.dataframe
@@ -165,7 +205,10 @@ def test_app_starts_without_exceptions(script):
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
-    assert any(b.label == "🚀 Run Fit" for b in app.button)
+    assert [tab.label for tab in app.tabs][:6] == list(STEPS.values())
+
+    # It opens on Start, with the quick starts on it.
+    assert any(b.key == "quick_first_fit" for b in app.button)
 
 
 # ============================================================
@@ -230,7 +273,7 @@ def test_fit_runs_and_renders_its_tables():
 
     app = _apply_preset(_fresh(timeout=600.0), "The Hubble tension, both sides")
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
     assert not app.error, [e.value for e in app.error]
@@ -268,7 +311,7 @@ def test_derived_quantities_are_rendered():
 
     app = _apply_preset(_fresh(timeout=600.0), "Late-time background (default)")
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -330,7 +373,7 @@ def test_incompatible_datasets_are_flagged():
     app.session_state["ds_pantheon"] = True
     app.session_state["ds_des_sn5yr"] = True
 
-    app.run()
+    _goto(app, "data")
 
     assert "double-count" in _messages(app).lower()
 
@@ -391,7 +434,7 @@ def test_guide_lists_every_dataset_and_model():
     note would show up here as a blank row rather than silently.
     """
 
-    app = _fresh(timeout=60.0)
+    app = _goto(_fresh(timeout=60.0), "guide")
 
     frames = [f.value for f in app.dataframe]
 
@@ -451,7 +494,7 @@ def _load_action_preset(app: AppTest, name: str) -> AppTest:
 @requires_sympy
 def test_the_action_route_is_offered():
 
-    app = _fresh()
+    app = _goto(_fresh(), "model")
 
     picker = [s for s in app.selectbox if s.label == "Cosmology"][0]
 
@@ -551,7 +594,7 @@ def test_a_model_derived_from_an_action_fits_end_to_end():
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
     assert not app.error, [e.value for e in app.error]
@@ -592,7 +635,7 @@ def _fitted(datasets_preset: str = "Late-time background (default)") -> AppTest:
 
     app = _apply_preset(_fresh(timeout=900.0), datasets_preset)
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -705,6 +748,8 @@ def test_tension_between_two_models_reports_both_definitions():
 
     app = _apply_preset(_fresh(timeout=900.0), "Late-time background (default)")
 
+    _goto(app, "model")
+
     # A second model, so there are two posteriors to compare.
     add = [b for b in app.button if "Add" in b.label]
 
@@ -720,7 +765,7 @@ def test_tension_between_two_models_reports_both_definitions():
 
     app = pickers[1].set_value(option).run()
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -758,7 +803,7 @@ def test_best_fit_restarts_are_offered_and_used():
 
     app = _apply_preset(app, "Late-time background (default)")
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -816,7 +861,7 @@ def test_a_library_warning_reaches_the_page():
     produces.
     """
 
-    app = _fresh(timeout=900.0)
+    app = _goto(_fresh(timeout=900.0), "data")
 
     for key in ("ds_sdss_bao", "ds_fsigma8"):
         for checkbox in app.checkbox:
@@ -830,7 +875,7 @@ def test_a_library_warning_reaches_the_page():
                 app = checkbox.set_value(False).run()
                 break
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -954,7 +999,7 @@ def test_the_fit_is_offered_as_a_python_snippet():
 
     app = _apply_preset(_fresh(timeout=600.0), "The Hubble tension, both sides")
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -1154,7 +1199,7 @@ def test_the_chain_itself_can_be_taken_away():
 
     app = _apply_preset(_fresh(timeout=600.0), "The Hubble tension, both sides")
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
@@ -1183,6 +1228,8 @@ def test_a_saved_fit_comes_back_without_sampling(tmp_path):
     app = AppTest.from_file(APP, default_timeout=600)
     app.run()
 
+    _goto(app, "run")
+
     for text in app.text_input:
         if text.label == "Folder":
             text.set_value(str(tmp_path))
@@ -1209,9 +1256,289 @@ def test_a_saved_fit_comes_back_without_sampling(tmp_path):
 
     written = (folders[0] / "run.1.txt").read_text()
 
-    app = [b for b in app.button if b.label == "🚀 Run Fit"][0].click().run()
+    app = _run(app)
 
     assert not app.exception, [str(e.value) for e in app.exception]
 
     assert any("read straight from a saved chain" in t.value for t in app.toast)
     assert (folders[0] / "run.1.txt").read_text() == written
+
+
+# ============================================================
+# The tabs
+# ============================================================
+#
+# The page was one long scroll -- datasets in the sidebar, models,
+# the Run button and the results stacked below -- which left a first
+# visit with no idea where to start, and reran every widget on every
+# click. It is now a row of tabs in the order a fit is built, only the
+# open one drawn, and everything they configure kept in session state.
+
+
+@pytest.mark.parametrize("step", list(STEPS))
+def test_every_tab_opens(step):
+
+    app = _goto(_fresh(timeout=60.0), step)
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+
+def test_only_the_open_tab_is_drawn():
+    """
+    The point of the lazy tabs: a page that draws six tabs on every
+    rerun is no faster for having them.
+    """
+
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.run()
+
+    assert not any(c.key == "ds_cc" for c in app.checkbox), (
+        "the Data tab's checkboxes were drawn while Start was open"
+    )
+
+    app = _goto(app, "data")
+
+    assert any(c.key == "ds_cc" for c in app.checkbox)
+
+
+def test_a_choice_survives_leaving_its_tab():
+    """
+    A widget that is not drawn loses its value unless told otherwise
+    -- which here would be every dataset tick, the moment the Model
+    tab is opened.
+    """
+
+    app = _goto(_fresh(timeout=60.0), "data")
+
+    box = [c for c in app.checkbox if c.key == "ds_pantheon"][0]
+
+    assert box.value is False
+
+    app = box.set_value(True).run()
+
+    app = _goto(app, "model")
+    app = _goto(app, "run")
+
+    assert "Pantheon" in "".join(m.value for m in app.markdown)
+
+    app = _goto(app, "data")
+
+    assert [c for c in app.checkbox if c.key == "ds_pantheon"][0].value is True
+
+
+def test_a_parameter_edit_survives_tabs_and_datasets():
+    """
+    The parameter table cannot keep itself the way the other widgets
+    do (``st.data_editor`` neither persists nor can be written), so
+    its rows are kept by the page. An edit made there has to outlive
+    a trip to another tab and a change of datasets -- which changes
+    which rows are shown, not what they say.
+    """
+
+    app = _fresh(timeout=60.0)
+    _parameter_table(app)
+
+    rows = [dict(row) for row in app.session_state["params_0"]]
+
+    for row in rows:
+        if row["Parameter"] == "rd":
+            row["Free"] = True
+            row["Initial"] = 150.0
+
+    app.session_state["params_0"] = rows
+
+    app = _goto(app, "data")
+    app = [c for c in app.checkbox if c.key == "ds_fsigma8"][0].set_value(True).run()
+
+    table = _parameter_table(app)
+
+    rd = table[table["Parameter"] == "rd"].iloc[0]
+
+    assert bool(rd["Free"]) and rd["Initial"] == 150.0
+
+    # and the dataset that was ticked shows its parameter
+    assert "sigma8" in set(table["Parameter"])
+
+
+def test_an_edit_in_the_table_is_folded_into_the_rows():
+    """
+    ``apply_param_edits`` turns the editor's edits -- by position in
+    what it showed -- into the rows, and moves the editor's key on so
+    the next pass draws it fresh from them.
+    """
+
+    def script():
+        import streamlit as st
+
+        from cosmofit.gui.state import apply_param_edits
+
+        if "params_0" not in st.session_state:
+            st.session_state["params_0"] = [
+                {"Parameter": "H0", "Free": True, "Initial": 70.0,
+                 "Lower": 50.0, "Upper": 90.0},
+                {"Parameter": "Omega_k", "Free": False, "Initial": 0.0,
+                 "Lower": -0.3, "Upper": 0.3},
+                {"Parameter": "w0", "Free": False, "Initial": -1.0,
+                 "Lower": -3.0, "Upper": 1.0},
+            ]
+            # As drawn: Omega_k hidden, so w0 was the second row shown.
+            st.session_state["edits"] = {
+                "edited_rows": {1: {"Free": True, "Initial": -0.9}},
+            }
+            apply_param_edits(0, ["H0", "w0"], "edits")
+
+    app = AppTest.from_function(script)
+    app.run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    rows = {row["Parameter"]: row for row in app.session_state["params_0"]}
+
+    assert rows["w0"]["Free"] is True and rows["w0"]["Initial"] == -0.9
+    assert rows["Omega_k"]["Free"] is False, "the hidden row was edited"
+    assert app.session_state["_param_rev_0"] == 1
+
+
+def test_a_quick_start_sets_up_a_whole_fit():
+    """
+    One click from Start to a configuration that runs -- the datasets,
+    the model, its free parameters and a sampling profile -- landing
+    on the Run tab with nothing left blocking it.
+    """
+
+    from cosmofit.gui.reference import QUICK_STARTS
+
+    app = AppTest.from_file(APP, default_timeout=60)
+    app.run()
+
+    app = [b for b in app.button if b.key == "quick_dark_energy"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    state = app.session_state
+    quick = QUICK_STARTS["dark_energy"]
+
+    assert state["step"] == STEPS["run"]
+
+    assert state["ds_desi"] and state["ds_pantheon"] and state["ds_planck"]
+    assert not state["ds_cc"]
+
+    assert state["model_choice_0"].startswith("CPL ")
+
+    free = {row["Parameter"] for row in state["params_0"] if row["Free"]}
+    assert free == set(quick["free"])
+
+    assert state["run_profile"] == "Standard"
+    assert state["mcmc_rminus1"] == 0.01
+
+    run_button = [b for b in app.button if b.label == "🚀 Run Fit"][0]
+    assert not run_button.disabled
+
+
+def test_a_quick_start_runs_end_to_end():
+
+    app = AppTest.from_file(APP, default_timeout=600)
+    app.run()
+
+    app = [b for b in app.button if b.key == "quick_first_fit"][0].click().run()
+
+    for checkbox in app.checkbox:
+        if checkbox.label.startswith("Save chains"):
+            checkbox.set_value(False)
+    for number in app.number_input:
+        if number.label == "Max steps":
+            number.set_value(240)
+
+    app = _run(app.run())
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+    assert app.session_state["step"] == STEPS["results"], "did not move to Results"
+
+    frames = [f.value for f in app.dataframe]
+    breakdown = [f for f in frames if "dataset" in f.columns]
+
+    assert breakdown and set(breakdown[0]["dataset"]) == {"CC", "DESI"}
+
+
+def test_the_run_button_waits_for_the_checklist():
+    """
+    Pressing Run with nothing to run used to be how one found out. The
+    checklist says what is missing and where to fix it, and the button
+    stays off until it is clear.
+    """
+
+    from cosmofit.stats import DATASET_REGISTRY
+
+    app = _fresh(timeout=60.0)
+
+    for key in DATASET_REGISTRY:
+        app.session_state[f"ds_{key}"] = False
+
+    app = _goto(app, "run")
+
+    run_button = [b for b in app.button if b.label == "🚀 Run Fit"][0]
+
+    assert run_button.disabled
+
+    text = "".join(m.value for m in app.markdown)
+
+    assert "No dataset is selected" in text
+
+    fix = [b for b in app.button if b.label == "Fix →"]
+
+    assert fix, "no way to the tab that fixes it"
+
+    app = fix[0].click().run()
+
+    assert app.session_state["step"] == STEPS["data"]
+
+
+def test_results_before_a_fit_say_where_to_go():
+
+    app = _goto(_fresh(timeout=60.0), "results")
+
+    assert "No fit yet" in _messages(app)
+
+
+def test_figures_are_drawn_once():
+    """
+    A figure is drawn on its first showing and kept: a rerun -- any
+    click anywhere -- reuses the image instead of redrawing a corner
+    plot.
+    """
+
+    app = _fitted()
+
+    figures = app.session_state["_figures"]
+
+    assert figures, "no figure was drawn on the Results tab"
+
+    drawn = {key: value[0] for key, value in figures.items()}
+
+    app = app.run()
+
+    for key, image in drawn.items():
+        assert app.session_state["_figures"][key][0] is image
+
+
+def test_the_page_starts_without_sympy():
+    """
+    sympy is half a second of a cold start, and only the action route
+    needs it -- the page asks whether it is installed, not imports it.
+    """
+
+    import subprocess
+    import sys
+
+    code = (
+        "import sys\n"
+        "import cosmofit.gui.state, cosmofit.gui.render\n"
+        "from cosmofit.gui.steps import start, data, model, run, results, guide\n"
+        "print('sympy' in sys.modules)\n"
+    )
+
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True,
+    )
+
+    assert out.stdout.strip() == "False", out.stdout + out.stderr
