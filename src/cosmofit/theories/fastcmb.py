@@ -88,9 +88,10 @@ class FastCMB(CAMB):
         chains share them and a later run of the same model starts from
         them.
     check_every : int
-        Every this many predictions, CAMB runs as well and the error is
+        After this many predictions, CAMB runs as well and the error is
         measured; a prediction found worse than three times the
-        tolerance is learned. Default 200; 0 never.
+        tolerance is learned. While the checks pass the interval
+        doubles, up to ten times this. Default 200; 0 never.
 
     :meth:`stats` says how many points CAMB and the emulator computed.
     """

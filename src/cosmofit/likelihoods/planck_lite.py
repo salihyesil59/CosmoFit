@@ -331,44 +331,50 @@ class PlanckLiteLikelihood(BaseLikelihood):
         one set of windows; only the number of bandpowers differs.
         """
 
-        data = self.full_data
+        key = (spectrum, cl_lmin)
 
-        if spectrum == "TT":
+        windows = self.__dict__.setdefault("_windows", {})
 
-            blmin, blmax, weights, lmin_windows = data.tt_windows
+        if key not in windows:
 
-            n_max = data.n_bin[0]
+            data = self.full_data
 
-        else:
+            if spectrum == "TT":
 
-            blmin, blmax, weights, lmin_windows = (
-                data.blmin, data.blmax, data.weights, data.lmin
-            )
+                blmin, blmax, weights, lmin_windows = data.tt_windows
 
-            n_max = max(data.n_bin[1:])
+                n_max = data.n_bin[0]
 
-        binned = np.empty(n_max, dtype=float)
+            else:
 
-        for i in range(n_max):
+                blmin, blmax, weights, lmin_windows = (
+                    data.blmin, data.blmax, data.weights, data.lmin
+                )
+
+                n_max = max(data.n_bin[1:])
 
             # Window i covers multipoles
             # [blmin[i] + lmin_windows, blmax[i] + lmin_windows],
             # and `cl` is indexed from `cl_lmin` -- so the two
             # offsets do not cancel in general and both have to be
             # written out. The weights, by contrast, are indexed by
-            # the window offset alone.
-            lo = blmin[i] + lmin_windows - cl_lmin
-            hi = blmax[i] + lmin_windows - cl_lmin + 1
+            # the window offset alone. All the windows are flattened
+            # into one index and one weight array, summed per window.
+            ranges = [
+                np.arange(blmin[i], blmax[i] + 1) for i in range(n_max)
+            ]
 
-            binned[i] = np.dot(
+            offsets = np.concatenate(ranges)
 
-                cl[lo:hi],
-
-                weights[blmin[i]:blmax[i] + 1],
-
+            windows[key] = (
+                offsets + lmin_windows - cl_lmin,
+                np.asarray(weights, dtype=float)[offsets],
+                np.cumsum([0] + [r.size for r in ranges[:-1]]),
             )
 
-        return binned
+        index, weights, starts = windows[key]
+
+        return np.add.reduceat(cl[index] * weights, starts)
 
     # ---------------------------------------------------------
 

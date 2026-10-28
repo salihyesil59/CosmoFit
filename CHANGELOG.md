@@ -29,7 +29,8 @@ and how wrong that prediction can be, in units of `ln L`. Below the
 `tolerance` (0.05 by default) the prediction is the answer; above it
 CAMB runs exactly as the `camb` theory runs it, and the point is
 learned. Every 200 predictions CAMB runs as well, and the error is
-measured rather than predicted. A `training_file` keeps the CAMB
+measured rather than predicted; while those checks pass they grow
+rarer, down to one in 2 000. A `training_file` keeps the CAMB
 points, so parallel chains learn from each other's and the next run of
 the same model starts from all of them.
 
@@ -42,6 +43,19 @@ posterior is Planck's.
 
 What is emulated is what the CMB likelihoods read. A model that asks
 for `P(k)` or `sigma(R)` gets CAMB at every point, as before.
+
+With `processes` in the MCMC, give the theory a `training_file`: the
+processes then learn from each other's CAMB points. From a trained
+emulator, four processes took the chains above to `R - 1` = 0.026 in
+21 minutes.
+
+### Planck lite bins 40x faster
+
+The plik_lite likelihood applied its bandpower windows in a Python
+loop, a quarter of a millisecond per spectrum; with an emulator in
+front of CAMB that was a tenth of the time per point. The windows are
+now flattened once and summed in one call, with the same result to
+1e-16.
 
 ## v2.2.0
 
