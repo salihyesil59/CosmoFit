@@ -139,7 +139,11 @@ pip install cosmofit
     structure grew; and **Planck 2018 low-l EE** as the tabulated, *non-Gaussian* likelihood it
     actually is rather than a Gaussian shorthand (which is still available as the `"tau"`
     dataset: `0.0506 +- 0.0086` from lowE alone by default, or the familiar `0.0544 +- 0.0073`,
-    which is the TT,TE,EE+lowE posterior and must not be combined with `planck_lite`)
+    which is the TT,TE,EE+lowE posterior and must not be combined with `planck_lite`).
+    Every CMB spectrum CAMB computes can come instead from the **`fastcmb` theory**: CAMB
+    with an emulator in front of it that learns while the chain runs, and answers wherever
+    its predicted error is below 0.05 in ln L -- a Planck lite + lowE + lensing chain ran
+    16x faster, within 0.02 in ln L of CAMB at the chain's points
   * **ACT DR6 CMB lensing** -- a second, independent lensing reconstruction, tighter than
     Planck's (2.3% on the amplitude), built on the lensing convergence rather than the potential
   * Growth rate fsigma8(z) (Gold-2018 RSD compilation, 22 points)
@@ -247,10 +251,11 @@ pip install cosmofit
 
 Everything in the core works with no extras at all -- twenty-one
 bundled datasets, twenty models, the samplers and every figure. The
-four optional extras are each there for one thing:
+five optional extras are each there for one thing:
 
 ```bash
 pip install "cosmofit[cmb]"       # CAMB: the CMB computed rather than compressed
+pip install "cosmofit[fast]"      # fastcmb: the same CMB, emulated, ~16x faster
 pip install "cosmofit[theory]"    # sympy: derive a model from its action
 pip install "cosmofit[evidence]"  # dynesty: nested sampling, Bayes factors
 pip install "cosmofit[speed]"     # numba: ~1.7x on growth-heavy fits, nothing else

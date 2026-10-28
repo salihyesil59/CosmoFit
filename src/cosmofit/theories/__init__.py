@@ -19,6 +19,10 @@ Native theories of the 2.0 core.
     :class:`~theories.boltzmann.CAMB` -- CMB spectra and ``sigma8`` from
     CAMB, for dark sectors it can represent
     (:func:`~theories.boltzmann.cmb_support`).
+``fastcmb``
+    :class:`~theories.fastcmb.FastCMB` -- the ``camb`` theory with an
+    emulator in front of it that learns while the chain runs; needs the
+    optional ``fastcmb`` package.
 
 Named in an input's ``theory`` block by these names.
 

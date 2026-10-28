@@ -14,6 +14,35 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### `fastcmb`: CAMB with an emulator in front of it
+
+A new theory, `fastcmb`, takes the `camb` theory's place in an input
+-- same options, parameters and results -- and answers most points in
+about ten milliseconds instead of half a second to two seconds. It
+needs the optional [fastcmb](https://github.com/salihyesil59/fastcmb)
+package (`pip install "cosmofit[fast]"`).
+
+At each point the emulator predicts the lensed spectra and `sigma8`,
+and how wrong that prediction can be, in units of `ln L`. Below the
+`tolerance` (0.05 by default) the prediction is the answer; above it
+CAMB runs exactly as the `camb` theory runs it, and the point is
+learned. Every 200 predictions CAMB runs as well, and the error is
+measured rather than predicted. A `training_file` keeps the CAMB
+points, so parallel chains learn from each other's and the next run of
+the same model starts from all of them.
+
+On Planck 2018 lite + lowE + lensing, LCDM, four chains of the
+built-in MCMC made 131 000 evaluations in an hour from no training
+points, CAMB computing 1 545 of them (650 of those checks); with CAMB
+at every evaluation that is 16.5 hours. Re-evaluated with CAMB, the
+chains' points were within 0.02 in `ln L` (median 0.004), and the
+posterior is Planck's.
+
+What is emulated is what the CMB likelihoods read. A model that asks
+for `P(k)` or `sigma(R)` gets CAMB at every point, as before.
+
 ## v2.2.0
 
 The graphical interface, rebuilt around how a fit is made: six tabs

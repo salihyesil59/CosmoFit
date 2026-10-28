@@ -167,6 +167,13 @@ cmb = [
     "camb>=1.5",
 ]
 
+# The "fastcmb" theory: CAMB with an emulator in front of it, which
+# answers in milliseconds where it is sure of the spectra.
+fast = [
+    "camb>=1.5",
+    "fastcmb>=0.2",
+]
+
 gui = [
     "streamlit>=1.62",
 ]

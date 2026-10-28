@@ -34,6 +34,7 @@ _BUILTIN = {
         "early_universe": "cosmofit.theories.early:EarlyUniverse",
         "growth": "cosmofit.theories.growth:Growth",
         "camb": "cosmofit.theories.boltzmann:CAMB",
+        "fastcmb": "cosmofit.theories.fastcmb:FastCMB",
     },
     "likelihood": {
         "bao.desi": "cosmofit.likelihoods.native:DESI",
