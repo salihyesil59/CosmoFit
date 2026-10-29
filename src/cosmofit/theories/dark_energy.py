@@ -473,6 +473,22 @@ class HuSawicki(DarkEnergy):
 
         return 1.0 + (Y2 / 3.0) / (Y2 + Mhat2)
 
+    def camb_mg_params(self, f_R0, n_hs):
+        """
+        MGCAMB's model of this coupling: its quasi-static Hu-Sawicki
+        f(R) (``MG_flag = 3``, ``QSA_flag = 4``), whose scalaron mass is
+        :meth:`mu`'s ``Mhat`` with ``F_R0 = -f_R0``. ``f_R0 = 0`` is
+        general relativity.
+        """
+
+        if f_R0 > 0.0:
+            raise ValueError(f"{self.name}: f_R0 > 0 has a tachyonic scalaron; f_R0 <= 0.")
+
+        if f_R0 == 0.0:
+            return {"MG_flag": 0}
+
+        return {"MG_flag": 3, "QSA_flag": 4, "F_R0": -float(f_R0), "FRn": float(n_hs)}
+
 
 #: Every dark-energy model by name, with the old class names as aliases.
 DARK_ENERGY = {

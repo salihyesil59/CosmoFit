@@ -20,7 +20,9 @@ now read off the sector's hooks:
   makes ``E(z)`` jump is refused. CAMB would run for each of them --
   on a background it was not given, or with perturbations it does
   not have -- and return a spectrum that looks reasonable and means
-  nothing;
+  nothing -- except, with MGCAMB installed in place of CAMB, a
+  coupling MGCAMB has a model of, given through the sector's
+  ``camb_mg_params`` hook (Hu-Sawicki f(R));
 * a modified Friedmann equation or a holographic sector has no
   ``w(z)`` to give it, and is refused too.
 
@@ -61,10 +63,12 @@ _TOTAL = ("delta_tot", "delta_tot")
 _K_MAX = 2.0
 
 
-def cmb_support(sector) -> tuple[bool, str]:
+def cmb_support(sector, mgcamb: bool = False) -> tuple[bool, str]:
     """
     Whether CAMB can compute spectra for a dark sector, and why not when
-    it cannot -- without importing CAMB.
+    it cannot -- without importing CAMB. ``mgcamb``: the CAMB installed
+    is MGCAMB, which a sector with a ``camb_mg_params`` hook can give
+    its modified gravity.
     """
 
     cls = type(sector)
@@ -73,12 +77,16 @@ def cmb_support(sector) -> tuple[bool, str]:
     def overrides(hook):
         return getattr(cls, hook) is not getattr(DarkSector, hook)
 
-    if overrides("mu"):
+    if overrides("mu") and not (mgcamb and hasattr(sector, "camb_mg_params")):
+        hint = (
+            f" MGCAMB has a model of it: install MGCAMB in place of CAMB."
+            if hasattr(sector, "camb_mg_params") else ""
+        )
         return False, (
             f"{name} changes the gravitational coupling of matter "
             f"perturbations (mu), and CAMB's perturbation equations are "
             f"general relativity's. It would return GR spectra, with "
-            f"every parameter that enters only mu doing nothing."
+            f"every parameter that enters only mu doing nothing.{hint}"
         )
 
     if overrides("matter_exchange") or overrides("clustering_matter"):
@@ -184,6 +192,9 @@ class CAMB(Theory):
             self.camb = _import_camb()
         except BoltzmannError as error:
             raise ComponentError(str(error)) from None
+
+        #: Whether the CAMB installed is MGCAMB, with modified gravity.
+        self.mgcamb = hasattr(self.camb.CAMBparams, "set_mgparams")
 
         versions = self.camb.nonlinear.halofit_version_names
 
@@ -294,7 +305,7 @@ class CAMB(Theory):
                 f"{background.name} has radiation: false."
             )
 
-        supported, reason = cmb_support(background.sector)
+        supported, reason = cmb_support(background.sector, mgcamb=self.mgcamb)
 
         if not supported:
             raise ComponentError(
@@ -330,6 +341,11 @@ class CAMB(Theory):
         pars.set_matter_power(
             redshifts=sorted(self.redshifts, reverse=True), kmax=self.k_max, silent=True,
         )
+
+        if hasattr(sector, "camb_mg_params") and self.mgcamb:
+
+            # MGCAMB's own model of the sector's modified gravity.
+            pars.set_mgparams(**sector.camb_mg_params(**expansion["sector_params"]))
 
         if hasattr(sector, "camb_dark_energy"):
 
