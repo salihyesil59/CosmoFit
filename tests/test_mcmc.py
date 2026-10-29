@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import yaml
 
-from cosmofit.core import Likelihood, run
+from cosmofit.core import Likelihood, Theory, run
 from cosmofit.core.output import OutputError, load_covmat
 from cosmofit.core.parameters import parse_param
 from cosmofit.samplers.mcmc import gelman_rubin
@@ -315,3 +315,104 @@ def test_progress_is_reported_at_every_check():
     assert len(seen) == len(sampler.progress) > 1
     assert seen[-1]["Rminus1"] == sampler.products()["Rminus1"]
     assert seen[-1]["Rminus1_stop"] == 0.05 and "max_samples" in seen[-1]
+
+
+# ============================================================
+# Screening
+# ============================================================
+
+class Approximating(Theory):
+    """
+    Provides ``(a, b, c)``. While screening, a point far from the mean
+    is answered approximately, off by a little, as the ``fastcmb``
+    theory answers from its emulator.
+    """
+
+    params = {"a": None, "b": None, "c": None}
+
+    screening = False
+    exact = 0
+
+    def get_can_provide(self):
+        return ["point"]
+
+    def calculate(self, state, want_derived=True, *, a, b, c):
+
+        x = np.array([a, b, c])
+        d = x - MEAN
+
+        if self.screening and 0.5 * d @ ICOV @ d > 2.0:
+            state["point"] = x + 0.01 * SIGMA
+            state["approximate"] = 0.05
+        else:
+            type(self).exact += 1
+            state["point"] = x
+
+    def compute(self, params, want_derived=True, upstream=()):
+
+        if not self.screening:
+            for key in [k for k, v in self._cache.items() if v and "approximate" in v]:
+                del self._cache[key]
+
+        ok = super().compute(params, want_derived, upstream)
+
+        if self.approximate_error is not None:
+            self.current_key = (*self.current_key, "approximate")
+
+        return ok
+
+    @property
+    def approximate_error(self):
+        return None if self.current_state is None else self.current_state.get("approximate")
+
+    def get_point(self):
+        return self.current_state["point"]
+
+
+class OfPoint(Likelihood):
+
+    def get_requirements(self):
+        return {"point": None}
+
+    def logp(self):
+        d = self.provider.get_point() - MEAN
+        return -0.5 * d @ ICOV @ d
+
+
+def test_screening_rejects_far_proposals_and_keeps_only_exact_points():
+
+    info = gaussian_input(Rminus1_stop=0.01)
+    info["theory"] = {"approx": {"class": Approximating}}
+    info["likelihood"] = {"gauss": {"class": OfPoint}}
+
+    Approximating.exact = 0
+    _, sampler = run(info, seed=2)
+    products = sampler.products(skip=0.3)
+
+    assert products["converged"]
+
+    screened, screened_in = products["screened"]
+    assert screened > 0 and screened_in > 0
+
+    # Every proposal not screened out was computed exactly.
+    assert Approximating.exact < sum(c.proposed for c in sampler.chains)
+
+    # The rows are the exact posterior at their points.
+    x = products["samples"]
+    d = x - MEAN
+    chi2 = 0.5 * np.einsum("ij,jk,ik->i", d, ICOV, d)
+    np.testing.assert_allclose(products["minuslogpost"] - chi2, (products["minuslogpost"] - chi2)[0])
+
+    mean, _ = moments(products)
+    assert np.all(np.abs((mean - MEAN) / SIGMA) < 0.15)
+
+
+def test_without_screening_nothing_is_screened():
+
+    info = gaussian_input(Rminus1_stop=0.05, screen=False)
+    info["theory"] = {"approx": {"class": Approximating}}
+    info["likelihood"] = {"gauss": {"class": OfPoint}}
+
+    _, sampler = run(info, seed=2)
+
+    assert sampler.products()["screened"] == (0, 0)

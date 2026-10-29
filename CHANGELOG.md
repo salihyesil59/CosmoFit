@@ -57,6 +57,44 @@ front of CAMB that was a tenth of the time per point. The windows are
 now flattened once and summed in one call, with the same result to
 1e-16.
 
+### The MCMC screens slow proposals with the emulator
+
+With `fastcmb`, most of the CAMB calls left in a chain were for points
+it was about to reject: re-evaluated, three quarters of a CPL + DESI
+chain's CAMB points were more than 20 below its best `ln p`, a median
+of 97. The MCMC now draws the Metropolis `u` first and evaluates a
+slow proposal letting the theory answer *approximately* -- from the
+emulator, with a predicted `ln L` error up to `screen_tolerance` (1 by
+default) -- and rejects it on that when even the approximate `ln p`
+raised by a margin, `screen_margin * e * (1 + sqrt(2 g))`, is below
+`ln p(current) + ln u`. Otherwise it is evaluated exactly and decided
+with the same `u`, so every point a chain keeps is exact. Checked
+against CAMB on proposals of a converged CPL chain, the approximate
+`ln p` was within 0.036, a fiftieth of the margin, and none of 1 400
+screened-out decisions would have been an acceptance. `screen: false`
+turns it off; with it on, `u` is drawn for every slow proposal, so the
+chains are not those of a run without.
+
+On CPL + DESI BAO, four processes, from a trained emulator: `R - 1` =
+0.019 in 32.5 minutes, the first process calling CAMB 133 times in
+18 044 evaluations (511 in 6 432 the hour before, without screening).
+
+### `fastcmb` learns a dark sector along the distance to last scattering
+
+On CPL the emulator trusted barely half of a chain's points: the
+spectra were learned in `h`, `w0` and `wa`, which trade off along the
+distance to last scattering, and the kernels' length scales in `w0`
+and `wa` came out ten times shorter than in the rest. With a dark
+sector of its own the emulator is now also given `D_M_star`,
+`D_M(z = 1090)`; on the same points the trusted fraction went from 58%
+to 82%. LCDM's inputs are unchanged, and so are its training files.
+
+The CPL chain that found this had also stuck: given no covariance,
+the proposal moved `w0`, `wa`, `H0` and `Omega_m` independently, two
+chains rejected every slow move for thousands of steps, and `R - 1`
+never fell below 2 for the covariance to be learned. Correlated
+dark-energy parameters want a `covmat` to start from.
+
 ## v2.2.0
 
 The graphical interface, rebuilt around how a fit is made: six tabs

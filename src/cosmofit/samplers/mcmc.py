@@ -49,6 +49,24 @@ parameters are strongly tied to the slow ones that raises the slow
 acceptance; it costs two evaluations per fast step, and needs every
 theory to cache at least two states.
 
+Screening
+---------
+A theory that can answer approximately -- the ``fastcmb`` theory, from
+its emulator, where CAMB would otherwise run -- lets a slow proposal be
+*screened*: the uniform draw ``u`` of the Metropolis test comes first,
+the proposal is evaluated with approximate answers allowed, and if its
+``ln p``, raised by a margin for the approximation, is still below
+``ln p(current) + ln u`` it is rejected then and there. Otherwise it is
+evaluated again exactly, and decided with the same ``u``. A point a
+chain keeps is therefore always exact; what the approximation decides
+is only which far-off proposals are rejected without the exact
+computation. The margin is ``screen_margin * e * (1 + sqrt(2 g))``,
+with ``e`` the theory's predicted ``ln L`` error and ``g`` how far the
+proposal's ``ln p`` is below the best of the chains' current points --
+an error in a spectrum shifts ``ln L`` the more, the further the point
+is from the best fit. With screening the ``u`` is drawn for every slow
+proposal, so the chains differ from a run without it.
+
 ``fast_steps`` defaults to ``(t_slow / t_fast) ** oversample_power``,
 from timing the starting point -- 0.4, as in CosmoMC and cobaya. Give
 it as a number for a run that repeats exactly under its seed.
@@ -200,6 +218,12 @@ class MCMC(Sampler):
     processes : int
         Processes to run the chains in, started here; ignored under
         ``mpirun``, which decides that itself. Default 1.
+    screen : bool
+        Screen slow proposals with the approximate answers of the
+        theories that give them (see above). Default True; without
+        such a theory it does nothing.
+    screen_margin : float
+        Predicted errors the screening allows for. Default 3.
     """
 
     resumable = True
@@ -220,6 +244,8 @@ class MCMC(Sampler):
         "fast_steps": None,
         "drag": False,
         "processes": 1,
+        "screen": True,
+        "screen_margin": 3.0,
     }
 
     def initialize(self) -> None:
@@ -258,6 +284,14 @@ class MCMC(Sampler):
         #: The processes this run is shared between; set by :meth:`run`
         #: unless a process started by another sets it first.
         self.comm = None
+
+        #: Theories that answer approximately while screening.
+        self.screeners = [
+            t for t in self.model.theories.values() if hasattr(t, "approximate_error")
+        ] if self.options["screen"] and not self.options["drag"] else []
+        #: Slow proposals screened out, and screened in (then exact).
+        self.n_screened = 0
+        self.n_screened_in = 0
 
         self.Rminus1 = math.inf
         self.converged = False
@@ -596,18 +630,60 @@ class MCMC(Sampler):
         chain.accepted += 1
         chain.stuck = 0
 
-    def _metropolis(self, chain: _Chain, step) -> None:
-        """One Metropolis step of ``chain`` by ``step``."""
+    def _metropolis(self, chain: _Chain, step, screen: bool = False) -> None:
+        """One Metropolis step of ``chain`` by ``step``; ``screen`` it if asked and possible."""
 
         chain.proposed += 1
         chain.weight += 1
 
         proposal = chain.x + step
+
+        if screen and self.screeners:
+            self._screened_step(chain, proposal)
+            return
+
         result = self._evaluate(proposal)
 
         if math.isfinite(result.logpost) and self._accept(
             chain, result.logpost - chain.result.logpost
         ):
+            self._move(chain, proposal, result)
+        else:
+            self._stay(chain)
+
+    def _screened_step(self, chain: _Chain, proposal) -> None:
+
+        log_u = math.log1p(-chain.rng.uniform())
+
+        for theory in self.screeners:
+            theory.screening = True
+        try:
+            result = self._evaluate(proposal)
+        finally:
+            for theory in self.screeners:
+                theory.screening = False
+
+        errors = [t.approximate_error for t in self.screeners if t.approximate_error is not None]
+
+        if errors:
+
+            if math.isfinite(result.logpost):
+                best = max(c.result.logpost for c in self.chains)
+                gap = max(0.0, best - result.logpost)
+                margin = self.options["screen_margin"] * max(errors) * (1.0 + math.sqrt(2.0 * gap))
+                bound = result.logpost + margin
+            else:
+                bound = -math.inf
+
+            if bound - chain.result.logpost < log_u:
+                self.n_screened += 1
+                self._stay(chain)
+                return
+
+            self.n_screened_in += 1
+            result = self._evaluate(proposal)
+
+        if math.isfinite(result.logpost) and result.logpost - chain.result.logpost >= log_u:
             self._move(chain, proposal, result)
         else:
             self._stay(chain)
@@ -670,14 +746,14 @@ class MCMC(Sampler):
         move = slow @ chain.rng.standard_normal(slow.shape[1])
 
         if fast is None:
-            self._metropolis(chain, move)
+            self._metropolis(chain, move, screen=True)
 
         elif self.options["drag"]:
             self._drag(chain, move, fast)
 
         else:
 
-            self._metropolis(chain, move)
+            self._metropolis(chain, move, screen=True)
 
             for _ in range(self.fast_steps):
                 self._metropolis(chain, fast @ chain.rng.standard_normal(fast.shape[1]))
@@ -907,6 +983,8 @@ class MCMC(Sampler):
             "acceptance": self.progress[-1]["acceptance"] if self.progress else math.nan,
             "covmat": self.covariance.copy(),
             "progress": list(self.progress),
+            # This process's slow proposals screened out and in.
+            "screened": (self.n_screened, self.n_screened_in),
         }
 
 

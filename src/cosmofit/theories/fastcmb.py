@@ -16,7 +16,12 @@ every point, as with ``camb``.
 The spectra are learned as functions of what CAMB is given, read off
 the background as the ``camb`` theory reads it: ``h``, ``omega_b``,
 ``omega_cb``, ``m_nu``, ``N_eff``, ``Omega_k`` and the dark sector's
-own parameters; then ``ln1e10As``, ``n_s`` and ``tau_reio``.
+own parameters; then ``ln1e10As``, ``n_s`` and ``tau_reio``. With a
+dark sector of its own, also ``D_M_star``: the distance to last
+scattering, ``D_M(z = 1090)``. The primary CMB is almost a function of
+it alone among the late-time parameters, and the dark sector's
+parameters trade off against ``h`` along it; given it, the spectra are
+far smoother in them, and much less of CAMB is needed.
 
 fastcmb is optional (``pip install "cosmofit[fast]"``); only a model
 with this theory in it imports it.
@@ -45,10 +50,13 @@ EMULATOR_OPTIONS = {
     "max_train": 800,
     "training_file": None,
     "check_every": 200,
+    "screen_tolerance": 1.0,
 }
 
 _DENSITIES = ("h", "omega_b", "omega_cb", "m_nu", "N_eff")
 _PRIMORDIAL = ("ln1e10As", "n_s", "tau_reio")
+#: Redshift of the distance to last scattering given to the emulator.
+_Z_STAR = 1090.0
 
 
 def _import_fastcmb():
@@ -93,8 +101,19 @@ class FastCMB(CAMB):
         tolerance is learned. While the checks pass the interval
         doubles, up to ten times this. Default 200; 0 never.
 
+    screen_tolerance : float
+        Largest predicted ``ln L`` error of an *approximate* answer,
+        given only while :attr:`screening` is on: a sampler screening a
+        proposal rejects it from that when it is clearly far worse than
+        the current point, and asks again, with screening off, when it
+        is not. Default 1.
+
     :meth:`stats` says how many points CAMB and the emulator computed.
     """
+
+    #: Whether an approximate answer will do (see ``screen_tolerance``);
+    #: set by the sampler around a screening evaluation.
+    screening = False
 
     def initialize(self) -> None:
 
@@ -107,6 +126,9 @@ class FastCMB(CAMB):
         self.fastcmb = _import_fastcmb()
         self.emulator = None
 
+    def get_requirements(self) -> dict:
+        return {**super().get_requirements(), "DM": None}
+
     def _inputs(self, params) -> dict:
 
         d = self.provider.get_background_densities()
@@ -118,6 +140,10 @@ class FastCMB(CAMB):
         for name, value in expansion["sector_params"].items():
             if isinstance(value, numbers.Real):
                 inputs[name] = float(value)
+                inputs["D_M_star"] = None
+
+        if "D_M_star" in inputs:
+            inputs["D_M_star"] = float(self.provider.get_DM(_Z_STAR))
 
         inputs.update({name: float(params[name]) for name in _PRIMORDIAL})
 
@@ -160,10 +186,14 @@ class FastCMB(CAMB):
                 "sigma8_cb": state["sigma8_0"],
             }
 
-        result = self.emulator(self._inputs(params), oracle=camb)
+        loose = self.settings["screen_tolerance"] if self.screening else None
+        result = self.emulator(self._inputs(params), oracle=camb, loose_tolerance=loose)
 
         if result is None:
             return False
+
+        if result.approximate:
+            state["approximate"] = result.error
 
         if not result.emulated:
             # CAMB ran, and filled the state.
@@ -186,6 +216,34 @@ class FastCMB(CAMB):
 
         return True
 
+    def compute(self, params: dict, want_derived: bool = True, upstream: tuple = ()) -> bool:
+
+        # An approximate state is never the answer without screening;
+        # and it is told apart from the exact one in the key that those
+        # reading this theory cache by.
+        if not self.screening:
+            self.drop_approximate()
+
+        ok = super().compute(params, want_derived, upstream)
+
+        if self.approximate_error is not None:
+            self.current_key = (*self.current_key, "approximate")
+
+        return ok
+
+    @property
+    def approximate_error(self) -> float | None:
+        """The predicted ``ln L`` error if the current state is approximate."""
+
+        state = self.current_state
+        return None if state is None else state.get("approximate")
+
+    def drop_approximate(self) -> None:
+        """Forget the approximate states."""
+
+        for key in [k for k, v in self._cache.items() if v is not None and "approximate" in v]:
+            del self._cache[key]
+
     def stats(self) -> dict:
         """
         Points CAMB and the emulator computed (``camb``, ``emulated``),
@@ -193,7 +251,7 @@ class FastCMB(CAMB):
         """
 
         if self.emulator is None:
-            return {"camb": self.n_calculations, "emulated": 0, "training_points": 0,
+            return {"camb": self.n_calculations, "emulated": 0, "approximate": 0, "training_points": 0,
                     "checks": 0, "check_error_median": None, "check_error_max": None}
 
         stats = self.emulator.stats()
