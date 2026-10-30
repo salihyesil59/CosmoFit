@@ -22,6 +22,9 @@ from cosmofit.core import ComponentError, Likelihood, get_model
 
 camb = pytest.importorskip("camb")
 
+#: MGCAMB installed in CAMB's place, with modified gravity.
+MGCAMB = hasattr(camb.CAMBparams, "set_mgparams")
+
 
 class Probe(Likelihood):
 
@@ -468,7 +471,10 @@ def test_asking_for_P_k_leaves_the_rest_alone():
 @pytest.mark.parametrize("sector, params, reason", [
     ("ide", {"w0": -0.9, "xi": 0.05}, "moves energy into matter"),
     ("rvm", {"nu": 0.01}, "moves energy into matter"),
-    ("hu_sawicki", {"f_R0": -1e-5, "n_hs": 1.0}, "gravitational coupling"),
+    pytest.param(
+        "hu_sawicki", {"f_R0": -1e-5, "n_hs": 1.0}, "gravitational coupling",
+        marks=pytest.mark.skipif(MGCAMB, reason="MGCAMB has a model of f(R)"),
+    ),
     ("dgp", {}, "gravitational coupling"),
     ("fq_exponential", {}, "gravitational coupling"),
     ("lscdm", {"z_dagger": 1.8}, "jumps"),
@@ -485,3 +491,51 @@ def test_camb_needs_radiation():
 
     with pytest.raises(ComponentError, match="radiation"):
         model(radiation=False)
+
+
+# ============================================================
+# f(R) through MGCAMB
+# ============================================================
+
+mgcamb_only = pytest.mark.skipif(not MGCAMB, reason="needs MGCAMB in place of CAMB")
+
+
+@mgcamb_only
+def test_f_R0_zero_is_lcdm():
+
+    fr = model("hu_sawicki", f_R0=0.0, n_hs=1.0)
+    lcdm = model()
+    evaluate(fr)
+    evaluate(lcdm)
+
+    # MGCAMB in GR, set explicitly, differs from its defaults by 2e-8.
+    for name in ("tt", "ee", "pp"):
+        np.testing.assert_allclose(
+            fr.theories["camb"].get_Cl()[name][2:], lcdm.theories["camb"].get_Cl()[name][2:],
+            rtol=1e-6,
+        )
+
+
+@mgcamb_only
+@pytest.mark.parametrize("f_R0", [-1e-5, -1e-4])
+@pytest.mark.parametrize("k", [0.05, 0.1])
+def test_f_R_growth_is_the_native_growth(f_R0, k):
+    """
+    MGCAMB's matter power grows from z = 1 to today as the native
+    growth equation does with the sector's own scale-dependent ``mu``
+    -- to 1e-4, where f(R) changes that growth by up to 12%.
+    """
+
+    m = model(
+        "hu_sawicki", growth={"amplitude": "boltzmann", "k": k},
+        needs={"growth_factor": {"z": [1.0]},
+               "Pk_grid": {"z": [0.0, 1.0], "nonlinear": False}},
+        f_R0=f_R0, n_hs=1.0, m_nu=0.0,
+    )
+    evaluate(m)
+
+    kk, _, P = m.provider.get_Pk_grid(nonlinear=False)
+    ratio = np.interp(k * BASE["H0"] / 100.0, kk, P[1] / P[0])
+    D = m.provider.get_growth_factor(np.array([1.0]))[0]
+
+    assert ratio == pytest.approx(D**2, rel=1e-4)
