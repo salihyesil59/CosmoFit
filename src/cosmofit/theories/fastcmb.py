@@ -16,9 +16,10 @@ every point, as with ``camb``.
 The spectra are learned as functions of what CAMB is given, read off
 the background as the ``camb`` theory reads it: ``h``, ``omega_b``,
 ``omega_cb``, ``m_nu``, ``N_eff``, ``Omega_k`` and the dark sector's
-own parameters; then ``ln1e10As``, ``n_s`` and ``tau_reio``. With a
-dark sector of its own, also ``D_M_star``: the distance to last
-scattering, ``D_M(z = 1090)``. The primary CMB is almost a function of
+own parameters (EDE's ``z_c`` as ``log10_z_c``); then ``ln1e10As``,
+``n_s`` and ``tau_reio``. With a dark sector of its own, also
+``D_M_star``: the distance to last scattering, ``D_M(z = 1090)``.
+The primary CMB is almost a function of
 it alone among the late-time parameters, and the dark sector's
 parameters trade off against ``h`` along it; given it, the spectra are
 far smoother in them, and much less of CAMB is needed.
@@ -57,6 +58,10 @@ _DENSITIES = ("h", "omega_b", "omega_cb", "m_nu", "N_eff")
 _PRIMORDIAL = ("ln1e10As", "n_s", "tau_reio")
 #: Redshift of the distance to last scattering given to the emulator.
 _Z_STAR = 1090.0
+#: Dark-sector parameters that span decades, given to the emulator as
+#: their log10: EDE's ``z_c``, whose spectra change far faster near
+#: recombination than at 10^4, and are smooth in its logarithm.
+_LOG_INPUTS = ("z_c",)
 
 
 def _import_fastcmb():
@@ -139,7 +144,10 @@ class FastCMB(CAMB):
 
         for name, value in expansion["sector_params"].items():
             if isinstance(value, numbers.Real):
-                inputs[name] = float(value)
+                if name in _LOG_INPUTS:
+                    inputs[f"log10_{name}"] = math.log10(value)
+                else:
+                    inputs[name] = float(value)
                 inputs["D_M_star"] = None
 
         if "D_M_star" in inputs:

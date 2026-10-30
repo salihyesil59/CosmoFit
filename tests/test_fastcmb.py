@@ -94,3 +94,19 @@ def test_training_points_are_shared_through_the_file(tmp_path):
     assert online.size >= 12
     assert online.ready
 
+
+
+def test_ede_z_c_is_learned_in_its_logarithm():
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = get_model({
+            "theory": {"background": {"dark_energy": "ede"}, "fastcmb": None},
+            "likelihood": {"cmb.planck_lowe": None},
+            "params": {**PARAMS, "f_ede": 0.05, "z_c": 3500.0},
+        })
+        m.logposterior(_points(1, seed=4)[0])
+
+    names = m.theories["fastcmb"].emulator.online.names
+
+    assert "log10_z_c" in names and "z_c" not in names
