@@ -79,7 +79,7 @@ def cmb_support(sector, mgcamb: bool = False) -> tuple[bool, str]:
 
     if overrides("mu") and not (mgcamb and hasattr(sector, "camb_mg_params")):
         hint = (
-            f" MGCAMB has a model of it: install MGCAMB in place of CAMB."
+            " MGCAMB has a model of it: install MGCAMB in place of CAMB."
             if hasattr(sector, "camb_mg_params") else ""
         )
         return False, (
