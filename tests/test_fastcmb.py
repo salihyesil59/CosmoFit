@@ -110,3 +110,37 @@ def test_ede_z_c_is_learned_in_its_logarithm():
     names = m.theories["fastcmb"].emulator.online.names
 
     assert "log10_z_c" in names and "z_c" not in names
+
+
+@pytest.mark.skipif(
+    not hasattr(__import__("camb").CAMBparams, "set_mgparams"),
+    reason="needs MGCAMB in place of CAMB",
+)
+def test_f_R0_is_learned_in_the_logarithm_of_its_size():
+
+    def model(f_R0):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return get_model({
+                "theory": {"background": {"dark_energy": "hu_sawicki"}, "fastcmb": None},
+                "likelihood": {"cmb.planck_lowe": None},
+                "params": {**PARAMS, "f_R0": f_R0, "n_hs": 1.0},
+            })
+
+    m = model(-1e-5)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m.logposterior(_points(1, seed=5)[0])
+
+    online = m.theories["fastcmb"].emulator.online
+    assert "log10_f_R0" in online.names and "f_R0" not in online.names
+    assert online.X[0][online.names.index("log10_f_R0")] == pytest.approx(-5.0)
+
+    # General relativity, f_R0 = 0, is learned at the floor.
+    gr = model(0.0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert gr.logposterior(_points(1, seed=5)[0]).rejected is None
+
+    online = gr.theories["fastcmb"].emulator.online
+    assert online.X[0][online.names.index("log10_f_R0")] == pytest.approx(-12.0)
