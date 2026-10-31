@@ -1087,7 +1087,8 @@ full-shape likelihood, newer `S8` and `H0` measurements and
 `cosmofit install`, and builds the chronometer covariance as Favale et
 al. did. **v2.2.0** rebuilds the graphical interface as tabs in the
 order a fit is made, with quick starts, a pre-flight checklist and a
-guide, and makes it fast. It is on
+guide, and makes it fast. **v2.3.0** adds `fastcmb`, CAMB with an
+emulator in front of it, and Hu-Sawicki f(R) through MGCAMB. It is on
 [PyPI](https://pypi.org/project/cosmofit/) with an
 [API reference](https://salihyesil59.github.io/CosmoFit/). The full
 release history -- what each version changed, and for many of them

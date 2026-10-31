@@ -14,7 +14,15 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v2.3.0
+
+`fastcmb`: CAMB with an emulator in front of it, which answers most
+points in milliseconds and learns the rest while the chain runs --
+for LCDM, dark energy, early dark energy and, with MGCAMB in CAMB's
+place, Hu-Sawicki f(R). The MCMC uses it to reject clearly worse
+proposals without running CAMB, and a new case study fits CPL against
+LCDM with the full Planck likelihoods. `pip install "cosmofit[fast]"`
+now needs `fastcmb>=0.3`.
 
 ### `fastcmb`: CAMB with an emulator in front of it
 
@@ -94,6 +102,28 @@ the proposal moved `w0`, `wa`, `H0` and `Omega_m` independently, two
 chains rejected every slow move for thousands of steps, and `R - 1`
 never fell below 2 for the covariance to be learned. Correlated
 dark-energy parameters want a `covmat` to start from.
+
+### Hu-Sawicki f(R) through MGCAMB
+
+With MGCAMB installed in CAMB's place, the `camb` and `fastcmb`
+theories accept the Hu-Sawicki sector and pass it on (`MG_flag` 3,
+`QSA_flag` 4, `F_R0 = -f_R0`); with plain CAMB such sectors are still
+refused. The CMB growth agrees with the native f(R) growth in tests.
+
+`fastcmb` learns EDE's `z_c` and f(R)'s `f_R0` in the log10 of their
+size, where the spectra change at a steady rate: from a small
+`f_ede`, a chain sampling `log10 z_c` converged in 39 minutes, an
+f(R) chain in 59, each 8x faster than CAMB alone.
+
+### Case study: CPL against LCDM with the full Planck likelihoods
+
+`examples/05-case-studies/cpl_vs_lcdm_full_cmb.ipynb` fits LCDM and
+CPL to Planck 2018 (plik_lite, lowE, lensing), DESI DR2 BAO, cosmic
+chronometers and, in turn, Pantheon+, Union3 and DES-SN5YR (Dovekie),
+with all six LCDM parameters sampled through `fastcmb`. CPL is
+preferred at 2.6, 3.5 and 3.1 sigma; the notebook compares the models
+by AIC and BIC, shows which data carry the signal, and checks the
+emulator against CAMB. The inputs are in `examples/yaml/cpl_vs_lcdm/`.
 
 ## v2.2.0
 

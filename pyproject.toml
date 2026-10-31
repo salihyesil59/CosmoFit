@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cosmofit"
-version = "2.2.0"
+version = "2.3.0"
 
 description = "A modular Python library for cosmological parameter estimation."
 
@@ -171,7 +171,7 @@ cmb = [
 # answers in milliseconds where it is sure of the spectra.
 fast = [
     "camb>=1.5",
-    "fastcmb>=0.2",
+    "fastcmb>=0.3",
 ]
 
 gui = [
