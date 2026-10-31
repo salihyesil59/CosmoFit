@@ -23,6 +23,7 @@ shows one.
 | [`yaml/cpl_bao_sn_cmb.yaml`](yaml/cpl_bao_sn_cmb.yaml) | `w0`–`wa` dark energy against DESI DR2, DES-SN5YR and the Planck distance priors. |
 | [`yaml/lcdm_fisher.yaml`](yaml/lcdm_fisher.yaml) | The ΛCDM fit by its Fisher matrix, in a few dozen evaluations, written as a covmat an MCMC can start from. |
 | [`yaml/lcdm_post_sh0es.yaml`](yaml/lcdm_post_sh0es.yaml) | The ΛCDM chains reweighted by the SH0ES `H0`, without sampling again. |
+| [`yaml/cpl_vs_lcdm/`](yaml/cpl_vs_lcdm/) | ΛCDM and CPL against the full Planck 2018 likelihoods (through the `fastcmb` emulator), DESI DR2, cosmic chronometers and each of Pantheon+, Union3 and DES-SN5YR: six runs, the inputs of `cpl_vs_lcdm_full_cmb.ipynb`. |
 
 A `Fitter` from the notebooks becomes such an input with
 `fit.to_info()`.
@@ -72,6 +73,7 @@ Longer analyses, each posing a real research question.
 | [`lscdm_mcmc.ipynb`](05-case-studies/lscdm_mcmc.ipynb) | Does Akarsu et al.'s **ΛsCDM** — a cosmological constant that switches sign at z† — still relieve the H₀ tension against 2024–2025 data? Includes the profile likelihood over z† that locates the answer. |
 | [`s8_tension_cmb.ipynb`](05-case-studies/s8_tension_cmb.ipynb) | The **S₈ tension from the CMB side**: the full Planck 2018 spectrum computed from scratch, σ₈ *derived* rather than fitted, confronted with KiDS-1000 and DES Y3. |
 | [`dark_energy_evidence_audit.ipynb`](05-case-studies/dark_energy_evidence_audit.ipynb) | **How much of the dark-energy evidence is a choice?** The same comparison across 20 combinations of BAO set, supernova compilation, and whether `r_d` is computed or fitted. |
+| [`cpl_vs_lcdm_full_cmb.ipynb`](05-case-studies/cpl_vs_lcdm_full_cmb.ipynb) | **CPL against ΛCDM with the CMB computed, not compressed**: all six ΛCDM parameters sampled against Planck TT/TE/EE + lowE + lensing, DESI DR2 and chronometers, with each of three SN compilations. AIC, BIC and the likelihood-ratio test, which data carry the signal, `w(z)`, `q(z)` and BAO/SN residuals, and the `fastcmb` emulator checked against CAMB. |
 
 [`cpl_mcmc_tfd42.py`](05-case-studies/cpl_mcmc_tfd42.py) is a plain-script
 version of the CPL analysis — run it with
@@ -84,7 +86,7 @@ version of the CPL analysis — run it with
 
 ## Optional extras
 
-Most notebooks need only the base install. Three need an extra, and say so
+Most notebooks need only the base install. Four need an extra, and say so
 in their setup cell:
 
 | extra | needed by | for |
@@ -92,6 +94,7 @@ in their setup cell:
 | `theory` | `models_from_an_action`, `scalar_field_models` | `sympy`, for deriving Friedmann equations |
 | `evidence` | `evidence_and_model_selection`, `tension_statistics` | `dynesty`, for nested sampling |
 | `cmb` | `cmb_from_scratch`, `dataset_zoo`, `s8_tension_cmb` | `camb`, for the from-scratch CMB spectrum |
+| `fast` | `cpl_vs_lcdm_full_cmb` | `camb` with the `fastcmb` emulator in front of it (plus `getdist`, installed separately) |
 
 ```bash
 pip install "cosmofit[theory,evidence,cmb]"

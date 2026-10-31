@@ -1,0 +1,88 @@
+# CPL, w(a) = w0 + wa (1 - a): the LCDM run's six parameters plus w0, wa,
+# on the same data. Everything else is lcdm_pantheonplus.yaml's.
+#
+# Run from the repository root:
+#   cosmofit run examples/yaml/cpl_vs_lcdm/cpl_pantheonplus.yaml
+
+theory:
+  background:
+    parameterization: physical
+    dark_energy: cpl
+  early_universe:
+  fastcmb:
+    training_file: chains/cpl_vs_lcdm/emu_cpl/cpl
+
+likelihood:
+  cmb.planck_lite:
+    use_low_ell: true
+  cmb.planck_lowe:
+  cmb.planck_lensing:
+  bao.desi:
+    version: desi2025
+  sn.pantheonplus:
+  cc.chronometers:
+    version: favale2023
+
+params:
+  omega_b:
+    prior: {min: 0.005, max: 0.1}
+    ref: {dist: norm, loc: 0.0224, scale: 0.0001}
+    proposal: 0.0001
+    latex: \Omega_\mathrm{b} h^2
+  omega_cdm:
+    prior: {min: 0.001, max: 0.99}
+    ref: {dist: norm, loc: 0.119, scale: 0.001}
+    proposal: 0.0005
+    latex: \Omega_\mathrm{c} h^2
+  H0:
+    prior: {min: 40, max: 100}
+    ref: {dist: norm, loc: 67.0, scale: 0.5}
+    proposal: 0.5
+    latex: H_0
+  tau_reio:
+    prior: {min: 0.01, max: 0.8}
+    ref: {dist: norm, loc: 0.055, scale: 0.006}
+    proposal: 0.005
+    latex: \tau_\mathrm{reio}
+  ln1e10As:
+    prior: {min: 1.61, max: 3.91}
+    ref: {dist: norm, loc: 3.045, scale: 0.01}
+    proposal: 0.01
+    latex: \ln(10^{10} A_\mathrm{s})
+  n_s:
+    prior: {min: 0.8, max: 1.2}
+    ref: {dist: norm, loc: 0.965, scale: 0.004}
+    proposal: 0.003
+    latex: n_\mathrm{s}
+  # --- the two new ones; wide flat priors, as in DESI DR2
+  w0:
+    prior: {min: -3, max: 1}
+    ref: {dist: norm, loc: -0.8, scale: 0.05}
+    proposal: 0.05
+    latex: w_0
+  wa:
+    prior: {min: -3, max: 2}
+    ref: {dist: norm, loc: -0.6, scale: 0.1}
+    proposal: 0.15
+    latex: w_a
+  A_planck:
+    prior: {dist: norm, loc: 1.0, scale: 0.0025}
+    ref: {dist: norm, loc: 1.0, scale: 0.002}
+    proposal: 0.002
+    latex: y_\mathrm{cal}
+  m_nu: 0.06
+  Omega_m: {derived: true, latex: '\Omega_\mathrm{m}'}
+  sigma8: {derived: true, latex: '\sigma_8'}
+  S8: {derived: true, latex: 'S_8'}
+  rdrag: {derived: true, latex: 'r_\mathrm{d}'}
+  thetastar: {derived: true, latex: '\theta_*'}
+
+sampler:
+  mcmc:
+    Rminus1_stop: 0.01
+    chains: 4
+    processes: 4
+    covmat: examples/yaml/cpl_vs_lcdm/cpl_start.covmat        # from an earlier CPL + Planck + DESI run
+    max_time: 21600
+
+output: chains/cpl_vs_lcdm/cpl_pantheonplus

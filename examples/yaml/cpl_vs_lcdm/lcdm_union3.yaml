@@ -1,0 +1,80 @@
+# LCDM as in lcdm_pantheonplus.yaml, with Union3 supernovae in place of Pantheon+.
+# The emulator's training points are shared with the lcdm_pantheonplus.yaml run.
+#
+# Run from the repository root:
+#   cosmofit run examples/yaml/cpl_vs_lcdm/lcdm_union3.yaml
+
+theory:
+  background:
+    parameterization: physical      # sample H0, omega_b, omega_cdm
+  early_universe:                   # r_drag for BAO, theta_* derived
+  fastcmb:
+    training_file: chains/cpl_vs_lcdm/emu_lcdm/lcdm
+
+likelihood:
+  cmb.planck_lite:
+    use_low_ell: true               # the 2 low-l TT bins of plik_lite
+  cmb.planck_lowe:
+  cmb.planck_lensing:
+  bao.desi:
+    version: desi2025               # DR2
+  sn.union3:                         # offset marginalized
+  cc.chronometers:
+    version: favale2023             # 32 H(z), Moresco et al. covariance
+
+params:
+  # --- the six
+  omega_b:
+    prior: {min: 0.005, max: 0.1}
+    ref: {dist: norm, loc: 0.0224, scale: 0.0001}
+    proposal: 0.0001
+    latex: \Omega_\mathrm{b} h^2
+  omega_cdm:
+    prior: {min: 0.001, max: 0.99}
+    ref: {dist: norm, loc: 0.119, scale: 0.001}
+    proposal: 0.0005
+    latex: \Omega_\mathrm{c} h^2
+  H0:
+    prior: {min: 40, max: 100}
+    ref: {dist: norm, loc: 67.5, scale: 0.5}
+    proposal: 0.3
+    latex: H_0
+  tau_reio:
+    prior: {min: 0.01, max: 0.8}
+    ref: {dist: norm, loc: 0.055, scale: 0.006}
+    proposal: 0.005
+    latex: \tau_\mathrm{reio}
+  ln1e10As:
+    prior: {min: 1.61, max: 3.91}
+    ref: {dist: norm, loc: 3.045, scale: 0.01}
+    proposal: 0.01
+    latex: \ln(10^{10} A_\mathrm{s})
+  n_s:
+    prior: {min: 0.8, max: 1.2}
+    ref: {dist: norm, loc: 0.965, scale: 0.004}
+    proposal: 0.003
+    latex: n_\mathrm{s}
+  # --- Planck calibration (nuisance), its usual Gaussian prior
+  A_planck:
+    prior: {dist: norm, loc: 1.0, scale: 0.0025}
+    ref: {dist: norm, loc: 1.0, scale: 0.002}
+    proposal: 0.002
+    latex: y_\mathrm{cal}
+  # --- fixed, as in Planck's base model
+  m_nu: 0.06
+  # --- derived
+  Omega_m: {derived: true, latex: '\Omega_\mathrm{m}'}
+  sigma8: {derived: true, latex: '\sigma_8'}
+  S8: {derived: true, latex: 'S_8'}
+  rdrag: {derived: true, latex: 'r_\mathrm{d}'}
+  thetastar: {derived: true, latex: '\theta_*'}
+
+sampler:
+  mcmc:
+    Rminus1_stop: 0.01
+    chains: 4
+    processes: 4
+    covmat: chains/cpl_vs_lcdm/lcdm_pantheonplus.covmat   # learned by the Pantheon+ run: run it first
+    max_time: 21600                 # 6 h safety stop
+
+output: chains/cpl_vs_lcdm/lcdm_union3
