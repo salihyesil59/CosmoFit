@@ -14,10 +14,12 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
-## Unreleased
+## v2.4.0
 
 The GUI fits the CMB with `fastcmb`, shows a run as it goes, and puts
-each model's numbers at the top of Results.
+each model's numbers at the top of Results. It offers the data
+combinations and model setups papers use, starts each model from the
+data's standard parameters, and computes r_d wherever a CMB meets BAO.
 
 ### The GUI uses `fastcmb`
 
