@@ -387,3 +387,124 @@ def test_a_profile_reaches_the_minimum_a_gradient_method_stops_short_of():
     assert fitter.best_fit_chi2 == pytest.approx(1423.852, abs=0.005)
     assert profile["chi2"][0] == pytest.approx(fitter.best_fit_chi2, abs=0.005)
     assert profile["chi2"][1] == pytest.approx(1431.8, abs=0.2)
+
+
+# ============================================================
+# fastcmb in front of CAMB
+# ============================================================
+
+from cosmofit.compat import best_fit_on_core, fast_info, fitter_to_info  # noqa: E402
+
+
+def without_radiation(fitter):
+    """The fitter's native input, which without radiation has its own chi2."""
+
+    info = fitter_to_info(fitter)
+    info["theory"]["background"] = {**info["theory"]["background"], "radiation": False}
+
+    return info
+
+
+def test_the_core_best_fit_is_the_fitters():
+
+    fitter = lcdm()
+    old_chi2, old_x = fitter.best_fit_chi2, fitter.best_fit_result.x.copy()
+
+    fitter.best_fit_result = None
+    result = quiet(best_fit_on_core, fitter, without_radiation(fitter), seed=0)
+
+    assert fitter.best_fit_result is result
+    assert result.fun == pytest.approx(quiet(fitter.logpost.chi2, result.x))
+    assert result.fun == pytest.approx(old_chi2, abs=0.01)
+    np.testing.assert_allclose(result.x, old_x, rtol=2e-3)
+
+
+def test_the_core_best_fit_comes_back_in_the_fitters_names():
+
+    fitter = quiet(Fitter, **CASES["gcg_renamed"])
+
+    quiet(best_fit_on_core, fitter, without_radiation(fitter), seed=0)
+
+    # The core calls A_s and alpha A_gcg and alpha_gcg.
+    assert list(fitter.best_fit_params) == ["H0", "Omega_m", "A_s", "alpha"]
+    assert fitter.best_fit_chi2 == pytest.approx(
+        quiet(fitter.logpost.chi2, fitter.best_fit_result.x)
+    )
+
+
+def test_a_given_input_is_the_one_sampled():
+
+    fitter = lcdm()
+
+    core = quiet(sample_on_core, fitter, "mcmc", {"Rminus1_stop": 0.1, "max_samples": 400},
+                 seed=1, info=without_radiation(fitter))
+
+    assert "background" in core.model.theories
+    assert "legacy_cosmology" not in core.model.theories
+    assert fitter.sampler.get_chain().shape[2] == 3
+
+
+def test_fastcmb_needs_camb_and_a_model_of_the_library():
+
+    with pytest.raises(ValueError, match="needs CAMB"):
+        fast_info(lcdm())
+
+    class Mine(cosmofit.LCDM):
+        pass
+
+    fitter = quiet(
+        Fitter, model=Mine, datasets=["cc"], free_params=["H0", "Omega_m"],
+        initial={"H0": 68.0, "Omega_m": 0.3},
+    )
+
+    with pytest.raises(ValueError, match="outside the library"):
+        fast_info(fitter)
+
+
+def _lowe(free_params):
+
+    pytest.importorskip("camb")
+    pytest.importorskip("fastcmb")
+
+    return quiet(
+        Fitter, model=cosmofit.LCDM, datasets=["planck_lowe"], free_params=free_params,
+        initial={"H0": 67.36, "Omega_m": 0.3153, "ln1e10As": 3.044, "tau_reio": 0.0544},
+        bounds={"H0": (60.0, 75.0)},
+    )
+
+
+def test_fastcmb_stands_in_for_camb(tmp_path):
+
+    fitter = _lowe(["ln1e10As", "tau_reio"])
+
+    info = fast_info(fitter, training_file=str(tmp_path / "training"))
+
+    assert "camb" not in info["theory"]
+    assert info["theory"]["fastcmb"]["training_file"] == str(tmp_path / "training")
+
+    result = quiet(best_fit_on_core, fitter, info, seed=0)
+
+    # lowE alone: tau to a few thousandths, at the fitter's own chi2.
+    assert result.fun == pytest.approx(quiet(fitter.logpost.chi2, result.x))
+    assert 0.03 < fitter.best_fit_params["tau_reio"] < 0.08
+
+
+def test_fastcmb_chains_come_back_in_the_fitters_order():
+    """
+    The core puts CAMB's parameters first. A full-CMB LCDM fit on the GUI's path
+    showed H0 = 3.06 -- ln1e10As's column under H0's name -- until the
+    chains were put back in the fitter's order.
+    """
+
+    fitter = _lowe(["H0", "ln1e10As", "tau_reio"])
+
+    core = quiet(sample_on_core, fitter, "mcmc", {"Rminus1_stop": 0.5, "max_samples": 200},
+                 seed=1, info=fast_info(fitter))
+
+    assert list(core.names) != fitter.free_params
+
+    samples = fitter.sampler.get_chain(flat=True)
+
+    assert np.all((60 <= samples[:, 0]) & (samples[:, 0] <= 75))     # H0
+    assert np.all((2.5 < samples[:, 1]) & (samples[:, 1] < 3.5))     # ln1e10As
+    assert np.all(samples[:, 2] < 0.2)                                # tau_reio

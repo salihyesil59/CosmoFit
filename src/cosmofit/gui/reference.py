@@ -789,6 +789,7 @@ DATASET_PRESETS = {
     ),
 
     "Dark-energy workhorse (BAO + SNe + CMB priors)": dict(
+        compute_rd=True,
         datasets=["desi", "pantheon", "planck"],
         versions={"desi": "desi2025"},
         note="The combination the w₀–w_a results are argued with. Try "
@@ -796,6 +797,7 @@ DATASET_PRESETS = {
     ),
 
     "The Hubble tension, both sides": dict(
+        compute_rd=True,
         datasets=["desi", "planck", "h0"],
         versions={"desi": "desi2025"},
         note="CMB-anchored data plus the local H₀ measurement. The χ² "
@@ -810,15 +812,146 @@ DATASET_PRESETS = {
              "f(Q), f(R,T) or DGP and free σ₈.",
     ),
 
-    "Full CMB from scratch (slow)": dict(
+    "DESI DR2 + CMB priors + DES-SN5YR": dict(
+        compute_rd=True,
+        datasets=["desi", "planck", "des_sn5yr"],
+        versions={"desi": "desi2025"},
+        note="DESI 2025's strongest case for evolving dark energy "
+             "(about 4σ in w₀–w_a). Swap DES-SN5YR for Union3 or "
+             "Pantheon+ to see how much of it is the supernovae.",
+    ),
+
+    "Late universe only (BAO + SNe + CC)": dict(
+        datasets=["desi", "pantheon", "cc"],
+        versions={"desi": "desi2025"},
+        note="Everything after recombination and nothing from it: the "
+             "expansion history with no early-universe assumption. "
+             "Constrains Ω_m and H₀·r_d; H₀ itself needs r_d.",
+    ),
+
+    "Pre-DESI BAO (SDSS + 6dF/MGS) + Pantheon+ + CMB priors": dict(
+        compute_rd=True,
+        datasets=["sdss_bao", "bao_lowz", "pantheon", "planck"],
+        note="The BOSS/eBOSS-era combination most 2020–2023 papers "
+             "quote -- the baseline to set a DESI result against.",
+    ),
+
+    "Full CMB from scratch": dict(
+        compute_rd=True,
         datasets=["planck_lite", "tau", "desi"],
         versions={"desi": "desi2025"},
-        note="The measured CMB spectra rather than a compression. "
-             "Hours, not minutes -- free n_s, ln10¹⁰A_s and τ too, and "
-             "leave the chain saving on.",
+        cmb=True,
+        note="The measured CMB spectra rather than a compression; free "
+             "n_s, ln10¹⁰A_s and τ too. Minutes with fastcmb emulating "
+             "CAMB, hours without; leave the chain saving on.",
+    ),
+
+    "Planck 2018 baseline (TT,TE,EE + lowE + lensing)": dict(
+        datasets=["planck_lite", "planck_lowe", "planck_lensing"],
+        cmb=True,
+        note="Planck 2018's own headline combination: the six ΛCDM "
+             "parameters from the CMB alone. The reference every other "
+             "result is compared with.",
+    ),
+
+    "Planck 2018 + BAO": dict(
+        compute_rd=True,
+        datasets=["planck_lite", "planck_lowe", "planck_lensing", "sdss_bao", "bao_lowz"],
+        cmb=True,
+        note="Planck's 'TT,TE,EE+lowE+lensing+BAO' -- the BAO break "
+             "the CMB's geometric degeneracy, which is what bounds "
+             "Ω_k, Σm_ν and w.",
+    ),
+
+    "DESI DR2 + CMB (full spectra)": dict(
+        compute_rd=True,
+        datasets=["desi", "planck_lite", "planck_lowe", "planck_lensing"],
+        versions={"desi": "desi2025"},
+        cmb=True,
+        note="DESI 2025's 'DESI + CMB': with ΛCDM it gives the tightest "
+             "Σm_ν bound; with CPL, the w₀–w_a preference without any "
+             "supernovae.",
+    ),
+
+    "DESI DR2 + CMB + DES-SN5YR (full spectra)": dict(
+        compute_rd=True,
+        datasets=["desi", "planck_lite", "planck_lowe", "planck_lensing", "des_sn5yr"],
+        versions={"desi": "desi2025"},
+        cmb=True,
+        note="The full DESI 2025 dark-energy combination, the CMB "
+             "computed rather than compressed. Pair it with CPL.",
+    ),
+
+    "S₈ tension: CMB vs. weak lensing": dict(
+        datasets=["planck_lite", "planck_lowe", "planck_lensing", "s8"],
+        derive_sigma8=True,
+        cmb=True,
+        note="σ₈ derived from the CMB meets the weak-lensing S₈: the "
+             "χ² by dataset shows the tension. Switch the S₈ version "
+             "(KiDS-Legacy, DES Y3, HSC Y3) on the dataset.",
     ),
 
 }
+
+
+#: Common model setups, each a model and the parameters it frees beyond
+#: the baseline -- ``H0``, ``Omega_m`` and what the chosen datasets need
+#: (`state.base_free`). The extensions the literature fits most.
+MODEL_PRESETS = {
+
+    "ΛCDM -- the baseline": dict(
+        model="LCDM", extend=[],
+        note="The six-parameter standard model (with the CMB), or H₀ and "
+             "Ω_m (without). What every extension is measured against.",
+    ),
+
+    "ΛCDM + Ω_k (curvature)": dict(
+        model="LCDM", extend=["Omega_k"],
+        note="Is the universe flat? Needs the CMB with BAO, or the CMB "
+             "priors with BAO and supernovae, to be constrained.",
+    ),
+
+    "ΛCDM + Σm_ν (neutrino mass)": dict(
+        model="LCDM", extend=["m_nu"],
+        note="The sum of the neutrino masses. Only data that see the "
+             "early universe constrain it: the full CMB, or computed r_d.",
+    ),
+
+    "ΛCDM + N_eff (extra radiation)": dict(
+        model="LCDM", extend=["N_eff"],
+        note="Light relics beyond the three neutrinos (3.044 standard), "
+             "and a proposed way to ease the H₀ tension.",
+    ),
+
+    "wCDM (constant w)": dict(
+        model="WCDM", extend=["w0"],
+        note="Dark energy with one equation of state; w = −1 is Λ.",
+    ),
+
+    "w₀w_aCDM / CPL (evolving dark energy)": dict(
+        model="CPL", extend=["w0", "wa"],
+        note="w(a) = w₀ + w_a(1 − a), the model of the DESI 2024–25 "
+             "dark-energy results. ΛCDM is (−1, 0).",
+    ),
+
+    "w₀w_aCDM + Ω_k": dict(
+        model="CPL", extend=["w0", "wa", "Omega_k"],
+        note="Evolving dark energy without assuming flatness: whether "
+             "the w₀–w_a preference survives curvature.",
+    ),
+
+    "f(R) Hu–Sawicki (modified gravity)": dict(
+        model="FRHuSawicki", extend=["f_R0"],
+        note="The standard f(R) test of gravity. Its background is "
+             "ΛCDM's: only growth data (fσ₈, S₈) constrain f_R0.",
+    ),
+
+}
+
+
+#: Of the parameters a dataset makes relevant (`DATASET_PARAMS`), those
+#: a common setup leaves fixed unless it extends the model with them.
+EXTENSION_ONLY_PARAMS = {"N_eff", "m_nu", "A_planck", "Omega_k"}
 
 
 #: Dataset pairs that double-count data if combined -- see README.
@@ -1115,7 +1248,7 @@ QUICK_STARTS = {
              "w₀–w_a plane under Plots shows where ΛCDM's (−1, 0) sits.",
         preset="Dark-energy workhorse (BAO + SNe + CMB priors)",
         model="CPL",
-        free=["H0", "Omega_m", "Omega_b", "w0", "wa", "rd"],
+        free=["H0", "Omega_m", "Omega_b", "w0", "wa"],
         profile="Standard",
     ),
 
@@ -1126,7 +1259,7 @@ QUICK_STARTS = {
              "dataset shows the local H₀ point carrying the tension.",
         preset="The Hubble tension, both sides",
         model="LCDM",
-        free=["H0", "Omega_m", "Omega_b", "rd"],
+        free=["H0", "Omega_m", "Omega_b"],
         profile="Quick look",
     ),
 

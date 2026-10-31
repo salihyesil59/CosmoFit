@@ -781,6 +781,28 @@ class MCMC(Sampler):
             "halves": [(c.index, c.half(self.d)) for c in self.chains],
             "accepted": sum(c.accepted for c in self.chains),
             "proposed": sum(c.proposed for c in self.chains),
+            "theory_calls": self._theory_calls(),
+        }
+
+    def _theory_calls(self) -> dict | None:
+        """
+        How this process's emulated theories (``fastcmb``) answered so
+        far -- ``camb`` and ``emulated`` points, and the proposals
+        screened out -- or ``None`` without one.
+        """
+
+        counts = [
+            t.stats() for t in self.model.theories.values()
+            if hasattr(t, "approximate_error") and callable(getattr(t, "stats", None))
+        ]
+
+        if not counts:
+            return None
+
+        return {
+            "camb": sum(int(c.get("camb", 0)) for c in counts),
+            "emulated": sum(int(c.get("emulated", 0)) for c in counts),
+            "screened": self.n_screened,
         }
 
     def _decide(self, reports, step, clock) -> dict:
@@ -839,10 +861,21 @@ class MCMC(Sampler):
         self._record(entry)
 
         if self.callback is not None:
+
+            extra = {}
+
+            calls = [r["theory_calls"] for r in reports if r.get("theory_calls")]
+
+            if calls:
+                extra["theory_calls"] = {
+                    key: sum(c[key] for c in calls) for key in ("camb", "emulated", "screened")
+                }
+
             self.callback({
                 **entry,
                 "Rminus1_stop": self.options["Rminus1_stop"],
                 "max_samples": self.options["max_samples"],
+                **extra,
             })
 
         return {

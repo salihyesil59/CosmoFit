@@ -407,6 +407,40 @@ def test_screening_rejects_far_proposals_and_keeps_only_exact_points():
     assert np.all(np.abs((mean - MEAN) / SIGMA) < 0.15)
 
 
+class Counting(Approximating):
+    """`Approximating`, counting its answers as the ``fastcmb`` theory does."""
+
+    def stats(self):
+        return {"camb": 7, "emulated": 30, "approximate": 2}
+
+
+def test_progress_counts_an_emulated_theorys_answers():
+
+    info = gaussian_input(Rminus1_stop=0.05, chains=4, processes=2)
+    info["theory"] = {"approx": {"class": Counting}}
+    info["likelihood"] = {"gauss": {"class": OfPoint}}
+
+    seen = []
+    _, sampler = run(info, seed=2, callback=seen.append)
+
+    # Two processes, each with its own theory: their counts added.
+    calls = seen[-1]["theory_calls"]
+    assert calls["camb"] == 14 and calls["emulated"] == 60
+    assert calls["screened"] >= 0
+
+
+def test_progress_has_no_theory_counts_without_an_emulated_theory():
+
+    info = gaussian_input(Rminus1_stop=0.05)
+    info["theory"] = {"approx": {"class": Approximating}}
+    info["likelihood"] = {"gauss": {"class": OfPoint}}
+
+    seen = []
+    run(info, seed=2, callback=seen.append)
+
+    assert seen and all("theory_calls" not in entry for entry in seen)
+
+
 def test_without_screening_nothing_is_screened():
 
     info = gaussian_input(Rminus1_stop=0.05, screen=False)

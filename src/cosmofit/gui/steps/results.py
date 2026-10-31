@@ -11,6 +11,7 @@ reruns that panel, not the page.
 from __future__ import annotations
 
 import json
+import math
 
 import pandas as pd
 import streamlit as st
@@ -22,7 +23,7 @@ from cosmofit.gui.reference import (
     PLOT_LABELS,
 )
 from cosmofit.gui.state import go
-from cosmofit.gui.style import step_header
+from cosmofit.gui.style import badge, step_header
 
 
 def render(plan) -> None:
@@ -49,13 +50,8 @@ def render(plan) -> None:
 
     if flash:
         st.toast(flash, icon="✅")
-        st.success(flash, icon="✅")
 
-    for kind, text in st.session_state.get("fit_messages", ()):
-        if kind == "warning":
-            st.warning(text, icon="⚠️")
-        else:
-            st.info(text, icon="ℹ️")
+    _notes(flash, st.session_state.get("fit_messages", ()))
 
     st.caption(
         f"{', '.join(DATASET_LABELS.get(d, d) for d in fits[0].dataset_names)}  ·  "
@@ -64,6 +60,8 @@ def render(plan) -> None:
             for label, f in zip(labels, fits)
         )
     )
+
+    _headline(fits, labels)
 
     multi = len(fits) >= 2
 
@@ -76,26 +74,16 @@ def render(plan) -> None:
     if multi:
         with next(tabs):
             st.caption(
-                "Lower AIC/BIC is better; a difference below ~2 decides "
-                "nothing, above ~6 is strong. The likelihood-ratio test "
-                "applies only when one model is the other with "
-                "parameters fixed."
+                "Lower AIC/BIC is better: below ~2 decides nothing, above ~6 is strong."
             )
             _comparison(fits, labels)
 
     with next(tabs):
-        st.caption(
-            "The single best point, and how much of its χ² each dataset "
-            "carries -- a dataset far above the others is where a "
-            "tension lives."
-        )
+        st.caption("The best point, and how much of its χ² each dataset carries.")
         _per_model(fits, labels, "bestfit_model_choice", draw._render_best_fit)
 
     with next(tabs):
-        st.caption(
-            "Medians and 68% intervals of the posterior. Check the "
-            "convergence verdict before quoting any of them."
-        )
+        st.caption("Medians and 68% intervals; check the convergence verdict first.")
         _per_model(fits, labels, "posterior_model_choice", draw._render_posterior)
 
     with next(tabs):
@@ -110,6 +98,103 @@ def render(plan) -> None:
 
 
 # ------------------------------------------------------------
+
+def _notes(flash, messages) -> None:
+    """What the run said along the way, in one box -- open if it warned."""
+
+    messages = list(messages)
+
+    if flash:
+        st.success(flash, icon="✅")
+
+    if not messages:
+        return
+
+    warned = any(kind == "warning" for kind, _ in messages)
+
+    with st.expander(f"Notes from the run ({len(messages)})", expanded=warned,
+                     icon="⚠️" if warned else "ℹ️"):
+        for kind, text in messages:
+            if kind == "warning":
+                st.warning(text, icon="⚠️")
+            else:
+                st.info(text, icon="ℹ️")
+
+
+def _rounded(value: float, error: float) -> str:
+    """``value`` to the precision of ``error``: two significant figures of it."""
+
+    if not (math.isfinite(error) and error > 0):
+        return f"{value:.4g}"
+
+    decimals = min(8, max(0, 1 - math.floor(math.log10(error))))
+
+    return f"{value:.{decimals}f}"
+
+
+def _headline(fits, labels) -> None:
+    """
+    One card per model above the tabs: whether it converged, its
+    best-fit χ², and each free parameter's median and 68% interval --
+    what a reader came for, before the panels that explain it.
+    """
+
+    from cosmofit.gui import render as draw
+
+    results = [draw._result(f) for f in fits]
+
+    aic = [r.best_fit.aic() if r.best_fit else None for r in results]
+    bic = [r.best_fit.bic() if r.best_fit else None for r in results]
+
+    multi = len(fits) >= 2
+    columns = st.columns(min(len(fits), 3)) if multi else [st.container()]
+
+    for n, (label, fit, result) in enumerate(zip(labels, fits, results)):
+
+        with columns[n % len(columns)], st.container(border=True):
+
+            if result.mcmc is not None:
+                status = "ok" if result.mcmc.convergence["converged"] else "warn"
+                verdict = "converged" if status == "ok" else "not converged"
+                tag = f'<span class="cf-badge cf-{status}">{verdict}</span>'
+            else:
+                tag = badge("todo")
+
+            st.markdown(f"**{label}** &nbsp; {tag}", unsafe_allow_html=True)
+
+            facts = []
+
+            if result.best_fit is not None:
+                chi2 = result.best_fit.chi2
+                dof = fit.n_data - result.best_fit.ndim
+                facts.append(f"χ²ₘᵢₙ = {chi2:.2f}")
+                if dof > 0:
+                    facts.append(f"χ²/dof = {chi2 / dof:.3f}")
+
+            if multi and None not in aic:
+                facts.append(f"ΔAIC = {aic[n] - min(aic):.2f}")
+                facts.append(f"ΔBIC = {bic[n] - min(bic):.2f}")
+
+            if facts:
+                st.caption("  ·  ".join(facts))
+
+            if result.mcmc is None:
+                continue
+
+            summary = list(result.mcmc.summary.items())
+            per_row = 2 if multi else 4
+
+            for start in range(0, len(summary), per_row):
+
+                cells = st.columns(per_row)
+
+                for cell, (name, s) in zip(cells, summary[start:start + per_row]):
+                    error = min(s["plus"], s["minus"])
+                    cell.metric(name, _rounded(s["median"], error))
+                    cell.caption(
+                        f"+{_rounded(s['plus'], error)} / −{_rounded(s['minus'], error)}"
+                    )
+
 
 def _comparison(fits, labels) -> None:
 
@@ -252,11 +337,7 @@ def _plots(fits, labels, plot_labels) -> None:
 
     from cosmofit.gui import render as draw
 
-    st.caption(
-        "Pick figures to draw; each is drawn once and kept, so "
-        "switching back and forth is instant. ⬇️ saves it in the "
-        "chosen format."
-    )
+    st.caption("Pick figures to draw; each is drawn once and kept. ⬇️ saves it.")
 
     download_format = st.radio(
         "Download format", options=list(PLOT_EXPORT_FORMATS),
@@ -327,7 +408,9 @@ def _grid(names, maker, titles, download_format, prefix) -> None:
     columns = st.columns(2)
 
     for index, name in enumerate(names):
-        with columns[index % 2]:
+        # A card around each figure: they are white, as publication
+        # figures are, and float less on a dark page in a frame.
+        with columns[index % 2], st.container(border=True):
             try:
                 draw._render_cached_figure(
                     maker(name), f"{prefix}:{name}",
@@ -379,7 +462,7 @@ def _take_away(fits, labels) -> None:
         try:
             yaml_input = draw._equivalent_input(
                 fits[0], last["sampler"], dict(last["sampler_options"]),
-                int(last["seed"]),
+                int(last["seed"]), fastcmb=bool(last.get("fastcmb")),
             )
         except Exception as exc:
             yaml_input = None

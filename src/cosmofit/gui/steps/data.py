@@ -20,7 +20,7 @@ from cosmofit.gui.reference import (
     SLOW_DATASETS,
 )
 from cosmofit.gui.state import apply_preset, versions
-from cosmofit.gui.style import next_button, step_header
+from cosmofit.gui.style import fastcmb_toggle, next_button, step_header
 
 
 #: The datasets a from-scratch CMB computation comes with -- the only
@@ -101,15 +101,40 @@ def _presets(plan) -> None:
 
     st.markdown("### Start from a preset")
 
-    selected = set(plan.datasets)
-
     names = list(DATASET_PRESETS)
 
-    for row in range(0, len(names), 3):
+    late = [n for n in names if not DATASET_PRESETS[n].get("cmb")]
+    cmb = [n for n in names if DATASET_PRESETS[n].get("cmb")]
+
+    late_tab, cmb_tab = st.tabs([
+        f"Late universe & CMB priors ({len(late)})",
+        f"Full CMB spectra -- CAMB ({len(cmb)})",
+    ])
+
+    with late_tab:
+        st.caption("Seconds to minutes: distances and growth, the CMB as a compression.")
+        _preset_cards(plan, late, names)
+
+    with cmb_tab:
+        st.caption(
+            "The CMB computed from scratch by CAMB. With fastcmb emulating "
+            "it, minutes; without, hours."
+        )
+        with st.container(border=True):
+            fastcmb_toggle(plan)
+        _preset_cards(plan, cmb, names)
+
+
+def _preset_cards(plan, shown, names) -> None:
+    """``shown`` presets as cards, three to a row; keyed by place in ``names``."""
+
+    selected = set(plan.datasets)
+
+    for row in range(0, len(shown), 3):
 
         columns = st.columns(3)
 
-        for column, name in zip(columns, names[row:row + 3]):
+        for column, name in zip(columns, shown[row:row + 3]):
 
             preset = DATASET_PRESETS[name]
             in_use = set(preset["datasets"]) == selected

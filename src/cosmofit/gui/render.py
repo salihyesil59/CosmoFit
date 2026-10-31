@@ -332,6 +332,7 @@ def _equivalent_script(
     sampler_options: dict,
     burn_in: float,
     seed: int,
+    fastcmb: bool = False,
 ) -> str:
     """
     The Python that reproduces what the page is configured to do.
@@ -349,6 +350,9 @@ def _equivalent_script(
     """
 
     lines = ["from cosmofit import Fitter", "from cosmofit.core import run"]
+
+    if fastcmb:
+        lines.append("from cosmofit.compat import fast_info")
 
     action_specs = [spec for spec in action_specs if spec]
 
@@ -413,8 +417,13 @@ def _equivalent_script(
 
         lines.append(")")
         lines.append("")
-        lines.append("# The same fit as an input for the 2.0 core, which samples it.")
-        lines.append("info = fit.to_info(exact=True)")
+        if fastcmb:
+            lines.append("# The same fit as an input for the 2.0 core, which samples it,")
+            lines.append("# with fastcmb's emulator in front of CAMB.")
+            lines.append("info = fast_info(fit, training_file='chains/fastcmb/training')")
+        else:
+            lines.append("# The same fit as an input for the 2.0 core, which samples it.")
+            lines.append("info = fit.to_info(exact=True)")
         lines.append(f"info['sampler'] = {{{sampler!r}: {dict(sampler_options, seed=seed)!r}}}")
         lines.append("info['output'] = 'chains/cosmofit_run'")
         lines.append("")
@@ -447,7 +456,8 @@ def _equivalent_script(
     return "\n".join(lines)
 
 
-def _equivalent_input(fit: Fitter, sampler: str, sampler_options: dict, seed: int):
+def _equivalent_input(fit: Fitter, sampler: str, sampler_options: dict, seed: int,
+                      fastcmb: bool = False):
     """
     The fit as a YAML input for ``cosmofit run`` -- or ``None`` for a
     model built in this session, which a file cannot name.
@@ -455,12 +465,15 @@ def _equivalent_input(fit: Fitter, sampler: str, sampler_options: dict, seed: in
 
     import yaml
 
-    from cosmofit.compat import _model_reference
+    from cosmofit.compat import _model_reference, fast_info
 
     if not isinstance(_model_reference(fit.model_cls), str):
         return None
 
-    info = fit.to_info(exact=True)
+    if fastcmb:
+        info = fast_info(fit, training_file="chains/fastcmb/training")
+    else:
+        info = fit.to_info(exact=True)
     info["sampler"] = {sampler: dict(sampler_options, seed=int(seed))}
     info["output"] = "chains/cosmofit_run"
 

@@ -27,11 +27,9 @@ _STEP_CARDS = [
 def render(plan) -> None:
 
     st.markdown(
-        "Fit cosmological models to real data -- supernovae, BAO, the "
-        "CMB, cosmic chronometers, growth of structure -- and compare "
-        "them, **without writing code**. Every number on this page comes "
-        "from the CosmoFit library, and every fit can be taken away as a "
-        "Python script or a `cosmofit run` input."
+        "Fit cosmological models to supernovae, BAO, the CMB, cosmic "
+        "chronometers and growth data, and compare them -- **without "
+        "writing code**."
     )
 
     # --------------------------------------------------------
@@ -94,7 +92,17 @@ def render(plan) -> None:
     # Three things worth knowing before the first fit
     # --------------------------------------------------------
 
-    st.markdown("### 💡 Worth knowing")
+    with st.expander("💡 Worth knowing"):
+
+        _tips()
+
+    st.button(
+        "📖 Read the guide: datasets, models, glossary, troubleshooting",
+        key="open_guide", on_click=go, args=("guide",), type="tertiary",
+    )
+
+
+def _tips() -> None:
 
     tips = st.columns(3)
 
@@ -108,10 +116,7 @@ def render(plan) -> None:
     )
     tips[2].markdown(
         "**Your setup travels.** Save it from the sidebar as a file, "
-        "and restore it here or hand it to someone else."
-    )
-
-    st.button(
-        "📖 Read the guide: datasets, models, glossary, troubleshooting",
-        key="open_guide", on_click=go, args=("guide",), type="tertiary",
+        "and restore it here or hand it to someone else. Every fit "
+        "can also be taken away as a Python script or a `cosmofit "
+        "run` input."
     )

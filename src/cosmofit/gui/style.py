@@ -61,12 +61,18 @@ def badge(status: str) -> str:
 
 
 def step_header(step: str) -> None:
-    """A step's title, what to do on it, and why."""
+    """A step's title and what to do on it; why, folded away."""
 
     what, why = STEP_INTROS[step]
 
     st.markdown(f"## {STEPS[step]}")
-    st.info(f"**{what}**\n\n{why}", icon="🧭")
+
+    text_column, why_column = st.columns([4, 1], vertical_alignment="center")
+
+    text_column.caption(what)
+
+    with why_column.popover("Why?", width="stretch"):
+        st.markdown(why)
 
 
 def next_button(step: str, text: str, key: str) -> None:
@@ -76,3 +82,31 @@ def next_button(step: str, text: str, key: str) -> None:
         f"{text}  →", key=key, type="primary", width="stretch",
         on_click=go, args=(step,),
     )
+
+
+def fastcmb_toggle(plan) -> None:
+    """
+    The box that puts fastcmb in front of CAMB -- on the Data tab, by
+    the CMB presets, and on the Run tab. Both are the same setting.
+    """
+
+    blocker = plan.fastcmb_blocker
+
+    st.toggle(
+        "⚡ Emulate CAMB with fastcmb", key="mcmc_fastcmb",
+        persist_state="session", disabled=blocker is not None,
+        help="An emulator of CAMB answers most points in milliseconds "
+             "and learns the rest as the chains run: CAMB still computes "
+             "every point the emulator is unsure of, and every few "
+             "hundred points to check it. Minutes instead of hours for "
+             "a full-CMB fit. The emulator's CAMB points are kept in "
+             "the chains folder, so the next fit of the same model "
+             "starts from them.",
+    )
+
+    if blocker is not None:
+        st.caption(f"Not available: {blocker}")
+    elif not plan.fastcmb:
+        st.caption("Off: CAMB computes every point -- expect hours for a full-CMB fit.")
+    else:
+        st.caption("On: the CMB spectra come from the emulator, checked against CAMB.")

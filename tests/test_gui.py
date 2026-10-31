@@ -386,7 +386,7 @@ def test_model_that_cannot_do_cmb_spectra_says_so_before_running():
     dropdowns.
     """
 
-    app = _apply_preset(_fresh(), "Full CMB from scratch (slow)")
+    app = _apply_preset(_fresh(), "Full CMB from scratch")
 
     app = _select_model(app, "DGP")
 
@@ -680,7 +680,8 @@ def test_the_fisher_matrix_is_computed_and_compared_to_the_chain():
 
     table = fisher[0]
 
-    assert set(table["Parameter"]) == {"H0", "Omega_m"}
+    # BAO without a computed r_d: r_d is free beside H0 and Omega_m.
+    assert set(table["Parameter"]) == {"H0", "Omega_m", "rd"}
 
     assert (table["Fisher σ"] > 0).all()
 
@@ -1542,3 +1543,147 @@ def test_the_page_starts_without_sympy():
     )
 
     assert out.stdout.strip() == "False", out.stdout + out.stderr
+
+
+# ============================================================
+# fastcmb, and the Results summary
+# ============================================================
+
+def _fastcmb_toggles(app: AppTest) -> list:
+    return [t for t in app.toggle if "fastcmb" in t.label]
+
+
+def test_fastcmb_is_offered_only_where_camb_runs():
+    """
+    The emulator stands in for CAMB: with distances alone there is no
+    CAMB to stand in for, and the box would only be noise.
+    """
+
+    app = _goto(_apply_preset(_fresh(), "Late-time background (default)"), "run")
+
+    assert not _fastcmb_toggles(app)
+
+    app = _goto(_apply_preset(app, "Full CMB from scratch"), "run")
+
+    toggles = _fastcmb_toggles(app)
+
+    assert len(toggles) == 1
+
+    from cosmofit.gui.state import fastcmb_installed
+
+    # Available exactly when the package is; off says why.
+    assert toggles[0].disabled is not fastcmb_installed()
+
+
+def test_a_fit_is_summarized_above_the_results_tabs():
+    """Each free parameter's median and interval, before any tab is opened."""
+
+    app = _fitted()
+
+    labels = [m.label for m in app.metric]
+
+    for name in ("H0", "Omega_m"):
+        assert name in labels, labels
+
+    assert any("χ²ₘᵢₙ" in c.value for c in app.caption)
+
+
+# ============================================================
+# Common setups
+# ============================================================
+
+def test_no_dataset_preset_double_counts_or_mismatches_r_d():
+    """
+    A preset is a recommendation: none may combine data that overlap,
+    and none may fit r_d freely beside a CMB that fixes it -- which
+    the library warns about, and three presets did until the list of
+    common setups was checked against it.
+    """
+
+    import warnings
+
+    from cosmofit import Fitter
+    from cosmofit.gui.reference import BUILTIN_MODELS, DATASET_PRESETS, INCOMPATIBLE_PAIRS
+    from cosmofit.gui.state import _default_rows, base_free
+
+    for name, preset in DATASET_PRESETS.items():
+
+        selected = set(preset["datasets"])
+        assert not [p for p, _ in INCOMPATIBLE_PAIRS if p <= selected], name
+
+        free = base_free(preset["datasets"], bool(preset.get("compute_rd")),
+                         bool(preset.get("derive_sigma8")))
+        rows = _default_rows(BUILTIN_MODELS["LCDM"], free=free)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            Fitter(
+                model=BUILTIN_MODELS["LCDM"], datasets=preset["datasets"],
+                free_params=[r["Parameter"] for r in rows if r["Free"]],
+                initial={r["Parameter"]: r["Initial"] for r in rows},
+                dataset_kwargs={k: {"version": v}
+                                for k, v in (preset.get("versions") or {}).items()} or None,
+                compute_rd=bool(preset.get("compute_rd")),
+                derive_sigma8=bool(preset.get("derive_sigma8")),
+            )
+
+        assert not [w for w in caught if "`rd` is a free parameter" in str(w.message)], name
+
+
+def test_a_common_setup_frees_the_baseline_and_its_extension():
+
+    app = _apply_preset(_fresh(), "DESI DR2 + CMB (full spectra)")
+
+    app = _goto(app, "model")
+
+    picker = [s for s in app.selectbox if s.key == "model_preset_0"][0]
+    app = picker.set_value("w₀w_aCDM / CPL (evolving dark energy)").run()
+
+    app = [b for b in app.button if b.key == "model_preset_load_0"][0].click().run()
+
+    assert not app.exception, [str(e.value) for e in app.exception]
+
+    state = app.session_state
+
+    assert state["model_choice_0"].startswith("CPL ")
+
+    free = {row["Parameter"] for row in state["params_0"] if row["Free"]}
+
+    # r_d computed from the CMB's densities, so not among them.
+    assert free == {"H0", "Omega_m", "Omega_b", "n_s", "ln1e10As", "tau_reio", "w0", "wa"}
+
+
+def test_the_emulator_switch_sits_by_the_cmb_presets():
+
+    app = _goto(_fresh(), "data")
+
+    assert len(_fastcmb_toggles(app)) == 1
+
+
+def test_the_full_cmb_frees_the_standard_six():
+    """
+    Papers fit ΛCDM to the CMB with six parameters; a CMB preset
+    leaves the model with those six, not the two of a distance fit.
+    """
+
+    app = _apply_preset(_fresh(), "Planck 2018 baseline (TT,TE,EE + lowE + lensing)")
+
+    free = {row["Parameter"] for row in app.session_state["params_0"] if row["Free"]}
+
+    assert free == {"H0", "Omega_m", "Omega_b", "n_s", "ln1e10As", "tau_reio"}
+
+
+def test_changing_the_data_keeps_an_extension_ticked_by_hand():
+
+    app = _apply_preset(_fresh(), "Planck 2018 baseline (TT,TE,EE + lowE + lensing)")
+
+    rows = app.session_state["params_0"]
+    app.session_state["params_0"] = [
+        {**row, "Free": row["Free"] or row["Parameter"] == "m_nu"} for row in rows
+    ]
+
+    app = _apply_preset(app.run(), "DESI DR2 + CMB (full spectra)")
+
+    free = {row["Parameter"] for row in app.session_state["params_0"] if row["Free"]}
+
+    assert free == {"H0", "Omega_m", "Omega_b", "n_s", "ln1e10As", "tau_reio", "m_nu"}

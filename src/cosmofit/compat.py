@@ -56,6 +56,7 @@ import numpy as np
 __all__ = [
     "fitter_to_info", "RENAMED", "CoreChains",
     "sample_on_core", "profile_on_core", "fisher_on_core", "evidence_on_core",
+    "fast_info", "best_fit_on_core",
 ]
 
 
@@ -311,7 +312,9 @@ def fitter_to_info(fitter, exact: bool = False) -> dict:
 # figures -- and leaves the calculations to the core. Each function
 # here runs one on `fitter.to_info(exact=True)`, so the numbers are the
 # fitter's own model and likelihoods, and hands the result back in the
-# shape the fitter's own method returned.
+# shape the fitter's own method returned. With CMB spectra to compute,
+# `fast_info` writes the native input with fastcmb in front of CAMB
+# instead, and `best_fit_on_core` and `sample_on_core(info=...)` run it.
 
 
 class CoreChains:
@@ -437,19 +440,118 @@ class CoreChains:
 
 
 def _core_info(fitter, sampler: str, options: dict | None, centre=None) -> dict:
+    return _finish_info(fitter_to_info(fitter, exact=True), sampler, options, centre)
 
-    info = fitter_to_info(fitter, exact=True)
+
+def _finish_info(info: dict, sampler: str, options: dict | None, centre=None,
+                 rename: dict | None = None) -> dict:
+    """``info`` (a copy), started at ``centre`` and with ``sampler`` in it."""
+
+    import copy
+
+    info = copy.deepcopy(info)
+    rename = rename or {}
 
     # Start the core where the fitter has already been -- its best fit
     # -- rather than at its initial values.
     for name, value in (centre or {}).items():
-        declaration = info["params"].get(name)
+        declaration = info["params"].get(rename.get(name, name))
         if isinstance(declaration, dict) and isinstance(declaration.get("ref"), dict):
             declaration["ref"]["loc"] = float(value)
 
     info["sampler"] = {sampler: dict(options or {})}
 
     return info
+
+
+def _renamed(fitter) -> dict:
+    """The fitter's parameter names as the native input spells them."""
+
+    return RENAMED.get(_builtin_name(fitter.model_cls) or "", {})
+
+
+def fast_info(fitter, training_file: str | None = None) -> dict:
+    """
+    The native input of ``fitter`` (:func:`fitter_to_info`) with its
+    ``camb`` theory replaced by ``fastcmb`` -- the same options, and an
+    emulator in front of CAMB (:mod:`cosmofit.theories.fastcmb`).
+
+    The fitter's own classes (``exact=True``) call CAMB inside their
+    likelihoods, where no emulator can stand in front of it; hence the
+    native theories, whose ``chi2`` differs from the fitter's by the
+    late-time radiation alone (see the module docstring).
+
+    ``training_file`` keeps the emulator's CAMB points, so that parallel
+    chains share them and the next run of the same model starts from
+    them.
+
+    Raises
+    ------
+    ValueError
+        If no dataset of the fitter needs CAMB, or the model is outside
+        the library (it has no native dark sector for CAMB to read).
+    """
+
+    if _builtin_name(fitter.model_cls) is None:
+        raise ValueError(
+            f"{fitter.model_cls.__name__} is outside the library: CAMB, and "
+            f"so fastcmb, can only compute the library's own models."
+        )
+
+    info = fitter_to_info(fitter)
+
+    if "camb" not in info["theory"]:
+        raise ValueError("None of this fitter's datasets needs CAMB; fastcmb has nothing to do.")
+
+    options = dict(info["theory"].pop("camb") or {})
+
+    if training_file is not None:
+        options["training_file"] = str(training_file)
+
+    info["theory"]["fastcmb"] = options
+
+    return info
+
+
+def best_fit_on_core(fitter, info: dict, restarts: int = 0, seed: int | None = None):
+    """
+    :meth:`~stats.fitter.Fitter.best_fit` on the core input ``info`` --
+    one :func:`fast_info` wrote, so that the many evaluations of the
+    search are the emulator's -- with Nelder-Mead, which a Boltzmann
+    code's noise cannot defeat as it defeats a finite-difference
+    gradient.
+
+    The result becomes ``fitter.best_fit_result`` as the fitter's own
+    would, with its ``fun`` the fitter's ``chi2`` there: one exact
+    evaluation, which also leaves the fitter's likelihoods at the best
+    fit for their per-dataset ``chi2``.
+    """
+
+    from scipy.optimize import OptimizeResult
+
+    from cosmofit.core import run
+
+    rename = _renamed(fitter)
+
+    options = {"method": "Nelder-Mead", "starts": 1 + int(restarts)}
+
+    _, core = run(_finish_info(info, "minimize", options, _best_fit(fitter), rename), seed=seed)
+
+    products = core.products()
+
+    x = np.array([products["point"][rename.get(name, name)] for name in fitter.free_params])
+
+    result = OptimizeResult(
+        x=x,
+        fun=float(fitter.logpost.chi2(x)),
+        success=products["success"],
+        message=products["message"],
+        nfev=products["n_evaluations"],
+    )
+
+    fitter.best_fit_result = result
+
+    return result
 
 
 def _best_fit(fitter) -> dict | None:
@@ -466,7 +568,7 @@ def _needs_camb(fitter) -> bool:
 def sample_on_core(
     fitter, sampler: str = "mcmc", options: dict | None = None, *,
     output: str | None = None, seed: int | None = None, callback=None,
-    burn_in: float = 0.3,
+    burn_in: float = 0.3, info: dict | None = None,
 ):
     """
     Sample ``fitter``'s posterior with the core's ``mcmc`` or ``emcee``
@@ -483,6 +585,11 @@ def sample_on_core(
     burn_in : float
         For ``mcmc``, the fraction of each chain's steps discarded as
         burn-in. ``emcee`` discards two autocorrelation times.
+    info : dict, optional
+        The core input to sample, without its sampler -- one
+        :func:`fast_info` wrote, say. By default the fitter's own
+        classes (``fitter.to_info(exact=True)``). Its free parameters
+        must be the fitter's, in the same order.
 
     Returns
     -------
@@ -492,7 +599,10 @@ def sample_on_core(
     from cosmofit.core import run
     from cosmofit.core.output import Output
 
-    info = _core_info(fitter, sampler, options, _best_fit(fitter))
+    if info is None:
+        info = _core_info(fitter, sampler, options, _best_fit(fitter))
+    else:
+        info = _finish_info(info, sampler, options, _best_fit(fitter), _renamed(fitter))
 
     if output is not None:
 
@@ -504,6 +614,16 @@ def sample_on_core(
     _, core = run(info, seed=seed, callback=callback)
 
     chains = CoreChains.from_sampler(core, output=output)
+
+    # The core samples in its own order -- the native theories' order,
+    # for a given input, not the fitter's -- and the fitter reads its
+    # chain's columns as its free parameters, in its order.
+    rename = _renamed(fitter)
+    names = list(core.names)
+    order = [names.index(rename.get(name, name)) for name in fitter.free_params]
+
+    if order != list(range(len(order))):
+        chains.chain = chains.chain[..., order]
 
     # Read back without a new step: the saved run had met its rule,
     # and the only check made was the one before moving.

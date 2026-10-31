@@ -18,6 +18,7 @@ from cosmofit.gui.reference import (
     MAX_MODELS,
     MODEL_EQUATIONS,
     MODEL_INFO,
+    MODEL_PRESETS,
     theory,
 )
 from cosmofit.gui.helpers import (
@@ -28,6 +29,7 @@ from cosmofit.gui.helpers import (
 from cosmofit.gui.state import (
     MODEL_OPTIONS,
     add_model,
+    apply_model_preset,
     apply_param_edits,
     editor_key,
     remove_model,
@@ -81,6 +83,8 @@ def _slot(slot, plan) -> None:
 
         st.markdown(f"**{slot.label}**" + (" (primary)" if i == 0 and len(plan.slots) > 1 else ""))
 
+        _common_setup(i)
+
         st.selectbox(
             "Cosmology", options=MODEL_OPTIONS,
             key=f"model_choice_{i}", label_visibility="collapsed",
@@ -124,6 +128,37 @@ def _slot(slot, plan) -> None:
         _capabilities(slot)
 
         _parameters(slot)
+
+
+_NO_SETUP = "— pick a common setup —"
+
+
+def _common_setup(i: int) -> None:
+    """
+    The setups the literature fits most, each a model and the
+    parameters it frees, for the datasets already ticked.
+    """
+
+    picker, button = st.columns([4, 1], vertical_alignment="bottom")
+
+    picker.selectbox(
+        "Common setup", options=[_NO_SETUP, *MODEL_PRESETS], key=f"model_preset_{i}",
+        help="Sets the model and ticks its free parameters: H₀ and Ω_m, "
+             "what the chosen datasets need (r_d for BAO, ω_b, n_s, A_s "
+             "and τ for the CMB, σ₈ for growth), and the setup's own "
+             "extension. Pick the datasets first. Everything stays "
+             "editable below.",
+    )
+
+    chosen = MODEL_PRESETS.get(st.session_state.get(f"model_preset_{i}"))
+
+    button.button(
+        "Load", key=f"model_preset_load_{i}", width="stretch", type="primary",
+        disabled=chosen is None, on_click=apply_model_preset, args=(i,),
+    )
+
+    if chosen is not None:
+        st.caption(chosen["note"])
 
 
 # ------------------------------------------------------------

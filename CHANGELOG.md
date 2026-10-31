@@ -14,6 +14,101 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+The GUI fits the CMB with `fastcmb`, shows a run as it goes, and puts
+each model's numbers at the top of Results.
+
+### The GUI uses `fastcmb`
+
+`fastcmb` made full-CMB fits a matter of minutes in Python, but the GUI
+still ran them on the fitter's own classes (`to_info(exact=True)`),
+whose likelihoods call CAMB themselves -- there was nowhere to put an
+emulator in front of it, and the "Full CMB from scratch" preset was
+still labelled *slow*. With a dataset that needs CAMB, the Run tab now
+offers **Emulate CAMB with fastcmb** (on when the package is
+installed). The best fit and the chains then run on the native input
+with `fastcmb` in place of `camb` (`compat.fast_info`): the best fit
+by the core's Nelder-Mead (`compat.best_fit_on_core`), the chains by
+`sample_on_core(info=...)`, the emulator's CAMB points kept in the
+chains folder for the next fit of the same model. A model built in
+the session cannot use it -- CAMB computes only the library's models
+-- and the box says so.
+
+On Planck lite + tau + DESI DR2, LCDM with six free parameters, the
+best fit took 94 s from no training points (26 s again, from the CAMB
+points the first one kept), and its `chi2` on the fitter's own
+classes is 603.99. 5 000
+steps of four chains took 3.5 minutes, CAMB running 44 times for
+6 500 emulated points and 13 700 proposals rejected from the emulator
+alone.
+
+That run is also how the GUI's first bug here was found: its summary
+put `H0` at 3.06. The core samples a native input in its own order,
+CAMB's parameters first, and the chains were handed to the fitter
+column by column; `sample_on_core` now puts them back in the fitter's
+order. An input from the fitter's own classes keeps the fitter's
+order, which is why nothing had shown it before.
+
+The MCMC's progress callback now carries `theory_calls` -- CAMB and
+emulated points, and proposals screened out, summed over processes --
+when a theory is emulated.
+
+### A run shows itself as it goes
+
+Below the progress bar, every check of the chains now shows the steps
+taken, `R - 1` against its target (or steps per autocorrelation time
+for emcee), the acceptance, the time elapsed and an upper bound on
+what is left, how much of the CMB the emulator answered, and a chart
+of `log10(R - 1)`. What the emulator did is kept with the run's notes.
+
+### Results open with a summary
+
+Above the Results tabs, a card per model: whether it converged, its
+best-fit `chi2` and `chi2/dof`, `Delta AIC` and `Delta BIC` with
+several models, and each free parameter's median and 68% interval,
+rounded to two figures of its error. The run's warnings and notes are
+gathered into one box, open when one of them is a warning. Figures
+sit in framed cards.
+
+### The setups papers use, one click away
+
+The Data tab's presets now come in two groups -- the late universe
+with the CMB as a compression, and the full CMB spectra -- and the
+second has the fastcmb switch beside it. New presets: DESI DR2 + CMB
+priors + DES-SN5YR; the late universe alone (BAO + SNe + CC); the
+pre-DESI SDSS BAO combination; Planck 2018's own baseline
+(TT,TE,EE + lowE + lensing); Planck 2018 + BAO; DESI DR2 + CMB, with
+and without DES-SN5YR, from the full spectra; and the S8 tension, with
+sigma8 derived from the CMB.
+
+The Model tab has a **Common setup** box per model: LCDM, LCDM + Omega_k,
++ Sum m_nu, + N_eff, wCDM, w0waCDM (CPL), w0waCDM + Omega_k and f(R)
+Hu-Sawicki. It sets the model and frees H0, Omega_m, what the ticked
+datasets need (r_d for BAO, omega_b, n_s, A_s and tau for the CMB,
+sigma8 for growth) and the setup's own extension.
+
+The same baseline is now the default. A model's table used to start
+with H0 and Omega_m free whatever the data, so LCDM on the full CMB
+began with two parameters where papers fit six; it now starts with
+the data's baseline and the model's own parameters (`w0`, `wa` for
+CPL), and choosing a dataset preset re-frees the baseline for the new
+data while keeping an extension ticked by hand.
+
+Building every preset with every setup is how three of the old
+presets were found to be wrong: "Dark-energy workhorse", "The Hubble
+tension" and "Full CMB from scratch" fitted r_d freely beside a CMB
+that fixes the densities it is computed from, which the library warns
+cuts the BAO loose from the CMB's sound horizon. They, and the new
+CMB + BAO presets, now compute r_d. A test builds each preset and
+fails on that warning.
+
+### Shorter tabs
+
+Each tab's two-paragraph guidance box is now a one-line caption with
+the rest behind a **Why?** button; the Start tab's tips fold away. No
+guidance was removed.
+
 ## v2.3.0
 
 `fastcmb`: CAMB with an emulator in front of it, which answers most

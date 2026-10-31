@@ -17,6 +17,7 @@ drawn from them, and its edits are folded back by `apply_param_edits`.
 from __future__ import annotations
 
 import functools
+import importlib.util
 from dataclasses import dataclass, field
 
 import streamlit as st
@@ -28,10 +29,15 @@ from cosmofit.gui.reference import (
     ACTION_CHOICE,
     CUSTOM_CHOICE,
     BUILTIN_MODELS,
+    COMPUTE_RD_PARAMS,
     DATASET_LABELS,
+    DATASET_PARAMS,
     DATASET_PRESETS,
+    EXTENSION_ONLY_PARAMS,
     INCOMPATIBLE_PAIRS,
     MODEL_GROUPS,
+    MODEL_PRESETS,
+    MODEL_STANDARD_PARAMS,
     QUICK_STARTS,
     SAMPLER_PROFILES,
     SAMPLERS,
@@ -102,6 +108,13 @@ def _slot_defaults(i: int) -> dict:
     }
 
 
+@functools.lru_cache(maxsize=None)
+def fastcmb_installed() -> bool:
+    """Whether the optional fastcmb package is there to import."""
+
+    return importlib.util.find_spec("fastcmb") is not None
+
+
 def defaults() -> dict:
     """Every widget's starting value, by key."""
 
@@ -120,6 +133,7 @@ def defaults() -> dict:
         "mcmc_nwalkers": 32,
         "mcmc_seed": 42,
         "mcmc_restarts": 0,
+        "mcmc_fastcmb": fastcmb_installed(),
         "chains_save": True,
         "chains_folder": "chains",
     }
@@ -316,7 +330,7 @@ def param_rows(i: int, choice: str, model_cls) -> list[dict]:
     stored = state.get(f"params_{i}")
 
     if stored is None or state.get(f"params_model_{i}") != choice:
-        rows = _default_rows(model_cls)
+        rows = _default_rows(model_cls, free=_standard_free(choice))
     else:
         previous = {row["Parameter"]: row for row in stored}
         rows = [
@@ -434,6 +448,42 @@ class Plan:
     seed: int
     restarts: int
     chain_dir: str | None
+    #: Whether the fastcmb box is ticked; :attr:`fastcmb` says whether
+    #: it applies.
+    fastcmb_wanted: bool = False
+
+    @property
+    def needs_camb(self) -> bool:
+        """Whether a dataset needs CMB spectra computed by CAMB."""
+
+        from cosmofit.data.metadata import DATASETS
+
+        return any(DATASETS[key].needs_camb for key in self.datasets if key in DATASETS)
+
+    @property
+    def fastcmb_blocker(self) -> str | None:
+        """Why fastcmb cannot stand in for CAMB here, or ``None``."""
+
+        from cosmofit.compat import _builtin_name
+
+        if not self.needs_camb:
+            return "No dataset here needs CAMB."
+
+        if not fastcmb_installed():
+            return 'fastcmb is not installed: pip install "cosmofit[fast]"'
+
+        for slot in self.slots:
+            if slot.model_cls is not None and _builtin_name(slot.model_cls) is None:
+                return (f"{slot.label} ({slot.name}) is not in the library, and "
+                        f"CAMB computes only the library's models.")
+
+        return None
+
+    @property
+    def fastcmb(self) -> bool:
+        """Whether the run emulates CAMB with fastcmb."""
+
+        return self.fastcmb_wanted and self.fastcmb_blocker is None
 
     @property
     def conflicts(self) -> list:
@@ -507,6 +557,12 @@ class Plan:
                          f"{2 * len(slot.free)} walkers for "
                          f"{len(slot.free)} free parameters, not {walkers}",
                 ))
+
+        if self.fastcmb:
+            items.append(dict(
+                state="ok", step="run",
+                text="CMB spectra: fastcmb, an emulator of CAMB checked against it as it runs",
+            ))
 
         return items
 
@@ -586,6 +642,7 @@ def current_plan() -> Plan:
         seed=int(state["mcmc_seed"]),
         restarts=int(state["mcmc_restarts"]),
         chain_dir=folder if state["chains_save"] and folder else None,
+        fastcmb_wanted=bool(state["mcmc_fastcmb"]),
     )
 
 
@@ -658,6 +715,120 @@ def apply_preset(name: str) -> None:
         st.session_state[f"dsver_{key}"] = version
 
     st.session_state["compute_rd"] = bool(preset.get("compute_rd"))
+    st.session_state["derive_sigma8"] = bool(preset.get("derive_sigma8"))
+
+    # The models' baselines follow the data: the full CMB frees the
+    # standard six, BAO frees r_d unless it is computed.
+    for i in range(st.session_state.get("n_models", 1)):
+        _refree(i)
+
+
+def base_free(datasets, compute_rd: bool, derive_sigma8: bool) -> set:
+    """
+    The parameters a common setup frees before its extensions: ``H0``
+    and ``Omega_m``, and what the datasets need sampled -- ``rd`` for
+    BAO, ``Omega_b``, ``n_s``, ``ln1e10As`` and ``tau_reio`` for the CMB,
+    ``sigma8`` for growth -- but not ``N_eff``, ``m_nu``, ``Omega_k`` or
+    ``A_planck``, which are extensions or nuisances held at their
+    standard values.
+    """
+
+    free = {"H0", "Omega_m"}
+
+    for name in datasets:
+        free |= DATASET_PARAMS.get(name, set())
+
+    if compute_rd:
+        free.discard("rd")
+        free |= COMPUTE_RD_PARAMS
+
+    if derive_sigma8:
+        free.discard("sigma8")
+        free.add("ln1e10As")
+
+    return free - EXTENSION_ONLY_PARAMS
+
+
+def _ticked() -> tuple[list, bool, bool]:
+    """The ticked datasets, and whether r_d is computed and σ₈ derived."""
+
+    state = st.session_state
+
+    return (
+        [key for key in DATASET_REGISTRY if state.get(f"ds_{key}")],
+        bool(state.get("compute_rd")),
+        bool(state.get("derive_sigma8")),
+    )
+
+
+def _standard_free(choice: str) -> set | None:
+    """
+    What a fresh table of a library model frees: the baseline for the
+    ticked datasets (`base_free`) and the model's own parameters -- the
+    six of the standard model with the full CMB, ``w0`` and ``wa`` with
+    CPL. ``None`` for a model built here, whose parameters are its own.
+    """
+
+    if choice not in BUILTIN_MODELS:
+        return None
+
+    return base_free(*_ticked()) | MODEL_STANDARD_PARAMS.get(choice, set())
+
+
+def _refree(i: int) -> None:
+    """
+    Model ``i``'s free parameters, after the datasets changed: the new
+    baseline, and of what was free before, the model's own parameters
+    and the extensions (``Omega_k``, ``m_nu``, ``N_eff``) -- so a ``w0``
+    or a neutrino mass ticked by hand survives. Initial values and
+    bounds are kept.
+    """
+
+    state = st.session_state
+
+    choice = OPTION_TO_MODEL.get(state.get(f"model_choice_{i}"))
+    rows = state.get(f"params_{i}")
+
+    if choice not in BUILTIN_MODELS or not rows or state.get(f"params_model_{i}") != choice:
+        return
+
+    model_cls = BUILTIN_MODELS[choice]
+
+    own = (
+        MODEL_STANDARD_PARAMS.get(choice, set())
+        | set(getattr(model_cls, "EXTRA_PARAMS", {}) or {})
+        | EXTENSION_ONLY_PARAMS
+    )
+    derived = set(getattr(model_cls, "DERIVED_PARAMS", ()) or ())
+
+    kept = {row["Parameter"] for row in rows if row["Free"]} & own
+    free = (_standard_free(choice) | kept) - derived
+
+    state[f"params_{i}"] = [{**row, "Free": row["Parameter"] in free} for row in rows]
+    _bump_editor(i)
+
+
+def apply_model_preset(i: int) -> None:
+    """
+    Model ``i`` becomes the common setup picked in its box: the model,
+    and free the baseline for the ticked datasets plus its extensions.
+    """
+
+    state = st.session_state
+    preset = MODEL_PRESETS.get(state.get(f"model_preset_{i}"))
+
+    if not preset:
+        return
+
+    free = base_free(*_ticked())
+
+    model = preset["model"]
+
+    state[f"model_choice_{i}"] = model_option(model)
+    state[f"relevant_only_{i}"] = True
+    state[f"params_{i}"] = _default_rows(BUILTIN_MODELS[model], free=free | set(preset["extend"]))
+    state[f"params_model_{i}"] = model
+    _bump_editor(i)
 
 
 def apply_profile() -> None:

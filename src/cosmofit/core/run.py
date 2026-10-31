@@ -30,7 +30,10 @@ def run(info, seed: int | None = None, callback=None):
         Called with a dict of progress (``steps``, ``Rminus1`` or
         ``tau``, ``acceptance``, ``seconds``, and the stopping
         targets) at every check of a sampler that checks -- for a
-        progress bar. In the first process only.
+        progress bar. In the first process only. With an emulated
+        theory (``fastcmb``), the ``mcmc`` sampler adds
+        ``theory_calls``: points CAMB and the emulator computed, and
+        proposals screened out, over every process.
 
     Returns
     -------

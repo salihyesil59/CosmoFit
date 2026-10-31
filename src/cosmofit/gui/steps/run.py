@@ -5,15 +5,17 @@ waiting for, how long to sample, and the run itself.
 
 from __future__ import annotations
 
+import math
 import os
 import uuid
 import warnings
 
+import pandas as pd
 import streamlit as st
 
 from cosmofit.gui.reference import DATASET_LABELS, SAMPLER_PROFILES, SAMPLERS, STEPS
 from cosmofit.gui.state import apply_profile, go
-from cosmofit.gui.style import CHECK_ICONS, step_header
+from cosmofit.gui.style import CHECK_ICONS, fastcmb_toggle, step_header
 
 
 def render(plan) -> None:
@@ -95,6 +97,9 @@ def _what_will_run(plan) -> None:
             )
         )
 
+    if plan.fastcmb:
+        st.caption("CMB spectra: fastcmb, emulating CAMB")
+
     st.caption("Models")
 
     for slot in plan.slots:
@@ -148,6 +153,9 @@ def _sampler_settings(plan) -> None:
                 f"most {st.session_state['mcmc_nsteps']} steps. Picking a "
                 f"profile resets them."
             )
+
+    if plan.needs_camb:
+        fastcmb_toggle(plan)
 
     with st.expander("Advanced sampler settings"):
 
@@ -267,6 +275,128 @@ def _sampler_settings(plan) -> None:
 
 # ------------------------------------------------------------
 
+class _LivePanel:
+    """
+    What a run shows while it runs: a progress bar, the stage, and at
+    every check of the chains their numbers and a convergence chart.
+    """
+
+    def __init__(self, n_models: int):
+
+        self.n_models = n_models
+        self.bar = st.progress(0.0, text="Starting...")
+        self.metrics = st.empty()
+        self.chart = st.empty()
+        self.history = []
+
+    def stage(self, i: int, done: float, text: str) -> None:
+        self.bar.progress(min(1.0, (i + done) / self.n_models), text=text)
+
+    def new_model(self) -> None:
+        self.history = []
+        self.metrics.empty()
+        self.chart.empty()
+
+    def check(self, entry: dict, i: int, label: str) -> None:
+        """One check of the chains (the core sampler's callback)."""
+
+        steps, seconds = entry["steps"], entry.get("seconds", 0.0)
+        ceiling = max(entry["max_samples"], 1)
+
+        if "Rminus1_stop" in entry:
+            value, target = entry["Rminus1"], entry["Rminus1_stop"]
+            state = f"R − 1 = {value:.3g}, stopping at {target:g}"
+            metric = ("R − 1", f"{value:.3g}", f"target {target:g}")
+            point = math.log10(value) if 0 < value < math.inf else None
+            series = ("log₁₀(R − 1)", "target", math.log10(target))
+        else:
+            tau, factor = entry["tau"], entry["tau_factor"]
+            ratio = steps / tau if tau and math.isfinite(tau) else None
+            state = f"τ = {tau:.3g}"
+            metric = ("Steps / τ", f"{ratio:.1f}" if ratio else "—", f"target {factor:g}")
+            point = ratio
+            series = ("steps / τ", "target", factor)
+
+        self.stage(i, min(1.0, steps / ceiling),
+                   f"Sampling {label} ({i + 1}/{self.n_models}) -- {steps} steps, {state}")
+
+        cells = [
+            ("Steps", f"{steps:,}", f"of at most {ceiling:,}"),
+            metric,
+            ("Acceptance", f"{entry['acceptance']:.0%}", None),
+            ("Elapsed", _duration(seconds), _remaining(steps, ceiling, seconds)),
+        ]
+
+        calls = entry.get("theory_calls")
+
+        if calls:
+            total = calls["camb"] + calls["emulated"]
+            cells.append((
+                "Emulated", f"{calls['emulated'] / max(total, 1):.0%}",
+                f"CAMB ran {calls['camb']:,} times",
+            ))
+
+        with self.metrics.container(border=True):
+            for column, (name, value, note) in zip(st.columns(len(cells)), cells):
+                column.metric(name, value)
+                if note:
+                    column.caption(note)
+
+        if point is not None:
+            self.history.append((steps, point))
+
+        if len(self.history) >= 2:
+            name, target_name, target = series
+            frame = pd.DataFrame(
+                {name: [p for _, p in self.history], target_name: target},
+                index=pd.Index([s for s, _ in self.history], name="steps"),
+            )
+            self.chart.line_chart(frame, height=220, color=["#d1495b", "#808080"])
+
+    def clear(self) -> None:
+        self.bar.empty()
+        self.metrics.empty()
+        self.chart.empty()
+
+
+def _duration(seconds: float) -> str:
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min {seconds % 60:02d} s"
+    return f"{seconds // 3600} h {seconds % 3600 // 60:02d} min"
+
+
+def _remaining(steps: int, ceiling: int, seconds: float) -> str | None:
+    """At most how long is left: the steps to the ceiling, at this pace."""
+
+    if steps <= 0 or seconds <= 0 or steps >= ceiling:
+        return None
+
+    return f"≤ {_duration((ceiling - steps) * seconds / steps)} left"
+
+
+def _emulator_note(label: str, calls: dict | None) -> str | None:
+    """What fastcmb did in a run, for the run's notes."""
+
+    if not calls:
+        return None
+
+    total = calls["camb"] + calls["emulated"]
+
+    if total == 0:
+        return None
+
+    note = (f"{label}: fastcmb answered {calls['emulated'] / total:.1%} of "
+            f"{total:,} points; CAMB ran {calls['camb']:,} times")
+
+    if calls.get("screened"):
+        note += f", and {calls['screened']:,} proposals were rejected from the emulator alone"
+
+    return note + "."
+
+
 def _run(plan) -> None:
     """
     Fit every model, then open the Results tab.
@@ -278,15 +408,16 @@ def _run(plan) -> None:
     """
 
     from cosmofit import Fitter
-    from cosmofit.compat import sample_on_core
+    from cosmofit.compat import best_fit_on_core, fast_info, sample_on_core
 
     from cosmofit.gui.helpers import _picklable
     from cosmofit.gui.render import _fit_labels
 
-    progress_bar = st.progress(0.0, text="Starting...")
+    panel = _LivePanel(len(plan.slots))
 
     fits = []
     messages = []
+    emulated = []   # per model, whether fastcmb stood in for CAMB
 
     n_models = len(plan.slots)
 
@@ -345,34 +476,57 @@ def _run(plan) -> None:
             for entry in caught:
                 messages.append(("warning", f"**Model {i + 1}:** {entry.message}"))
 
-            progress_bar.progress(
-                i / n_models,
-                text=f"Best fit for {model_label} ({i + 1}/{n_models})",
-            )
+            panel.new_model()
+            panel.stage(i, 0.0, f"Best fit for {model_label} ({i + 1}/{n_models})")
+
+            options = dict(plan.sampler_options)
+
+            # fastcmb: the native theories with an emulator in front of
+            # CAMB, for the best fit and the chains alike. Its CAMB
+            # points are kept beside the chains, one file per model,
+            # so the processes share them and the next fit starts
+            # from them.
+            info = None
+
+            if plan.fastcmb:
+                training = None
+                if plan.chain_dir:
+                    folder = os.path.join(plan.chain_dir, "fastcmb")
+                    os.makedirs(folder, exist_ok=True)
+                    training = os.path.join(folder, slot.name)
+                try:
+                    info = fast_info(fit, training_file=training)
+                except ValueError as exc:
+                    messages.append(("info", f"{model_label}: CAMB without fastcmb -- {exc}"))
+                if info is not None and training is None and options.get("processes", 1) > 1:
+                    options["processes"] = 1
+                    messages.append((
+                        "info",
+                        f"{model_label}: one process -- with fastcmb, parallel "
+                        f"chains share the emulator's CAMB points through the "
+                        f"chains folder, and saving chains is off.",
+                    ))
+
+            emulated.append(info is not None)
 
             # The best fit first: the chains start there, which is
             # where the posterior is.
-            fit.best_fit(restarts=plan.restarts)
+            if info is None:
+                fit.best_fit(restarts=plan.restarts)
+            else:
+                best_fit_on_core(fit, info, restarts=plan.restarts, seed=plan.seed)
 
-            def _on_check(entry, _bar=progress_bar, _i=i, _n=n_models,
-                          _label=model_label):
-                done = min(1.0, entry["steps"] / max(entry["max_samples"], 1))
-                if "Rminus1_stop" in entry:
-                    state = (
-                        f"R − 1 = {entry['Rminus1']:.3g}, "
-                        f"stopping at {entry['Rminus1_stop']:g}"
-                    )
-                else:
-                    state = f"τ = {entry['tau']:.3g}"
-                _bar.progress(
-                    (_i + done) / _n,
-                    text=(
-                        f"Sampling {_label} ({_i + 1}/{_n}) -- "
-                        f"{entry['steps']} steps, {state}"
-                    ),
-                )
+            panel.stage(
+                i, 0.0,
+                f"Best fit for {model_label}: χ² = {fit.best_fit_result.fun:.2f}. "
+                f"Starting the chains...",
+            )
 
-            options = dict(plan.sampler_options)
+            last_check = {}
+
+            def _on_check(entry, _i=i, _label=model_label, _last=last_check):
+                _last.update(entry)
+                panel.check(entry, _i, _label)
 
             if options.get("processes", 1) > 1 and not _picklable(slot.model_cls):
                 options["processes"] = 1
@@ -393,6 +547,8 @@ def _run(plan) -> None:
                 identity = {
                     k: v for k, v in options.items() if k in ("chains", "walkers")
                 }
+                if info is not None:
+                    identity["engine"] = "fastcmb"
                 output = os.path.join(
                     plan.chain_dir,
                     fit.chain_id(sampler=plan.sampler_name, seed=plan.seed, **identity),
@@ -401,26 +557,28 @@ def _run(plan) -> None:
 
             sample_on_core(
                 fit, plan.sampler_name, options, output=output, seed=plan.seed,
-                callback=_on_check, burn_in=plan.burn_in,
+                callback=_on_check, burn_in=plan.burn_in, info=info,
             )
 
-            progress_bar.progress(
-                (i + 1) / n_models,
-                text=f"Fitted {model_label} ({i + 1}/{n_models})",
-            )
+            note = _emulator_note(model_label, last_check.get("theory_calls"))
+
+            if note:
+                messages.append(("info", note))
+
+            panel.stage(i, 1.0, f"Fitted {model_label} ({i + 1}/{n_models})")
 
             fits.append((fit, free_params))
 
     except Exception as exc:
         for key in ("fits", "fit_labels", "fit_plot_labels", "last_run"):
             st.session_state.pop(key, None)
-        progress_bar.empty()
+        panel.clear()
         for kind, text in messages:
             getattr(st, kind)(text)
         st.error(f"Fit failed: {exc}", icon="🚫")
         return
 
-    progress_bar.empty()
+    panel.clear()
 
     fitted = [fit for fit, _ in fits]
 
@@ -458,6 +616,7 @@ def _run(plan) -> None:
         sampler_options=dict(plan.sampler_options),
         burn_in=plan.burn_in,
         seed=plan.seed,
+        fastcmb=bool(emulated and emulated[0]),
     )
 
     reused = sum(bool(getattr(f.sampler, "reused", False)) for f in fitted)
