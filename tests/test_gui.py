@@ -1600,16 +1600,23 @@ def test_no_dataset_preset_double_counts_or_mismatches_r_d():
     common setups was checked against it.
     """
 
+    import importlib.util
     import warnings
 
     from cosmofit import Fitter
     from cosmofit.gui.reference import BUILTIN_MODELS, DATASET_PRESETS, INCOMPATIBLE_PAIRS
     from cosmofit.gui.state import _default_rows, base_free
 
+    have_camb = importlib.util.find_spec("camb") is not None
+
     for name, preset in DATASET_PRESETS.items():
 
         selected = set(preset["datasets"])
         assert not [p for p, _ in INCOMPATIBLE_PAIRS if p <= selected], name
+
+        # A full-CMB preset builds its fit only with CAMB to compute it.
+        if preset.get("cmb") and not have_camb:
+            continue
 
         free = base_free(preset["datasets"], bool(preset.get("compute_rd")),
                          bool(preset.get("derive_sigma8")))
