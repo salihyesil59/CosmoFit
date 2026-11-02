@@ -238,6 +238,21 @@ class FRTLinear(DarkSector):
 
         return np.full_like(np.asarray(z, dtype=float), 1.0 + 3.0 * beta)
 
+    def camb_cosmology(self, beta):
+        """
+        The LCDM universe with this one's expansion, for CAMB, as factors
+        on the standard fluids' densities. Each fluid enters ``E^2`` as
+        ``(1 + 3 beta) rho - beta p``: matter scaled by ``1 + 3 beta``,
+        radiation by ``1 + (8/3) beta``, and the cosmological constant
+        by ``1 + 4 beta``, which flatness then gives CAMB by itself.
+
+        The perturbations are then general relativity's with the scaled
+        densities: close to this sector's ``mu = 1 + 3 beta``, but not
+        the same model at the level of the perturbation equations.
+        """
+
+        return {"matter": 1.0 + 3.0 * beta, "radiation": 1.0 + 8.0 * beta / 3.0}
+
     def solve(self, ctx, beta):
 
         def source(z):

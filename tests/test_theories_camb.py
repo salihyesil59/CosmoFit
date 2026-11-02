@@ -494,6 +494,53 @@ def test_camb_needs_radiation():
 
 
 # ============================================================
+# f(R,T) as LCDM with scaled densities
+# ============================================================
+
+@pytest.mark.parametrize("beta, m_nu, rtol", [
+    (0.05, 0.0, 1e-6),
+    (-0.05, 0.0, 1e-6),
+    # The massive neutrino's transition is scaled as radiation.
+    (0.02, 0.06, 2e-5),
+])
+def test_f_R_T_background_is_cambs(beta, m_nu, rtol):
+
+    m = model("frt_linear", needs={"Cl": None, "H": None}, beta=beta, m_nu=m_nu)
+    evaluate(m)
+
+    z = np.array([0.1, 0.5, 1.0, 2.33, 10.0, 1100.0, 1.0e5])
+
+    np.testing.assert_allclose(
+        camb_results(m).hubble_parameter(z), m.provider.get_H(z), rtol=rtol,
+    )
+
+
+def test_f_R_T_at_beta_zero_is_lcdm():
+
+    frt = model("frt_linear", beta=0.0)
+    lcdm = model()
+    evaluate(frt)
+    evaluate(lcdm)
+
+    for name in ("tt", "ee", "pp"):
+        np.testing.assert_allclose(
+            frt.theories["camb"].get_Cl()[name][2:], lcdm.theories["camb"].get_Cl()[name][2:],
+            rtol=1e-6,
+        )
+
+
+def test_f_R_T_without_room_for_the_massive_neutrino_is_rejected():
+
+    m = model("frt_linear", beta=-0.15)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        point = m.logposterior({})
+
+    assert point.rejected == "camb: BoltzmannError"
+
+
+# ============================================================
 # f(R) through MGCAMB
 # ============================================================
 

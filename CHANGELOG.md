@@ -14,6 +14,29 @@ Each entry says what changed and, where it matters more, *how it was
 found out to be wrong* -- a bug that produced a plausible number is
 worth more words than a feature that worked first time.
 
+## Unreleased
+
+### Linear f(R,T) through CAMB, as LCDM with scaled densities
+
+`frt_linear` was refused by the `camb` and `fastcmb` theories: it has
+no dark-energy `w(z)`, and an effective one goes negative for
+`beta < 0`. But its expansion *is* LCDM's with each fluid scaled -- matter
+by `1 + 3 beta`, radiation by `1 + (8/3) beta`, the cosmological
+constant by `1 + 4 beta` -- so CAMB is now given exactly that, through a
+new sector hook, `camb_cosmology`. The baryons stay as they are, cold
+dark matter takes the rest of the matter, and the extra radiation is
+extra neutrino species (with helium from BBN at that `N_eff`).
+
+CAMB's `H(z)` is the native background's to 1e-6 without massive
+neutrinos. The first version, with all the extra matter in cold dark
+matter, was off by 1e-4 at recombination for `beta = 0.02`: the
+neutrino's share counted as matter while it was still relativistic.
+Scaling the massive neutrino as radiation, and leaving cold dark
+matter only what it then lacks, brought that to 1e-5. The
+perturbations are general relativity's with the scaled densities,
+close to the sector's `mu = 1 + 3 beta` but not the same model; the
+full f(R,T) perturbation equations are not in CAMB or MGCAMB.
+
 ## v2.4.0
 
 The GUI fits the CMB with `fastcmb`, shows a run as it goes, and puts

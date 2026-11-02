@@ -24,7 +24,9 @@ now read off the sector's hooks:
   coupling MGCAMB has a model of, given through the sector's
   ``camb_mg_params`` hook (Hu-Sawicki f(R));
 * a modified Friedmann equation or a holographic sector has no
-  ``w(z)`` to give it, and is refused too.
+  ``w(z)`` to give it, and is refused too -- except one whose
+  expansion *is* LCDM's with scaled densities, given through the
+  sector's ``camb_cosmology`` hook (linear f(R,T)).
 
 CAMB is optional (``pip install "cosmofit[cmb]"``); only a model with
 this theory in it imports it.
@@ -38,6 +40,7 @@ import numpy as np
 
 from cosmofit.core.component import ComponentError, Theory
 from cosmofit.cosmology.boltzmann import BoltzmannError, _import_camb
+from cosmofit.cosmology.calculators.sound_horizon import NEFF_STANDARD, NU_ENERGY_FACTOR
 from cosmofit.cosmology.core.constants import Tcmb
 
 from .dark_energy import DarkEnergy
@@ -73,6 +76,10 @@ def cmb_support(sector, mgcamb: bool = False) -> tuple[bool, str]:
 
     cls = type(sector)
     name = sector.name
+
+    # A sector that is LCDM with scaled densities is given as that.
+    if hasattr(sector, "camb_cosmology"):
+        return True, ""
 
     def overrides(hook):
         return getattr(cls, hook) is not getattr(DarkSector, hook)
@@ -326,6 +333,12 @@ class CAMB(Theory):
         sector = expansion["sector"]
         ctx = expansion["context"]
 
+        # A sector that is LCDM with scaled densities (``camb_cosmology``).
+        scale = (
+            sector.camb_cosmology(**expansion["sector_params"])
+            if hasattr(sector, "camb_cosmology") else None
+        )
+
         pars = camb.CAMBparams()
 
         pars.set_cosmology(
@@ -334,6 +347,9 @@ class CAMB(Theory):
             mnu=d["m_nu"], nnu=d["N_eff"], num_massive_neutrinos=1,
             TCMB=Tcmb, tau=tau_reio,
         )
+
+        if scale is not None:
+            self._scale_densities(pars, d, scale)
 
         pars.InitPower.set_params(As=math.exp(ln1e10As) * 1.0e-10, ns=n_s)
 
@@ -353,7 +369,7 @@ class CAMB(Theory):
             # energy's fluid, perturbations included -- is given that.
             pars.DarkEnergy = sector.camb_dark_energy(camb, **expansion["sector_params"])
 
-        elif type(sector) is not DarkEnergy:
+        elif scale is None and type(sector) is not DarkEnergy:
 
             z = 1.0 / _A_TABLE - 1.0
 
@@ -388,6 +404,54 @@ class CAMB(Theory):
         pars.NonLinearModel.set_params(halofit_version=self.halofit_version)
 
         return pars
+
+    def _scale_densities(self, pars, d, scale) -> None:
+        """
+        Scale the standard fluids CAMB was given: matter by
+        ``scale["matter"]``, radiation by ``scale["radiation"]``.
+
+        The baryons stay as they are -- recombination and the acoustic
+        peaks see the real baryon density -- and cold dark matter takes
+        the rest of the matter. The photons are fixed by the CMB
+        temperature, so the extra radiation is extra neutrino species.
+        The massive neutrino is scaled as radiation (its states, at the
+        same mass per state), and cold dark matter makes up what it
+        then lacks as matter: exact for the expansion while it is
+        relativistic and once it is not, and off between by a fraction
+        of order ``(matter - radiation) omega_nu / omega_m`` -- 1e-5 in
+        ``H`` for f(R,T)'s ``beta = 0.02``. Helium is BBN's for the
+        effective ``N_eff``.
+        """
+
+        matter, radiation = scale["matter"], scale["radiation"]
+
+        photons = 1.0 / NU_ENERGY_FACTOR
+        N_eff = radiation * (d["N_eff"] + photons) - photons
+
+        massive = pars.nu_mass_degeneracies[0] * radiation if pars.num_nu_massive else 0.0
+        massless = N_eff - massive
+
+        if massless < 0.0:
+            raise BoltzmannError(
+                f"an effective N_eff of {N_eff:.3g} is less than the massive "
+                f"neutrino's {massive:.3g}."
+            )
+
+        omega_nu = pars.omnuh2
+
+        if pars.num_nu_massive:
+            pars.nu_mass_degeneracies = [massive]
+
+        pars.num_nu_massless = massless
+        pars.omnuh2 = omega_nu * radiation
+        pars.omch2 = matter * (d["omega_cb"] + omega_nu) - d["omega_b"] - pars.omnuh2
+
+        if pars.omch2 <= 0.0:
+            raise BoltzmannError("no cold dark matter is left in the scaled matter.")
+
+        pars.YHe = self.camb.bbn.get_predictor().Y_He(
+            d["omega_b"], N_eff - NEFF_STANDARD,
+        )
 
     def calculate(self, state: dict, want_derived: bool = True, **params):
 
